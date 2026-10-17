@@ -11,7 +11,7 @@ def test_derive_is_deterministic_and_separated():
     assert a == kdf.derive(ms, b"fido2/cred-wrap")
     assert a != kdf.derive(ms, b"fido2/u2f-wrap")
     assert a != kdf.derive(ms, b"fido2/cred-wrap", context=b"x")
-    assert len(kdf.derive(ms, b"backup/id", 16)) == 16
+    assert len(kdf.derive(ms, b"card/serial", 16)) == 16
 
 
 def test_known_answer():
