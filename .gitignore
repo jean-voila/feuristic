@@ -1,0 +1,28 @@
+# build outputs
+/build/
+/dist/
+*.o
+*.a
+*.elf
+*.map
+# python
+__pycache__/
+*.pyc
+.venv/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.hypothesis/
+.coverage
+coverage.xml
+htmlcov/
+# fuzzing
+/tests/fuzz/corpus-out/
+crash-*
+leak-*
+timeout-*
+# editors / OS
+.DS_Store
+.idea/
+.vscode/
+*.swp

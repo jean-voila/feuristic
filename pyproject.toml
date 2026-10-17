@@ -1,0 +1,73 @@
+[project]
+name = "feuristic-dev"
+version = "0.1.0.dev0"
+description = "Host-side tooling and test-suite for the feuristic firmware (Trezor Safe 3)"
+license = "GPL-3.0-only"
+requires-python = ">=3.11"
+dependencies = []
+
+[dependency-groups]
+dev = [
+    "pytest>=8.3",
+    "pytest-cov>=6.0",
+    "pytest-timeout>=2.3",
+    "hypothesis>=6.120",
+    "cryptography>=44",
+    "fido2>=1.2",
+    "segno>=1.6",
+    "pillow>=11",
+    "ruff>=0.8",
+    "mypy>=1.13",
+    "pyserial>=3.5",
+    "cbor2>=5.6",
+]
+
+[tool.uv]
+package = false
+
+[tool.pytest.ini_options]
+testpaths = ["tests/host"]
+addopts = "-ra --strict-markers --timeout=300 --import-mode=importlib"
+markers = [
+    "slow: long-running test (deselect with -m 'not slow')",
+    "emulator: requires a running feuristic emulator",
+    "interop: requires external host tools (gpg, opensc, pcscd)",
+]
+filterwarnings = ["error::DeprecationWarning:feuristic.*"]
+
+[tool.coverage.run]
+source = ["src/feuristic"]
+branch = true
+omit = ["src/feuristic/platform/_backend.py", "src/feuristic/ui/*", "src/feuristic/*/fw_*.py", "src/feuristic/main.py"]
+
+[tool.coverage.report]
+fail_under = 85
+show_missing = true
+skip_covered = true
+
+[tool.ruff]
+line-length = 110
+target-version = "py311"
+src = ["src", "tests", "tools"]
+extend-exclude = ["upstream", "build"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP", "S", "N", "A", "C4", "PIE", "RET", "SIM", "PL"]
+ignore = [
+    "PLR0911", "PLR0912", "PLR0913", "PLR0915", "PLR0917", "PLR2004",  # protocol code is branchy by nature
+    "UP006", "UP007", "UP035", "UP045",                     # keep MicroPython-compatible syntax
+    "S101",                                                 # asserts allowed in tests/debug paths
+    "SIM108", "RET505", "RET506",
+    "PLW0603",                                              # module-level state in firmware singletons
+    "B904",
+    "N818",
+    "B905",                                                 # zip(strict=) unavailable on MicroPython
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["S", "PLC0415", "N802", "N806", "B011"]
+"tools/**" = ["S603", "S607", "T201", "PLC0415"]
+"src/feuristic/**" = ["PLC0415"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["feuristic"]
