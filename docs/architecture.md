@@ -215,7 +215,7 @@ then B (see `feuristic.core.counters`).
 ```
 feuristic/
   platform/        facade + backends (fw: trezor.*, host: cryptography/dicts)
-  core/            cbor, tlv, base32, base45, uri, kdf, store, counters, clock,
+  core/            cbor, tlv, base32, base45, kdf, store, counters, clock, rsa,
                    errors, i18n, policy
   apps/otp/        hotp, totp, accounts, otpauth URI codec
   apps/fido2/      ctaphid framing, ctap1 (U2F), ctap2 (2.1), clientpin, credmgmt,
@@ -223,7 +223,7 @@ feuristic/
   apps/card/       ccid framing, apdu, dispatcher (AID select), openpgp, piv,
                    aes (ISO 7816-8 PSO profile), rng (GET CHALLENGE)
   apps/backup/     envelope (canonical CBOR, PBKDF2, AES-GCM), frames (Base45 QR),
-                   export, restore
+                   export, restore — see docs/protocols/backup-format-v1.md, ADR-0004
   apps/importer/   MSC import session → QR payload → otp / backup
   apps/timesync/   CDC-ACM `TIME 1 <unix>` protocol
   ui/              menu tree, screens, text/number entry, QR display (fw only)

@@ -22,7 +22,6 @@ LABELS = {
     b"fido2/u2f-wrap": "AES-256-GCM key wrapping U2F key handles",
     b"card/aes-nonce-prefix": "per-device prefix mixed into AES-GCM nonces",
     b"card/serial": "OpenPGP/PIV card serial number derivation",
-    b"backup/id": "backup identifier derivation",
     b"device/usb-serial": "USB serial number string",
 }
 
