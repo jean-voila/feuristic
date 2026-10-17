@@ -1,2 +1,6 @@
 # feuristic patch series applied on top of the pinned upstream commit.
 # Managed by tools/upstream.py — do not edit by hand.
+0001-feuristic-link-feuristic-sources-into-the-upstream-t.patch
+0002-feuristic-exclusive-USB-modes-bulk-pipe-class-and-us.patch
+0003-feuristic-UI-menus-with-titles-and-embedded-French-t.patch
+0004-feuristic-firmware-entry-point.patch

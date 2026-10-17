@@ -33,6 +33,7 @@ SYS_PUB_SCHEMA = const(0x00)
 SYS_PUB_INITIALIZED = const(0x01)
 SYS_PUB_LANGUAGE = const(0x02)
 SYS_PUB_AUTOLOCK = const(0x03)
+SYS_PUB_USB_SERIAL = const(0x04)
 
 # --- keys inside FIDO_STATE (protected) ---
 FIDO_STATE_CLIENTPIN = const(0x00)  # Blob A/B: 0x00, 0x01

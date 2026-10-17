@@ -1,0 +1,36 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: feuristic build <build@feuristic.invalid>
+Date: Sat, 17 Oct 2026 07:22:43 +0200
+Subject: [PATCH] feuristic: link feuristic sources into the upstream tree
+
+Relative symlinks give the upstream build access to the feuristic
+MicroPython package (src/feuristic), the feuristic kernel/upymod C code
+(firmware/) and the portable C libraries (lib/) without copying them.
+
+Feuristic-Rationale: single source of truth; upstream build scripts are
+reused unchanged.
+
+diff --git a/core/embed/feuristic b/core/embed/feuristic
+new file mode 120000
+index 0000000000000000000000000000000000000000..168246ceafbbc1b6f089edec53d920c804ac5f72
+--- /dev/null
++++ b/core/embed/feuristic
+@@ -0,0 +1 @@
++../../../../firmware
+\ No newline at end of file
+diff --git a/core/embed/feuristic_lib b/core/embed/feuristic_lib
+new file mode 120000
+index 0000000000000000000000000000000000000000..42892ea045a92fc3dfda67cba812050e5c9c13a2
+--- /dev/null
++++ b/core/embed/feuristic_lib
+@@ -0,0 +1 @@
++../../../../lib
+\ No newline at end of file
+diff --git a/core/src/feuristic b/core/src/feuristic
+new file mode 120000
+index 0000000000000000000000000000000000000000..ab8bda82d811799980f3ecd2ed38a42d6fcef361
+--- /dev/null
++++ b/core/src/feuristic
+@@ -0,0 +1 @@
++../../../../src/feuristic
+\ No newline at end of file

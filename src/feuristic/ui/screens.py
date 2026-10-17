@@ -53,28 +53,38 @@ class NavLayout(ui.Layout):
         self._left_task = fire()
         self._start_task(self._left_task)
 
-    def _handle_button_events(self):
-        button = loop.wait(io.BUTTON)
-        try:
-            while True:
-                event = yield button
-                ev_type, ev_btn = event
-                workflow.idle_timer.touch()
-                if ev_btn == io.BUTTON_RIGHT:
-                    self._right_down = ev_type == io.BUTTON_PRESSED
-                    # both buttons together = validate, never "back"
-                    self._cancel_long_press()
-                elif ev_btn == io.BUTTON_LEFT:
-                    if ev_type == io.BUTTON_PRESSED and not self._right_down:
-                        self._arm_long_press()
-                    else:
-                        self._cancel_long_press()
-                self._event(self.layout.button_event, *event)
-        except ui.Shutdown:
-            return
-        finally:
-            self._cancel_long_press()
-            button.close()
+    def _event(self, event_call, *args):
+        # Button events reach the layout here both from the hardware task and
+        # from the debuglink, so long-press detection lives at this level.
+        if (
+            len(args) == 2
+            and isinstance(args[0], int)
+            and isinstance(args[1], int)
+            and args[0] in (io.BUTTON_PRESSED, io.BUTTON_RELEASED)
+            and args[1] in (io.BUTTON_LEFT, io.BUTTON_RIGHT)
+        ):
+            ev_type, ev_btn = args
+            if ev_btn == io.BUTTON_RIGHT:
+                self._right_down = ev_type == io.BUTTON_PRESSED
+                # both buttons together = validate, never "back"
+                self._cancel_long_press()
+            elif ev_type == io.BUTTON_PRESSED and not self._right_down:
+                self._arm_long_press()
+            else:
+                self._cancel_long_press()
+        return super()._event(event_call, *args)
+
+    def stop(self, _close_all: bool = True) -> None:
+        self._cancel_long_press()
+        super().stop(_close_all)
+
+
+_TIMEOUT = object()
+
+
+async def _timeout(ms: int):
+    await loop.sleep(ms)
+    return _TIMEOUT
 
 
 async def run(layout_ctx, timeout_ms: int = 0, close_others: bool = True):
@@ -87,8 +97,8 @@ async def run(layout_ctx, timeout_ms: int = 0, close_others: bool = True):
     with layout_ctx as obj:
         layout = NavLayout(obj)
         if timeout_ms:
-            result = await loop.race(layout.get_result(), loop.sleep(timeout_ms))
-            if isinstance(result, int):  # the sleep finished first
+            result = await loop.race(layout.get_result(), _timeout(timeout_ms))
+            if result is _TIMEOUT:
                 layout.stop()
                 return None
             return result
@@ -100,7 +110,14 @@ async def run(layout_ctx, timeout_ms: int = 0, close_others: bool = True):
 _PAGE = const(31)  # the Rust carousel holds up to 32 items (1 reserved for "More...")
 
 
-async def menu(title: str, items: list, current: int = 0, back: bool = True):
+async def menu(
+    title: str,
+    items: list,
+    current: int = 0,
+    back: bool = True,
+    timeout_ms: int = 0,
+    close_others: bool = True,
+):
     """Carousel menu. Returns the selected index or ``None`` for back.
 
     Lists longer than the Rust limit are paginated with a "More..." entry.
@@ -116,7 +133,9 @@ async def menu(title: str, items: list, current: int = 0, back: bool = True):
         if back:
             labels.append(t("ui.back"))
         cur = current - offset if 0 <= current - offset < len(page) else 0
-        res = await run(trezorui_api.select_menu(items=labels, current=cur, title=title))
+        res = await run(
+            trezorui_api.select_menu(items=labels, current=cur, title=title), timeout_ms, close_others
+        )
         if res is None or res is trezorui_api.CANCELLED:
             return None
         if not isinstance(res, int):
@@ -140,6 +159,7 @@ async def confirm(
     verb: str | None = None,
     hold: bool = False,
     timeout_ms: int = 0,
+    close_others: bool = True,
 ) -> bool:
     res = await run(
         trezorui_api.confirm_action(
@@ -151,29 +171,47 @@ async def confirm(
             hold=hold,
         ),
         timeout_ms,
+        close_others,
     )
     return res is trezorui_api.CONFIRMED
 
 
 async def confirm_fields(
-    title: str, fields, hold: bool = False, timeout_ms: int = 0, verb: str | None = None
+    title: str,
+    fields,
+    hold: bool = False,
+    timeout_ms: int = 0,
+    verb: str | None = None,
+    close_others: bool = True,
 ) -> bool:
     """Confirm a list of ``(label, value, monospace)`` properties."""
     items = [(label, value, mono) for (label, value, mono) in fields]
     res = await run(
         trezorui_api.confirm_properties(title=title, items=items, hold=hold, verb=verb or t("ui.confirm")),
         timeout_ms,
+        close_others,
     )
     return res is trezorui_api.CONFIRMED
 
 
-async def show_info(title: str, text: str = "", timeout_ms: int = 0) -> None:
-    await run(trezorui_api.show_info(title=title, description=text, time_ms=timeout_ms))
+async def show_info(title: str, text: str = "", timeout_ms: int = 0, close_others: bool = True) -> None:
+    """Information screen. With ``timeout_ms`` it disappears by itself;
+    otherwise it waits for the (both-buttons) OK button."""
+    if timeout_ms:
+        await run(trezorui_api.show_info(title=title, description=text, time_ms=timeout_ms), 0, close_others)
+    else:
+        await run(
+            trezorui_api.show_warning(title=title, button=t("ui.ok"), description=text, allow_cancel=False),
+            0,
+            close_others,
+        )
 
 
 async def show_warning(title: str, text: str = "", button: str | None = None) -> None:
     await run(
-        trezorui_api.show_warning(title=title, button=button or t("ui.ok"), description=text, allow_cancel=False)
+        trezorui_api.show_warning(
+            title=title, button=button or t("ui.ok"), description=text, allow_cancel=False
+        )
     )
 
 

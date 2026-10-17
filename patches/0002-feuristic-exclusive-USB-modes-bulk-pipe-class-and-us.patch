@@ -1,0 +1,370 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: feuristic build <build@feuristic.invalid>
+Date: Sat, 17 Oct 2026 07:26:13 +0200
+Subject: [PATCH] feuristic: exclusive USB modes, bulk-pipe class and
+ usb_set_mode syscall
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+- New syshandles SYSHANDLE_USB_CCID and SYSHANDLE_USB_MSC.
+- Kernel bulk-pipe class (firmware/kernel/usb) for CCID and MSC BOT,
+  with a framed control channel (ZLP/STALL/events) so that all protocol
+  parsing happens in the unprivileged coreapp.
+- firmware/kernel/usb/usb_modes.c replaces the firmware branch of
+  usb_config.c: NORMAL (FIDO HID + CCID [+ debuglink]), TIMESYNC (CDC-ACM)
+  and IMPORT (MSC); feuristic VID/PID and strings; no WebUSB/WinUSB.
+- SYSCALL_USB_SET_MODE / SYSCALL_USB_GET_MODE with verified parameters.
+- Emulator: bulk-pipe interfaces carried as UDP datagrams; usb_start is
+  idempotent and usb_stop no longer unregisters unused handles.
+- trezorio: USBPipe (variable-length frames), usb_set_mode/usb_get_mode.
+
+Feuristic-Rationale: spec §3 (USB architecture), §10.4 (hostile input
+parsed unprivileged).
+
+diff --git a/core/embed/io/usb/build.rs b/core/embed/io/usb/build.rs
+index ee83f8846e0c5d1b180059976eb20d1a64e374e0..4f3dd122ce527958035a5d111270af1a782d6ad6 100644
+--- a/core/embed/io/usb/build.rs
++++ b/core/embed/io/usb/build.rs
+@@ -2,6 +2,8 @@ use xbuild::{CLibrary, Result, bail_unsupported};
+ 
+ pub fn def_module(lib: &mut CLibrary) -> Result<()> {
+     lib.add_include("usb/inc");
++    // feuristic: bulk-pipe class (CCID/MSC) and exclusive USB modes
++    lib.add_include("../feuristic/kernel/usb/inc");
+ 
+     lib.add_define("USE_USB", Some("1"));
+ 
+@@ -23,7 +25,12 @@ pub fn def_module(lib: &mut CLibrary) -> Result<()> {
+     }
+ 
+     if cfg!(feature = "emulator") {
+-        lib.add_sources(["usb/unix/sock.c", "usb/unix/usb.c", "usb/usb_config.c"]);
++        lib.add_sources([
++            "usb/unix/sock.c",
++            "usb/unix/usb.c",
++            "usb/usb_config.c",
++            "../feuristic/kernel/usb/usb_modes.c",
++        ]);
+     } else if cfg!(feature = "mcu_stm32") {
+         lib.add_sources([
+             "usb/stm32/usb_class_hid.c",
+@@ -36,6 +43,8 @@ pub fn def_module(lib: &mut CLibrary) -> Result<()> {
+             "usb/stm32/usbd_ctlreq.c",
+             "usb/stm32/usbd_ioreq.c",
+             "usb/usb_config.c",
++            "../feuristic/kernel/usb/stm32/usb_class_bulk.c",
++            "../feuristic/kernel/usb/usb_modes.c",
+         ]);
+     } else {
+         bail_unsupported!();
+diff --git a/core/embed/io/usb/unix/usb.c b/core/embed/io/usb/unix/usb.c
+index e98844fc10362130908d9623f172b7906b31ad36..b499c366f92fa90ccb21e89efe3db1c280e2bef6 100644
+--- a/core/embed/io/usb/unix/usb.c
++++ b/core/embed/io/usb/unix/usb.c
+@@ -30,6 +30,7 @@
+ 
+ #include <io/unix/sock.h>
+ #include <io/usb.h>
++#include <io/usb_bulk.h>
+ #include <io/usb_hid.h>
+ #include <io/usb_vcp.h>
+ #include <io/usb_webusb.h>
+@@ -44,6 +45,9 @@ typedef enum {
+   USB_IFACE_TYPE_VCP = 1,
+   USB_IFACE_TYPE_HID = 2,
+   USB_IFACE_TYPE_WEBUSB = 3,
++  // feuristic: bulk pipe (CCID / MSC). One UDP datagram carries exactly one
++  // frame as defined in io/usb_bulk.h (opcode/event byte + payload).
++  USB_IFACE_TYPE_BULK = 4,
+ } usb_iface_type_t;
+ 
+ typedef struct {
+@@ -51,10 +55,12 @@ typedef struct {
+   usb_iface_type_t type;
+   uint16_t port;
+   emu_sock_t sock;
+-  uint8_t msg[64];
++  uint8_t msg[USB_BULK_FRAME_MAX];
+   int msg_len;
+ } usb_iface_t;
+ 
++static bool usb_started = false;
++
+ static usb_iface_t usb_ifaces[USBD_MAX_NUM_INTERFACES];
+ 
+ // forward declaration
+@@ -79,13 +85,18 @@ void usb_deinit(void) { usb_stop(); }
+ secbool usb_start(const usb_start_params_t *params) {
+   const char *ip = getenv("TREZOR_UDP_IP");
+ 
++  if (usb_started) {
++    return sectrue;
++  }
++
+   // iterate interfaces
+   for (int i = 0; i < USBD_MAX_NUM_INTERFACES; i++) {
+     usb_iface_t *iface = &usb_ifaces[i];
+     // skip if not HID or WebUSB interface
+     if (iface->type != USB_IFACE_TYPE_HID &&
+         iface->type != USB_IFACE_TYPE_WEBUSB &&
+-        iface->type != USB_IFACE_TYPE_VCP) {
++        iface->type != USB_IFACE_TYPE_VCP &&
++        iface->type != USB_IFACE_TYPE_BULK) {
+       continue;
+     }
+ 
+@@ -96,15 +107,24 @@ secbool usb_start(const usb_start_params_t *params) {
+            NULL);
+   }
+ 
++  usb_started = true;
+   return sectrue;
+ }
+ 
+ void usb_stop(void) {
++  if (!usb_started) {
++    return;
++  }
+   for (int i = 0; i < USBD_MAX_NUM_INTERFACES; i++) {
+     usb_iface_t *iface = &usb_ifaces[i];
++    if (iface->type == USB_IFACE_TYPE_DISABLED) {
++      continue;  // never unregister a handle we did not register
++    }
+     sock_stop(&iface->sock);
+     syshandle_unregister(iface->handle);
++    iface->msg_len = 0;
+   }
++  usb_started = false;
+ }
+ 
+ secbool usb_hid_add(const usb_hid_info_t *info) {
+@@ -146,6 +166,19 @@ secbool usb_vcp_add(const usb_vcp_info_t *info) {
+   return secfalse;
+ }
+ 
++secbool usb_bulk_add(const usb_bulk_info_t *info) {
++  if (info->iface_num < USBD_MAX_NUM_INTERFACES) {
++    usb_iface_t *iface = &usb_ifaces[info->iface_num];
++    if (iface->type == USB_IFACE_TYPE_DISABLED) {
++      iface->type = USB_IFACE_TYPE_BULK;
++      iface->port = info->emu_port;
++      iface->handle = info->handle;
++      return sectrue;
++    }
++  }
++  return secfalse;
++}
++
+ static secbool usb_emulated_poll_read(usb_iface_t *iface) {
+   if (iface->msg_len > 0) {
+     return sectrue;
+@@ -155,7 +188,9 @@ static secbool usb_emulated_poll_read(usb_iface_t *iface) {
+     return secfalse;
+   }
+ 
+-  size_t len = sock_recvfrom(&iface->sock, iface->msg, sizeof(iface->msg));
++  size_t max_len = (iface->type == USB_IFACE_TYPE_BULK) ? sizeof(iface->msg)
++                                                         : USB_PACKET_LEN;
++  size_t len = sock_recvfrom(&iface->sock, iface->msg, max_len);
+   if (!len) {
+     return secfalse;
+   }
+@@ -200,6 +235,10 @@ static int usb_emulated_read(usb_iface_t *iface, uint8_t *buf, uint32_t len) {
+ 
+ static ssize_t usb_emulated_write(usb_iface_t *iface, const uint8_t *buf,
+                                   uint32_t len) {
++  if (iface->type == USB_IFACE_TYPE_BULK &&
++      (len < 1 || len > USB_BULK_FRAME_MAX)) {
++    return -1;
++  }
+   return sock_sendto(&iface->sock, buf, len);
+ }
+ 
+diff --git a/core/embed/io/usb/usb_config.c b/core/embed/io/usb/usb_config.c
+index 48b1497493fc0bb69c27ac5fc9a88cb93975a3dd..fe61f299a0483dd200297f09cbcf0ac833b0e728 100644
+--- a/core/embed/io/usb/usb_config.c
++++ b/core/embed/io/usb/usb_config.c
+@@ -17,7 +17,9 @@
+  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+  */
+ 
+-#ifdef KERNEL_MODE
++// feuristic: the firmware configuration lives in
++// firmware/kernel/usb/usb_modes.c; only bootloader/prodtest use this file.
++#if defined(KERNEL_MODE) && (defined(BOOTLOADER) || defined(TREZOR_PRODTEST))
+ 
+ #include <trezor_bsp.h>
+ #include <trezor_model.h>
+diff --git a/core/embed/rust/src/trezorhal/sysevent.rs b/core/embed/rust/src/trezorhal/sysevent.rs
+index 464c001e1881d9caa8e9eb969c59a7787b4d4663..127b860065c2ebfb5c2de60eccf2926997285aab 100644
+--- a/core/embed/rust/src/trezorhal/sysevent.rs
++++ b/core/embed/rust/src/trezorhal/sysevent.rs
+@@ -32,6 +32,8 @@ pub enum Syshandle {
+     UsbDebug = ffi::syshandle_t_SYSHANDLE_USB_DEBUG as _,
+     UsbWebauthn = ffi::syshandle_t_SYSHANDLE_USB_WEBAUTHN as _,
+     UsbVcp = ffi::syshandle_t_SYSHANDLE_USB_VCP as _,
++    UsbCcid = ffi::syshandle_t_SYSHANDLE_USB_CCID as _,
++    UsbMsc = ffi::syshandle_t_SYSHANDLE_USB_MSC as _,
+     BleIface = ffi::syshandle_t_SYSHANDLE_BLE_IFACE_0 as _,
+     PowerManager = ffi::syshandle_t_SYSHANDLE_POWER_MANAGER as _,
+     Button = ffi::syshandle_t_SYSHANDLE_BUTTON as _,
+diff --git a/core/embed/sys/syscall/inc/sys/syscall_numbers.h b/core/embed/sys/syscall/inc/sys/syscall_numbers.h
+index 6337808061ac6d12f6345db93c6299b8fba8bd14..c2017e396caeadc220f039af41691bd4e1f9410e 100644
+--- a/core/embed/sys/syscall/inc/sys/syscall_numbers.h
++++ b/core/embed/sys/syscall/inc/sys/syscall_numbers.h
+@@ -80,6 +80,8 @@ typedef enum {
+   SYSCALL_USB_STOP,
+   SYSCALL_USB_GET_EVENT,
+   SYSCALL_USB_GET_STATE,
++  SYSCALL_USB_SET_MODE,  // feuristic
++  SYSCALL_USB_GET_MODE,  // feuristic
+ 
+   SYSCALL_SDCARD_POWER_ON,
+   SYSCALL_SDCARD_POWER_OFF,
+diff --git a/core/embed/sys/syscall/stm32/syscall_dispatch.c b/core/embed/sys/syscall/stm32/syscall_dispatch.c
+index 80cb910593b4b8d6a26e78fd2e01f96fb3b99e50..762b50bba8bf291c9ca489bb1bd28fb3d21ea42b 100644
+--- a/core/embed/sys/syscall/stm32/syscall_dispatch.c
++++ b/core/embed/sys/syscall/stm32/syscall_dispatch.c
+@@ -27,6 +27,7 @@
+ #include <io/notify.h>
+ #include <io/translations.h>
+ #include <io/usb.h>
++#include <io/usb_modes.h>
+ #include <sec/boot_image.h>
+ #include <sec/fwutils.h>
+ #include <sec/rng_strong.h>
+@@ -321,6 +322,16 @@ __attribute((no_stack_protector)) void syscall_handler(uint32_t *args,
+       usb_stop();
+     } break;
+ 
++    case SYSCALL_USB_SET_MODE: {
++      usb_mode_t mode = (usb_mode_t)args[0];
++      const usb_start_params_t *params = (const usb_start_params_t *)args[1];
++      args[0] = usb_set_mode__verified(mode, params);
++    } break;
++
++    case SYSCALL_USB_GET_MODE: {
++      args[0] = usb_get_mode();
++    } break;
++
+     case SYSCALL_USB_GET_EVENT: {
+       args[0] = usb_get_event();
+     } break;
+diff --git a/core/embed/sys/syscall/stm32/syscall_stubs.c b/core/embed/sys/syscall/stm32/syscall_stubs.c
+index db76d71bf88732d3471b7bb5b33fe84711912610..15720bbc6c2e9fc8c894f11cce310ce0c59653ab 100644
+--- a/core/embed/sys/syscall/stm32/syscall_stubs.c
++++ b/core/embed/sys/syscall/stm32/syscall_stubs.c
+@@ -267,6 +267,7 @@ void display_refresh(void) { syscall_invoke0(SYSCALL_DISPLAY_REFRESH); }
+ // =============================================================================
+ 
+ #include <io/usb.h>
++#include <io/usb_modes.h>
+ 
+ secbool usb_start(const usb_start_params_t *params) {
+   return (secbool)syscall_invoke1((uint32_t)params, SYSCALL_USB_START);
+@@ -274,6 +275,15 @@ secbool usb_start(const usb_start_params_t *params) {
+ 
+ void usb_stop(void) { syscall_invoke0(SYSCALL_USB_STOP); }
+ 
++secbool usb_set_mode(usb_mode_t mode, const usb_start_params_t *params) {
++  return (secbool)syscall_invoke2((uint32_t)mode, (uint32_t)params,
++                                  SYSCALL_USB_SET_MODE);
++}
++
++usb_mode_t usb_get_mode(void) {
++  return (usb_mode_t)syscall_invoke0(SYSCALL_USB_GET_MODE);
++}
++
+ usb_event_t usb_get_event(void) {
+   return (usb_event_t)syscall_invoke0(SYSCALL_USB_GET_EVENT);
+ }
+diff --git a/core/embed/sys/syscall/stm32/syscall_verifiers.c b/core/embed/sys/syscall/stm32/syscall_verifiers.c
+index 095081a50ec8c09c8126c7e0c6cc0ed5bb8a2371..6aa11a5a6603be11ab0e6321491047527839f8cb 100644
+--- a/core/embed/sys/syscall/stm32/syscall_verifiers.c
++++ b/core/embed/sys/syscall/stm32/syscall_verifiers.c
+@@ -468,6 +468,21 @@ access_violation:
+   return secfalse;
+ }
+ 
++secbool usb_set_mode__verified(usb_mode_t mode,
++                               const usb_start_params_t *params) {
++  if (!probe_read_access(params, sizeof(*params))) {
++    goto access_violation;
++  }
++  // Copy the parameters to kernel memory before using them
++  usb_start_params_t params_copy = *params;
++  params_copy.serial_number[USB_MAX_STR_SIZE] = '\0';
++  return usb_set_mode(mode, &params_copy);
++
++access_violation:
++  apptask_access_violation();
++  return secfalse;
++}
++
+ // ---------------------------------------------------------------------
+ 
+ #ifdef USE_SD_CARD
+diff --git a/core/embed/sys/syscall/stm32/syscall_verifiers.h b/core/embed/sys/syscall/stm32/syscall_verifiers.h
+index 651f7c4735df42faf51410ac697017fcebbcbf12..d8b0f3c1d0a6f76937c8efe047d83f2cf446e2c0 100644
+--- a/core/embed/sys/syscall/stm32/syscall_verifiers.h
++++ b/core/embed/sys/syscall/stm32/syscall_verifiers.h
+@@ -114,11 +114,15 @@ void display_copy_rgb565__verified(const gfx_bitblt_t *bb);
+ 
+ // ---------------------------------------------------------------------
+ #include <io/usb.h>
++#include <io/usb_modes.h>
+ 
+ void usb_get_state__verified(usb_state_t *state);
+ 
+ secbool usb_start__verified(const usb_start_params_t *params);
+ 
++secbool usb_set_mode__verified(usb_mode_t mode,
++                               const usb_start_params_t *params);
++
+ // ---------------------------------------------------------------------
+ 
+ #ifdef USE_SD_CARD
+diff --git a/core/embed/sys/task/inc/sys/sysevent.h b/core/embed/sys/task/inc/sys/sysevent.h
+index 22be67086d10430f263bcfa8654aa2ccf4cf8af1..1e6039671fb2dd577ad1056586af8e1ab8b15b9e 100644
+--- a/core/embed/sys/task/inc/sys/sysevent.h
++++ b/core/embed/sys/task/inc/sys/sysevent.h
+@@ -27,6 +27,8 @@ typedef enum {
+   SYSHANDLE_USB_DEBUG,
+   SYSHANDLE_USB_WEBAUTHN,
+   SYSHANDLE_USB_VCP,
++  SYSHANDLE_USB_CCID,  // feuristic: CCID bulk pipe
++  SYSHANDLE_USB_MSC,   // feuristic: MSC (BOT) bulk pipe
+   SYSHANDLE_BLE_IFACE_0,
+   // SYSHANDLE_BLE_IFACE_N = SYSHANDLE_BLE_IFACE_0 + N - 1,
+   SYSHANDLE_POWER_MANAGER,
+@@ -45,7 +47,7 @@ typedef enum {
+ } syshandle_t;
+ 
+ #define SYSHANDLE_USB_IFACE_MIN SYSHANDLE_USB_WIRE
+-#define SYSHANDLE_USB_IFACE_MAX SYSHANDLE_USB_VCP
++#define SYSHANDLE_USB_IFACE_MAX SYSHANDLE_USB_MSC
+ 
+ /**
+  * @brief Reads data from the specified device
+diff --git a/core/embed/upymod/modtrezorio/modtrezorio.c b/core/embed/upymod/modtrezorio/modtrezorio.c
+index 75db57a81144d4dcfc26aa338bf852f884b17164..19d5334f627d131eb3a72e7de5973f95845c62da 100644
+--- a/core/embed/upymod/modtrezorio/modtrezorio.c
++++ b/core/embed/upymod/modtrezorio/modtrezorio.c
+@@ -50,6 +50,8 @@ uint32_t last_touch_sample_time = 0;
+ // clang-format off
+ #include "modtrezorio-usb.h"
+ #include "modtrezorio-usb-if.h"
++// feuristic: variable-length USB pipes and exclusive USB modes
++#include "../../feuristic/upymod/modtrezorio-usb-pipe.h"
+ // clang-format on
+ #ifdef USE_SD_CARD
+ #include "modtrezorio-fatfs.h"
+@@ -149,6 +151,7 @@ static const mp_rom_map_elem_t mp_module_trezorio_globals_table[] = {
+     {MP_ROM_QSTR(MP_QSTR_USBIF_WIRE), MP_ROM_INT(SYSHANDLE_USB_WIRE)},
+     {MP_ROM_QSTR(MP_QSTR_USBIF_DEBUG), MP_ROM_INT(SYSHANDLE_USB_DEBUG)},
+     {MP_ROM_QSTR(MP_QSTR_USBIF_WEBAUTHN), MP_ROM_INT(SYSHANDLE_USB_WEBAUTHN)},
++    FEURISTIC_TREZORIO_ENTRIES
+ 
+     {MP_ROM_QSTR(MP_QSTR_poll), MP_ROM_PTR(&mod_trezorio_poll_obj)},
+     {MP_ROM_QSTR(MP_QSTR_POLL_READ), MP_ROM_INT(POLL_READ)},

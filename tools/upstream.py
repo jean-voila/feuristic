@@ -141,14 +141,21 @@ def cmd_status(_args: argparse.Namespace) -> None:
 def cmd_check(_args: argparse.Namespace) -> None:
     staged = git("diff", "--cached", "--name-only", cwd=ROOT).splitlines()
     if "upstream/trezor-firmware" in staged:
-        raise SystemExit("refusing: the submodule pointer is staged; feuristic must pin an unmodified upstream commit")
+        raise SystemExit(
+            "refusing: the submodule pointer is staged; feuristic must pin an unmodified upstream commit"
+        )
     print("ok")
 
 
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = ap.add_subparsers(dest="cmd", required=True)
-    for name, fn in (("apply", cmd_apply), ("export", cmd_export), ("status", cmd_status), ("check", cmd_check)):
+    for name, fn in (
+        ("apply", cmd_apply),
+        ("export", cmd_export),
+        ("status", cmd_status),
+        ("check", cmd_check),
+    ):
         sub.add_parser(name).set_defaults(fn=fn)
     args = ap.parse_args()
     args.fn(args)
