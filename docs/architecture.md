@@ -167,8 +167,8 @@ and allocates:
 |---|---|---|
 | `0x10` SYS | protected | master secret, protected settings, app PIN state |
 | `0x90` SYS_PUBLIC | public | language, init flag, storage schema version, autolock |
-| `0x11` OTP | protected | OTP account records (slots 0–33) |
-| `0x91` OTP_COUNTERS | public | HOTP redundant counters (2 keys / account) |
+| `0x11` OTP | protected | OTP account records (slots 0–32, record type 0x01) |
+| `0x91` OTP_COUNTERS | public | HOTP redundant counters: stable index i (0–32) → keys 2i, 2i+1 |
 | `0x12` FIDO_CREDS | protected | discoverable credential records (slots 0–101) |
 | `0x13` FIDO_STATE | protected | clientPIN state, largeBlob array (A/B), misc |
 | `0x14` CARD | protected | OpenPGP identity, PIV slot identities, PIV data objects, AES keys |

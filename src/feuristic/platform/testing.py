@@ -131,3 +131,6 @@ def reset_all() -> None:
     KV.reset()
     CLOCK.ms = 1_000
     set_rng(None)
+    from ..core import clock as _session_clock
+
+    _session_clock.CLOCK.clear()

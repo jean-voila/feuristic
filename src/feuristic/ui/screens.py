@@ -1,0 +1,263 @@
+# SPDX-License-Identifier: GPL-3.0-only
+# Copyright (C) 2026 The feuristic contributors
+"""Device screens built on the upstream Rust layouts (layout_caesar).
+
+Firmware-only module. Navigation rules (spec §9):
+
+* left = previous, right = next, both buttons = validate;
+* a long press on the left button (>= 1 s) = back/cancel;
+* destructive confirmations use hold-to-confirm so that an ambiguous button
+  combination can never silently validate an erase.
+
+Every function is ``async`` and returns plain Python values; ``None`` means
+"back / cancelled / timed out".
+"""
+
+import trezorui_api
+import utime
+from micropython import const
+from trezor import io, loop, ui, workflow
+
+from ..core.i18n import t
+
+LONG_PRESS_MS = const(1000)
+QR_TIMEOUT_MS = const(60_000)
+QR_MAX_BYTES = const(180)  # QR version 9, ECC M, byte mode (upstream renderer limit)
+
+
+class NavLayout(ui.Layout):
+    """Layout adding "long press on the left button = back" (spec §9)."""
+
+    def __init__(self, layout) -> None:
+        super().__init__(layout)
+        self._left_task = None
+        self._right_down = False
+
+    def _cancel_long_press(self) -> None:
+        if self._left_task is not None:
+            loop.close(self._left_task)
+            self.tasks.discard(self._left_task)
+            self._left_task = None
+
+    def _arm_long_press(self) -> None:
+        self._cancel_long_press()
+
+        async def fire() -> None:
+            await loop.sleep(LONG_PRESS_MS)
+            self._left_task = None
+            try:
+                self._emit_message(trezorui_api.CANCELLED)
+            except ui.Shutdown:
+                pass
+
+        self._left_task = fire()
+        self._start_task(self._left_task)
+
+    def _handle_button_events(self):
+        button = loop.wait(io.BUTTON)
+        try:
+            while True:
+                event = yield button
+                ev_type, ev_btn = event
+                workflow.idle_timer.touch()
+                if ev_btn == io.BUTTON_RIGHT:
+                    self._right_down = ev_type == io.BUTTON_PRESSED
+                    # both buttons together = validate, never "back"
+                    self._cancel_long_press()
+                elif ev_btn == io.BUTTON_LEFT:
+                    if ev_type == io.BUTTON_PRESSED and not self._right_down:
+                        self._arm_long_press()
+                    else:
+                        self._cancel_long_press()
+                self._event(self.layout.button_event, *event)
+        except ui.Shutdown:
+            return
+        finally:
+            self._cancel_long_press()
+            button.close()
+
+
+async def run(layout_ctx, timeout_ms: int = 0, close_others: bool = True):
+    """Run a layout to completion and return its raw result.
+
+    With ``timeout_ms`` the layout is closed and ``None`` returned on expiry.
+    """
+    if close_others:
+        workflow.close_others()
+    with layout_ctx as obj:
+        layout = NavLayout(obj)
+        if timeout_ms:
+            result = await loop.race(layout.get_result(), loop.sleep(timeout_ms))
+            if isinstance(result, int):  # the sleep finished first
+                layout.stop()
+                return None
+            return result
+        return await layout.get_result()
+
+
+# --- menus -------------------------------------------------------------------
+
+_PAGE = const(31)  # the Rust carousel holds up to 32 items (1 reserved for "More...")
+
+
+async def menu(title: str, items: list, current: int = 0, back: bool = True):
+    """Carousel menu. Returns the selected index or ``None`` for back.
+
+    Lists longer than the Rust limit are paginated with a "More..." entry.
+    A "Back" entry is appended when ``back`` is True (long press also works).
+    """
+    offset = 0
+    while True:
+        page = items[offset : offset + _PAGE]
+        labels = list(page)
+        has_more = offset + _PAGE < len(items)
+        if has_more:
+            labels.append(t("ui.more"))
+        if back:
+            labels.append(t("ui.back"))
+        cur = current - offset if 0 <= current - offset < len(page) else 0
+        res = await run(trezorui_api.select_menu(items=labels, current=cur, title=title))
+        if res is None or res is trezorui_api.CANCELLED:
+            return None
+        if not isinstance(res, int):
+            return None
+        if res < len(page):
+            return offset + res
+        if has_more and res == len(page):
+            offset += _PAGE
+            if offset >= len(items):
+                offset = 0
+            continue
+        return None  # "Back"
+
+
+# --- confirmations -----------------------------------------------------------
+
+
+async def confirm(
+    title: str,
+    text: str = "",
+    verb: str | None = None,
+    hold: bool = False,
+    timeout_ms: int = 0,
+) -> bool:
+    res = await run(
+        trezorui_api.confirm_action(
+            title=title,
+            action=text or None,
+            description=None,
+            verb=verb or t("ui.confirm"),
+            verb_cancel="",
+            hold=hold,
+        ),
+        timeout_ms,
+    )
+    return res is trezorui_api.CONFIRMED
+
+
+async def confirm_fields(
+    title: str, fields, hold: bool = False, timeout_ms: int = 0, verb: str | None = None
+) -> bool:
+    """Confirm a list of ``(label, value, monospace)`` properties."""
+    items = [(label, value, mono) for (label, value, mono) in fields]
+    res = await run(
+        trezorui_api.confirm_properties(title=title, items=items, hold=hold, verb=verb or t("ui.confirm")),
+        timeout_ms,
+    )
+    return res is trezorui_api.CONFIRMED
+
+
+async def show_info(title: str, text: str = "", timeout_ms: int = 0) -> None:
+    await run(trezorui_api.show_info(title=title, description=text, time_ms=timeout_ms))
+
+
+async def show_warning(title: str, text: str = "", button: str | None = None) -> None:
+    await run(
+        trezorui_api.show_warning(title=title, button=button or t("ui.ok"), description=text, allow_cancel=False)
+    )
+
+
+async def show_error(text: str) -> None:
+    await show_warning(t("ui.error"), text)
+
+
+def show_busy(text: str) -> None:
+    """Draw a static screen without waiting for input (long computations)."""
+    with trezorui_api.show_simple(text=text) as obj:
+        layout = ui.Layout(obj)
+        layout.start()
+        layout.stop()
+
+
+# --- input -------------------------------------------------------------------
+
+
+async def request_pin(prompt: str, attempts: str = "", wrong: bool = False, last: bool = False):
+    res = await run(
+        trezorui_api.request_pin(
+            prompt=prompt, attempts=attempts, allow_cancel=True, wrong_pin=wrong, last_attempt=last
+        )
+    )
+    if isinstance(res, str):
+        return res
+    return None
+
+
+async def request_text(prompt: str, max_len: int):
+    """Character entry (printable ASCII carousel). Returns str or None."""
+    res = await run(trezorui_api.request_passphrase(prompt=prompt, prompt_empty=prompt, max_len=max_len))
+    if isinstance(res, str):
+        return res
+    return None
+
+
+async def request_number(title: str, count: int, min_count: int, max_count: int):
+    res = await run(
+        trezorui_api.request_number(title=title, count=count, min_count=min_count, max_count=max_count)
+    )
+    if isinstance(res, tuple) and res[0] is trezorui_api.CONFIRMED:
+        return res[1]
+    return None
+
+
+# --- QR display --------------------------------------------------------------
+
+
+async def show_qr(title: str, data: str, timeout_ms: int = QR_TIMEOUT_MS) -> None:
+    """Show ``data`` as a QR code; closes on any button or after ``timeout_ms``
+    (spec §8.1: secret QR codes are hidden automatically after 60 s)."""
+    if len(data) > QR_MAX_BYTES:
+        raise ValueError("QR payload too large")
+    await run(
+        trezorui_api.show_address_details(
+            qr_title=title,
+            address=data,
+            case_sensitive=True,
+            details_title=title,
+            account=None,
+            path=None,
+            xpubs=[],
+        ),
+        timeout_ms,
+    )
+
+
+class Progress:
+    """Progress bar for long operations (PBKDF2, RSA key generation...)."""
+
+    def __init__(self, text: str) -> None:
+        self.layout = ui.ProgressLayout(trezorui_api.show_progress(description=text))
+        self._last = -1
+
+    def report(self, fraction: float) -> None:
+        value = int(max(0.0, min(1.0, fraction)) * 1000)
+        if value != self._last:
+            self._last = value
+            self.layout.report(value)
+
+    def stop(self) -> None:
+        self.layout.stop()
+
+
+def ticks_ms() -> int:
+    return utime.ticks_ms()

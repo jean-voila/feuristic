@@ -39,6 +39,10 @@ class PolicyDenied(FeuristicError):
     """The security policy forbids the operation in the current state."""
 
 
+class AlreadyExists(PolicyDenied):
+    """An identical object already exists."""
+
+
 class Locked(FeuristicError):
     """The device storage is locked (device PIN required)."""
 

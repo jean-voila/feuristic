@@ -2,6 +2,10 @@
 # Copyright (C) 2026 The feuristic contributors
 """Storage namespace (norcow APP id) allocation — see docs/architecture.md §6.1.
 
+Protected and public namespaces may share the same numeric id (e.g. ``SYS``
+and ``SYS_PUBLIC`` are both 0x10): the storage layer adds the 0x80 public
+flag, so they are distinct norcow namespaces.
+
 ``public=True`` namespaces are passed to :mod:`feuristic.platform.kv` with
 ``public=True`` (the 0x80 flag is added by the storage layer).
 """
@@ -40,4 +44,4 @@ CARD_CTR_AES_NONCE_B = const(0x01)
 CARD_CTR_PIN_BASE = const(0x10)  # 0x10.. app PIN retry counters (pairs)
 
 # --- keys inside OTP_COUNTERS (public) ---
-# account slot s uses keys 2*s and 2*s+1
+# HOTP account with stable counter index i (0..32) uses keys 2*i and 2*i+1
