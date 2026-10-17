@@ -59,10 +59,10 @@ def series() -> list[str]:
     if not SERIES.exists():
         return []
     names = []
-    for line in SERIES.read_text().splitlines():
-        line = line.strip()
-        if line and not line.startswith("#"):
-            names.append(line)
+    for raw in SERIES.read_text().splitlines():
+        entry = raw.strip()
+        if entry and not entry.startswith("#"):
+            names.append(entry)
     return names
 
 
