@@ -15,6 +15,7 @@
 
 #include <io/usb_bulk.h>
 #include <sec/random_delays.h>
+#include "memzero.h"
 #include <sys/irq.h>
 #include <sys/sysevent_source.h>
 

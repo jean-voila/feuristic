@@ -37,7 +37,7 @@ from .export import PURPOSE_RESTORE, PassphraseRequest, acquire_passphrase, cate
 #: wrong-passphrase attempts per envelope group before giving up
 DEFAULT_MAX_ATTEMPTS = const(3)
 #: envelopes accepted in one restore (a full export of the maximal set)
-MAX_ENVELOPES = const(envelope.MAX_SET_COUNT)
+MAX_ENVELOPES = envelope.MAX_SET_COUNT
 
 
 class RestoreItem:

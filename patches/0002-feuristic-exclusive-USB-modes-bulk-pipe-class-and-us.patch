@@ -23,7 +23,7 @@ Feuristic-Rationale: spec §3 (USB architecture), §10.4 (hostile input
 parsed unprivileged).
 
 diff --git a/core/embed/io/usb/build.rs b/core/embed/io/usb/build.rs
-index ee83f8846e0c5d1b180059976eb20d1a64e374e0..4f3dd122ce527958035a5d111270af1a782d6ad6 100644
+index ee83f8846e0c5d1b180059976eb20d1a64e374e0..b8a5f64956154330034ae20b247944ae744652b3 100644
 --- a/core/embed/io/usb/build.rs
 +++ b/core/embed/io/usb/build.rs
 @@ -2,6 +2,8 @@ use xbuild::{CLibrary, Result, bail_unsupported};
@@ -35,7 +35,7 @@ index ee83f8846e0c5d1b180059976eb20d1a64e374e0..4f3dd122ce527958035a5d111270af1a
  
      lib.add_define("USE_USB", Some("1"));
  
-@@ -23,7 +25,12 @@ pub fn def_module(lib: &mut CLibrary) -> Result<()> {
+@@ -23,8 +25,16 @@ pub fn def_module(lib: &mut CLibrary) -> Result<()> {
      }
  
      if cfg!(feature = "emulator") {
@@ -47,9 +47,13 @@ index ee83f8846e0c5d1b180059976eb20d1a64e374e0..4f3dd122ce527958035a5d111270af1a
 +            "../feuristic/kernel/usb/usb_modes.c",
 +        ]);
      } else if cfg!(feature = "mcu_stm32") {
++        // feuristic: the bulk-pipe class lives outside usb/stm32 but uses its
++        // internal headers
++        lib.add_private_include("usb/stm32");
          lib.add_sources([
              "usb/stm32/usb_class_hid.c",
-@@ -36,6 +43,8 @@ pub fn def_module(lib: &mut CLibrary) -> Result<()> {
+             "usb/stm32/usb_class_vcp.c",
+@@ -36,6 +46,8 @@ pub fn def_module(lib: &mut CLibrary) -> Result<()> {
              "usb/stm32/usbd_ctlreq.c",
              "usb/stm32/usbd_ioreq.c",
              "usb/usb_config.c",

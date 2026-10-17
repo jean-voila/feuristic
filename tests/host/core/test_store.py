@@ -189,3 +189,18 @@ def test_blob_ab_alternation_and_power_loss(kv):
         b.set(bytes(101))
     b.clear()
     assert b.get() is None
+
+
+def test_key_offset_isolates_stores(kv):
+    a = store.RecordStore(0x14, 3, 64, rtype=1)
+    b = store.RecordStore(0x14, 3, 64, rtype=2, key_offset=0x10)
+    a.load()
+    b.load()
+    a.put(uid(1), b"a")
+    b.put(uid(1), b"b")
+    assert a.get(uid(1)) == b"a" and b.get(uid(1)) == b"b"
+    assert all(k[1] >= 0x10 for k, v in kv.data.items() if v[2] == 2)
+    b.wipe()
+    assert a.get(uid(1)) == b"a"
+    with pytest.raises(ValueError):
+        store.RecordStore(0x14, 250, 64, rtype=3, key_offset=10)

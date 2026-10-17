@@ -15,9 +15,12 @@ from ...core.errors import InvalidInput
 SW_OK = const(0x9000)
 SW_BYTES_REMAINING = const(0x6100)  # | remaining (0x00 = 256 or more)
 SW_WARNING_NV_UNCHANGED = const(0x6200)
+SW_FILE_DEACTIVATED = const(0x6283)  # selected file deactivated (ISO 7816-4)
+SW_FILE_TERMINATED = const(0x6285)  # selected file in termination state (ISO 7816-4, OpenPGP 3.4 §7.2.17)
 SW_VERIFY_FAILED = const(0x63C0)  # | retries left
 SW_EXEC_ERROR = const(0x6400)
 SW_MEMORY_FAILURE = const(0x6581)
+SW_SECURITY_ISSUE = const(0x6600)  # GnuPG "SW_ACK_TIMEOUT" (Gnuk/YubiKey touch timeout)
 SW_WRONG_LENGTH = const(0x6700)
 SW_LOGICAL_CHANNEL_NOT_SUPPORTED = const(0x6881)
 SW_SECURE_MESSAGING_NOT_SUPPORTED = const(0x6882)
@@ -43,6 +46,8 @@ SW_UNKNOWN = const(0x6F00)
 
 MAX_SHORT_LC = const(255)
 MAX_EXTENDED_LC = const(65535)
+MAX_SHORT_NE = const(256)
+MAX_EXTENDED_NE = const(65536)
 
 # feuristic accepts command data up to this size after chaining/extension
 MAX_COMMAND_DATA = const(4096)

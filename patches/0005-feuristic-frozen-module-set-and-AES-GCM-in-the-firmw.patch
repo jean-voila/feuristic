@@ -1,0 +1,126 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: feuristic build <build@feuristic.invalid>
+Date: Sun, 18 Oct 2026 00:08:16 +0200
+Subject: [PATCH] feuristic: frozen module set and AES-GCM in the firmware
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+- upymod: new default feature `feuristic`; get_py_files_feuristic()
+  freezes the upstream runtime (trezor, storage), the feuristic package and
+  the debuglink in debug builds only. No wallet application is frozen.
+- firmware: enable crypto/aes_gcm (AES applet, backups, credential wrapping).
+
+Feuristic-Rationale: spec §1.8 (no cryptocurrency wallet functions) and
+flash budget for the security-key applications.
+
+diff --git a/core/embed/projects/firmware/Cargo.toml b/core/embed/projects/firmware/Cargo.toml
+index c8313c01b9ff4f2ed5a2c1d2dc42a2d774473e92..ad785e32dc3a2ee940f6e2688272bf09b4267d52 100644
+--- a/core/embed/projects/firmware/Cargo.toml
++++ b/core/embed/projects/firmware/Cargo.toml
+@@ -156,6 +156,8 @@ default = [
+     "io/fancy_fatal_error",
+     "io/usb_iface_wire",
+     "crypto/secp256k1_zkp",
++    # feuristic: AES-256-GCM (AES applet, backups, credential wrapping)
++    "crypto/aes_gcm",
+ 
+     "trezor_lib/crypto",
+     "trezor_lib/micropython",
+diff --git a/core/embed/upymod/Cargo.toml b/core/embed/upymod/Cargo.toml
+index f8d05f91c4c6359e3b8e1e5efb1ac2f08f36e21f..cf2cf2c55bf06533002a355150ff2b5280aee2f9 100644
+--- a/core/embed/upymod/Cargo.toml
++++ b/core/embed/upymod/Cargo.toml
+@@ -61,6 +61,8 @@ sd_card = ["io/sd_card"]
+ serial_number = []
+ telemetry = ["sec/telemetry"]
+ thp = []
++# feuristic: freeze the feuristic application instead of the wallet apps
++feuristic = []
+ touch = ["io/touch"]
+ touch_wakeup = ["io/touch_wakeup"]
+ tropic = ["sec/tropic"]
+@@ -70,7 +72,7 @@ universal_fw = ["crypto/universal_fw"]
+ # Automatically derived features (do not enable from outside)
+ # --------------------------------------------------------------------------
+ 
+-default = ["sec/storage", "io/usb_iface_wire"]
++default = ["sec/storage", "io/usb_iface_wire", "feuristic"]
+ 
+ mcu_stm32f4 = ["mcu_stm32"]
+ mcu_stm32u5 = ["mcu_stm32"]
+diff --git a/core/embed/upymod/build.rs b/core/embed/upymod/build.rs
+index 342a4300921586ee5273635e592104356045e81b..d9e228754b0f2f469cc7e4fec54c94fadd4cd5c7 100644
+--- a/core/embed/upymod/build.rs
++++ b/core/embed/upymod/build.rs
+@@ -1005,7 +1005,70 @@ impl<'a> MpyBuilder<'a> {
+             .collect())
+     }
+ 
++    /// feuristic: the frozen module set — upstream runtime (trezor, storage),
++    /// the feuristic package, and the debuglink in debug builds. No wallet
++    /// application is frozen.
++    fn get_py_files_feuristic(&self) -> Result<InputFiles> {
++        let mut files = InputFiles::new();
++        let src = &self.py_src_dir;
++
++        files.add(src, "main.py")?;
++        files.add(src, "usb.py")?;
++        files.add(src.join("trezor"), "*.py")?;
++        files.remove(src, "trezor/sdcard.py");
++        files.add(src.join("trezor/crypto"), "*.py")?;
++        files.add(src.join("trezor/ui"), "*.py")?;
++        files.add(src.join("trezor/ui/layouts"), "*.py")?;
++        files.remove(src, "trezor/ui/layouts/fido.py");
++        files.add(src.join("trezor/ui/layouts/caesar"), "*.py")?;
++        files.remove(src, "trezor/ui/layouts/caesar/fido.py");
++        files.add(src.join("trezor/wire"), "*.py")?;
++        files.add(src.join("trezor/wire/codec"), "*.py")?;
++        files.add(src.join("storage"), "*.py")?;
++        files.remove(src, "storage/sd_salt.py");
++        files.remove(src, "storage/cache_thp.py");
++        files.remove(src, "storage/cache_thp_keys.py");
++        files.remove(src, "storage/resident_credentials.py");
++        files.remove(src, "storage/fido2.py");
++        files.add(src.join("trezor/enums"), "*.py")?;
++        for pat in [
++            "Cardano*.py", "DebugMonero*.py", "DefinitionType.py", "Eos*.py", "Ethereum*.py",
++            "Monero*.py", "NEM*.py", "Ripple*.py", "Solana*.py", "Stellar*.py", "Tezos*.py",
++            "Zcash*.py", "Tron*.py", "Thp*.py", "Nostr*.py",
++        ] {
++            files.remove(src.join("trezor/enums"), pat);
++        }
++
++        if cfg!(feature = "pyopt") {
++            files.remove(src, "storage/debug.py");
++            files.remove(src, "trezor/wire/wire_log.py");
++            files.remove(src.join("trezor/enums"), "Debug*.py");
++        } else {
++            // debuglink (emulator / debug builds only)
++            files.add(src, "apps/__init__.py")?;
++            files.add(src, "apps/debug/*.py")?;
++            files.remove(src, "apps/debug/n4w1_mock.py");
++            files.add(src, "apps/common/*.py")?;
++            files.remove(src, "apps/common/definitions.py");
++            files.remove(src, "apps/common/definitions_constants.py");
++            files.remove(src, "apps/common/sdcard.py");
++        }
++
++        let feu = src.join("feuristic");
++        for pat in ["*.py", "*/*.py", "*/*/*.py", "*/*/*/*.py"] {
++            files.add(&feu, pat)?;
++        }
++        // host-only modules (CPython test backends)
++        files.remove(&feu, "platform/_host_crypto.py");
++        files.remove(&feu, "platform/testing.py");
++
++        Ok(files)
++    }
++
+     fn get_py_files(&self) -> Result<InputFiles> {
++        if cfg!(feature = "feuristic") {
++            return self.get_py_files_feuristic();
++        }
+         let mut files = InputFiles::new();
+ 
+         let src = &self.py_src_dir;

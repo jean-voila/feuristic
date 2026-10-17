@@ -76,9 +76,13 @@ class RecordStore:
     store is full.
     """
 
-    def __init__(self, app: int, capacity: int, max_payload: int, rtype: int, public: bool = False) -> None:
-        if capacity + 1 > 256:
+    def __init__(
+        self, app: int, capacity: int, max_payload: int, rtype: int, public: bool = False, key_offset: int = 0
+    ) -> None:
+        if capacity + 1 + key_offset > 256:
             raise ValueError("too many slots")
+        #: first storage key used by slot 0 (lets several stores share a namespace)
+        self.key_offset = key_offset
         self.app = app
         self.capacity = capacity
         self.slots = capacity + 1
@@ -97,7 +101,7 @@ class RecordStore:
         self.corrupt_slots = []
         max_gen = 0
         for slot in range(self.slots):
-            raw = kv.get(self.app, slot, self.public)
+            raw = kv.get(self.app, self.key_offset + slot, self.public)
             if raw is None:
                 continue
             try:
@@ -119,7 +123,7 @@ class RecordStore:
                 stale.append(slot)
         # finish interrupted copy-on-write updates
         for slot in stale:
-            kv.delete(self.app, slot, self.public)
+            kv.delete(self.app, self.key_offset + slot, self.public)
         self._index = index
         self._next_gen = max_gen + 1
 
@@ -147,7 +151,7 @@ class RecordStore:
         entry = self._idx().get(bytes(uid))
         if entry is None:
             raise NotFound
-        raw = kv.get(self.app, entry[0], self.public)
+        raw = kv.get(self.app, self.key_offset + entry[0], self.public)
         rec = unpack(raw)
         if rec.uid != bytes(uid):
             raise StorageCorrupted("index mismatch")
@@ -170,7 +174,11 @@ class RecordStore:
     def _free_slot(self, exclude: int = -1) -> int:
         used = {e[0] for e in self._idx().values()}
         for slot in range(self.slots):
-            if slot not in used and slot != exclude and kv.get(self.app, slot, self.public) is None:
+            if (
+                slot not in used
+                and slot != exclude
+                and kv.get(self.app, self.key_offset + slot, self.public) is None
+            ):
                 return slot
         raise StorageFull("no free slot")
 
@@ -188,11 +196,11 @@ class RecordStore:
         slot = self._free_slot()
         gen = self._next_gen
         raw = pack(self.rtype, flags, gen, uid, payload)
-        kv.set(self.app, slot, raw, self.public)
+        kv.set(self.app, self.key_offset + slot, raw, self.public)
         self._next_gen = gen + 1
         idx[uid] = (slot, gen, flags)
         if old is not None:
-            kv.delete(self.app, old[0], self.public)
+            kv.delete(self.app, self.key_offset + old[0], self.public)
 
     def delete(self, uid: bytes) -> bool:
         """Delete ``uid``. Returns False if it did not exist."""
@@ -201,14 +209,14 @@ class RecordStore:
         entry = idx.get(uid)
         if entry is None:
             return False
-        kv.delete(self.app, entry[0], self.public)
+        kv.delete(self.app, self.key_offset + entry[0], self.public)
         del idx[uid]
         return True
 
     def wipe(self) -> None:
         """Delete every slot of the namespace (including corrupt ones)."""
         for slot in range(self.slots):
-            kv.delete(self.app, slot, self.public)
+            kv.delete(self.app, self.key_offset + slot, self.public)
         self._index = {}
         self._next_gen = 1
         self.corrupt_slots = []
