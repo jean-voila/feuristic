@@ -6,3 +6,4 @@
 0004-feuristic-firmware-entry-point.patch
 0005-feuristic-frozen-module-set-and-AES-GCM-in-the-firmw.patch
 0006-feuristic-build-the-feuristic_native-MicroPython-mod.patch
+0007-feuristic-emulator-RNG-reads-dev-urandom-by-default.patch
