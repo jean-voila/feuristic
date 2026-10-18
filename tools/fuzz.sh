@@ -16,7 +16,7 @@ mkdir -p "$OUT/artifacts"
 if [ -z "${CLANG:-}" ]; then
   if [ -x /opt/homebrew/opt/llvm/bin/clang ]; then CLANG=/opt/homebrew/opt/llvm/bin/clang; else CLANG=clang; fi
 fi
-CFLAGS=(-std=c99 -g -O1 -fsanitize=fuzzer,address,undefined -fno-sanitize-recover=all -Wall -Wextra)
+CFLAGS=(-std=c99 -g -O1 "-fsanitize=fuzzer,address,undefined" -fno-sanitize-recover=all -Wall -Wextra)
 
 lib_sources() {
   local lib=$1

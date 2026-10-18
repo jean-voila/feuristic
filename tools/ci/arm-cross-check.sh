@@ -6,9 +6,10 @@ ROOT=$(cd "$(dirname "$0")/../.." && pwd)
 CC=${ARM_CC:-arm-none-eabi-gcc}
 WARN=(-std=c99 -Wall -Wextra -Werror -pedantic -Wshadow -Wstrict-prototypes -Wmissing-prototypes -Wvla -Wcast-align)
 OUT=$(mktemp -d)
-for cpu in "cortex-m4 -mfpu=fpv4-sp-d16" "cortex-m33 -mfpu=fpv5-sp-d16"; do
-  set -- $cpu
-  flags=(-mthumb "-mcpu=$1" "$2" -mfloat-abi=hard -Os -ffunction-sections -fdata-sections)
+for cpu in cortex-m4:fpv4-sp-d16 cortex-m33:fpv5-sp-d16; do
+  core=${cpu%%:*}
+  fpu=${cpu##*:}
+  flags=(-mthumb "-mcpu=$core" "-mfpu=$fpu" -mfloat-abi=hard -Os -ffunction-sections -fdata-sections)
   for lib in fqr fimg fmsc frsa; do
     d=$ROOT/lib/$lib
     [ -d "$d" ] || continue
@@ -17,7 +18,7 @@ for cpu in "cortex-m4 -mfpu=fpv4-sp-d16" "cortex-m33 -mfpu=fpv5-sp-d16"; do
     for s in "${srcs[@]}"; do
       "$CC" "${flags[@]}" "${WARN[@]}" "${inc[@]}" -c "$s" -o "$OUT/$(basename "$s").o"
     done
-    echo "ok: $lib ($1)"
+    echo "ok: $lib ($core)"
   done
 done
 arm-none-eabi-size -t "$OUT"/*.o | tail -1

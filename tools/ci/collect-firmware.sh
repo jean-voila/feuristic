@@ -11,5 +11,9 @@ SRC=$ROOT/upstream/trezor-firmware/core/build-xtask/artifacts/$MODEL/firmware.bi
 NAME=feuristic-$VERSION-$MODEL-$REV$SUFFIX.bin
 mkdir -p "$ROOT/dist"
 cp "$SRC" "$ROOT/dist/$NAME"
-(cd "$ROOT/dist" && sha256sum "$NAME" > "$NAME.sha256" 2>/dev/null || shasum -a 256 "$NAME" > "$NAME.sha256")
+if command -v sha256sum > /dev/null; then
+  (cd "$ROOT/dist" && sha256sum "$NAME" > "$NAME.sha256")
+else
+  (cd "$ROOT/dist" && shasum -a 256 "$NAME" > "$NAME.sha256")
+fi
 cat "$ROOT/dist/$NAME.sha256"

@@ -31,7 +31,9 @@ static void put(buf_t *b, const void *d, size_t n) {
     b->cap = (b->n + n) * 2 + 1024;
     b->p = (uint8_t *)realloc(b->p, b->cap);
   }
-  memcpy(b->p + b->n, d, n);
+  if (n > 0) {  // memcpy() with a NULL source is undefined even for n == 0
+    memcpy(b->p + b->n, d, n);
+  }
   b->n += n;
 }
 
