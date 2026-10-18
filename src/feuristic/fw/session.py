@@ -11,32 +11,44 @@ _transports_started = False
 
 
 def register_strings() -> None:
+    from ..apps.backup import strings as backup_strings
+    from ..apps.card.aes import strings as aes_strings
+    from ..apps.card.openpgp import strings as pgp_strings
+    from ..apps.card.piv import strings as piv_strings
+    from ..apps.fido2 import strings as fido_strings
+    from ..apps.importer import strings as import_strings
     from ..apps.otp import strings as otp_strings
     from ..apps.timesync import strings as ts_strings
     from ..ui import strings as ui_strings
 
-    ui_strings.register()
-    otp_strings.register()
-    ts_strings.register()
-    try:
-        from . import apps_registry
-
-        apps_registry.register_strings()
-    except ImportError:
-        pass
+    for mod in (
+        ui_strings,
+        otp_strings,
+        ts_strings,
+        fido_strings,
+        pgp_strings,
+        piv_strings,
+        aes_strings,
+        backup_strings,
+        import_strings,
+    ):
+        mod.register()
 
 
 def _load_stores() -> None:
-    """Resolve interrupted copy-on-write updates and build RAM indexes."""
+    """Resolve interrupted copy-on-write updates and build RAM indexes, and
+    register the backup providers."""
+    from ..apps.backup import provider as backup_registry
+    from ..apps.card.aes.provider import AesBackupProvider
+    from ..apps.card.openpgp.provider import OpenPgpBackupProvider
+    from ..apps.card.piv.provider import PivBackupProvider
     from ..apps.otp import accounts
+    from ..apps.otp.provider import OtpBackupProvider
 
     accounts.default().load()
-    try:
-        from . import apps_registry
-
-        apps_registry.load()
-    except ImportError:
-        pass
+    backup_registry.clear()
+    for p in (OtpBackupProvider(), OpenPgpBackupProvider(), PivBackupProvider(), AesBackupProvider()):
+        backup_registry.register(p)
 
 
 def _start_transports() -> None:
@@ -65,6 +77,20 @@ async def _lockscreen() -> None:
         _after_unlock()
 
 
+def _register_fido_provider() -> None:
+    from ..apps.backup import provider as backup_registry
+    from ..apps.fido2.provider import Fido2BackupProvider
+    from . import transports
+
+    server = transports.fido_server()
+    if server is not None:
+        try:
+            backup_registry.unregister("fido2")
+        except Exception:
+            pass
+        backup_registry.register(Fido2BackupProvider(server.app.auth))
+
+
 def lock() -> None:
     """Lock the storage (autolock or menu). USB stays up; FIDO/CCID requests
     then ask for the PIN on the device."""
@@ -72,10 +98,21 @@ def lock() -> None:
         return
     config.lock()
     device.forget_master_secret()
+    try:
+        from . import transports
+
+        transports.on_lock()
+    except ImportError:
+        pass
     workflow.set_default(_lockscreen)
     workflow.close_others()
     workflow.kill_default()
     workflow.start_default()
+
+
+def after_unlock_from_usb() -> None:
+    """Unlock completed from a FIDO/CCID request: restore the home screen."""
+    _after_unlock()
 
 
 def _after_unlock() -> None:
@@ -83,6 +120,7 @@ def _after_unlock() -> None:
     _load_stores()
     usbmodes.start_normal()
     _start_transports()
+    _register_fido_provider()
     workflow.idle_timer.set(device.AUTOLOCK_MS, lock)
     workflow.set_default(_home)
     workflow.kill_default()

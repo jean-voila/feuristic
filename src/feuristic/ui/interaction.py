@@ -29,6 +29,7 @@ class DeviceInteraction(ia.Interaction):
         #: called with True while a dialog is shown (USB glue sends keepalives)
         self.on_busy = None
         self._lock = False
+        self._current = None
 
     async def _spawn(self, coro):
         # Only one dialog at a time; a second request waits for the first.
@@ -38,11 +39,29 @@ class DeviceInteraction(ia.Interaction):
         if self.on_busy is not None:
             self.on_busy(True)
         try:
-            return await workflow.spawn(coro)
+            self._current = workflow.spawn(coro)
+            return await self._current
         finally:
+            self._current = None
             self._lock = False
             if self.on_busy is not None:
                 self.on_busy(False)
+
+    def cancel(self) -> None:
+        """Abort the dialog on screen (host-side CTAPHID CANCEL): the waiting
+        protocol handler sees a refusal."""
+        if self._current is not None:
+            self._current.close()
+
+    def wink(self) -> None:
+        """CTAPHID WINK: briefly show the device name so the user can identify it."""
+        if self._current is not None:
+            return
+
+        async def dialog() -> None:
+            await screens.show_info("feuristic", "\u25cf \u25cf \u25cf", timeout_ms=1500)
+
+        loop.schedule(workflow.spawn(dialog()))
 
     async def confirm(self, prompt) -> bool:
         async def dialog() -> bool:
