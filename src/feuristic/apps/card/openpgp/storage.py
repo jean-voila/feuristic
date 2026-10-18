@@ -464,3 +464,21 @@ class IdentityStore:
         if which == pgp.RC and self.ident.pins[pgp.RC] is None:
             return 0
         return self.tries[which].remaining()
+
+
+_default = None
+
+
+def default() -> IdentityStore:
+    """The single :class:`IdentityStore` shared by the applet, the device
+    menus and the backup provider (one in-RAM view of the identity)."""
+    global _default
+    if _default is None:
+        _default = IdentityStore()
+    return _default
+
+
+def _reset_default() -> None:
+    """Tests only: forget the shared instance."""
+    global _default
+    _default = None

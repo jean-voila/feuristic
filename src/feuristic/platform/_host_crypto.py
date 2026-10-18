@@ -226,3 +226,60 @@ def rsa_public(n, e, block):
 
 def modpow(base, exp, mod):
     return pow(_i(base), _i(exp), _i(mod)).to_bytes(len(mod), "big")
+
+
+# --- RSA key-generation helpers (mirror lib/frsa exactly) ------------------
+
+_SIEVE_PRODUCT = None
+
+
+def _sieve_product():
+    """Product of the first 2048 odd primes (3 .. 17881), as lib/frsa."""
+    global _SIEVE_PRODUCT
+    if _SIEVE_PRODUCT is None:
+        limit = 17882
+        flags = bytearray([1]) * limit
+        flags[0] = flags[1] = 0
+        for i in range(2, int(limit**0.5) + 1):
+            if flags[i]:
+                flags[i * i :: i] = bytearray(len(flags[i * i :: i]))
+        primes = [p for p in range(3, limit) if flags[p]]
+        assert len(primes) == 2048
+        prod = 1
+        for p in primes:
+            prod *= p
+        _SIEVE_PRODUCT = prod
+    return _SIEVE_PRODUCT
+
+
+def rsa_sieve(candidate):
+    import math
+
+    if len(candidate) == 0 or len(candidate) > 256:
+        raise ValueError("invalid candidate")
+    c = _i(candidate)
+    if c < 3 or c % 2 == 0:
+        return False
+    return math.gcd(c, _sieve_product()) == 1
+
+
+def rsa_mr_round(candidate, base):
+    if not 0 < len(candidate) <= 256 or not 0 < len(base) <= 256:
+        raise ValueError("invalid Miller-Rabin input")
+    w, b = _i(candidate), _i(base)
+    if w < 5 or w % 2 == 0 or not 1 < b < w - 1:
+        raise ValueError("invalid Miller-Rabin input")
+    m, a = w - 1, 0
+    while m % 2 == 0:
+        m //= 2
+        a += 1
+    z = pow(b, m, w)
+    if z in (1, w - 1):
+        return True
+    for _ in range(a - 1):
+        z = z * z % w
+        if z == w - 1:
+            return True
+        if z == 1:
+            return False
+    return False

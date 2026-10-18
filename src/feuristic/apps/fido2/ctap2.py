@@ -440,7 +440,12 @@ class Authenticator:
         if rp_id == BOGUS_RP_ID:
             prompt = Prompt("fido2.selection", "fido2.title.select", (), NORMAL, UP_TIMEOUT_MS)
         else:
-            fields = [("fido2.rp", rp_label), ("fido2.user", account)]
+            # Always show the RP ID (verified by the platform against the web
+            # origin); rp.name is chosen by the website and only shown as a hint.
+            fields = [("fido2.rp", rp_id)]
+            if rp_label != rp_id:
+                fields.append(("fido2.rp_name", rp_label))
+            fields.append(("fido2.user", account))
             if rk:
                 fields.append(("fido2.type", i18n.t("fido2.type.passkey")))
             prompt = Prompt("fido2.make_credential", "fido2.title.register", fields, SENSITIVE, UP_TIMEOUT_MS)

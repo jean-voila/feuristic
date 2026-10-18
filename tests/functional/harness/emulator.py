@@ -18,7 +18,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[3]
 CORE = ROOT / "upstream" / "trezor-firmware" / "core"
-DEFAULT_BINARY = CORE / "build-xtask" / "artifacts" / "latest" / "firmware-emu"
+DEFAULT_BINARY = CORE / "build-xtask" / "artifacts" / "T3B1" / "firmware-emu"
 
 PORT_DEBUG = 1
 PORT_FIDO = 2

@@ -119,6 +119,28 @@ class Debug:
         self.dl._decision(messages.DebugLinkDecision(input=text), wait=False)
         time.sleep(0.15)
 
+    def _buttons(self, screen: Screen) -> dict:
+        for b in screen._find(screen.data, "buttons"):
+            if isinstance(b, dict):
+                return b
+        return {}
+
+    def approve(self, max_steps: int = 20) -> None:
+        """Scroll a confirmation screen to its last page and confirm it."""
+        for _ in range(max_steps):
+            scr = self.screen()
+            btns = self._buttons(scr)
+            right = (btns.get("right_btn") or {}).get("text")
+            middle = (btns.get("middle_btn") or {}).get("text")
+            if right:
+                self.right()
+                return
+            if middle:
+                self.both()
+                return
+            self.right()  # next page (down arrow)
+        raise AssertionError("no confirm button found")
+
     def select(self, label: str, max_steps: int = 40) -> None:
         """Move the carousel to ``label`` and select it."""
         for _ in range(max_steps):

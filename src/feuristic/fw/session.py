@@ -40,6 +40,7 @@ def _load_stores() -> None:
     register the backup providers."""
     from ..apps.backup import provider as backup_registry
     from ..apps.card.aes.provider import AesBackupProvider
+    from ..apps.card.openpgp import storage as pgp_storage
     from ..apps.card.openpgp.provider import OpenPgpBackupProvider
     from ..apps.card.piv.provider import PivBackupProvider
     from ..apps.otp import accounts
@@ -47,7 +48,7 @@ def _load_stores() -> None:
 
     accounts.default().load()
     backup_registry.clear()
-    for p in (OtpBackupProvider(), OpenPgpBackupProvider(), PivBackupProvider(), AesBackupProvider()):
+    for p in (OtpBackupProvider(), OpenPgpBackupProvider(pgp_storage.default()), PivBackupProvider(), AesBackupProvider()):
         backup_registry.register(p)
 
 

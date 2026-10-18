@@ -462,7 +462,9 @@ def rsa_private(key: RsaKey, block: bytes) -> bytes:
     if _backend.FIRMWARE:
         import feuristic_native
 
-        out = feuristic_native.rsa_private(key.p, key.q, key.dp, key.dq, key.qinv, block)
+        # e and n are needed by the native fault countermeasure (the result
+        # is verified with the public key before it is released).
+        out = feuristic_native.rsa_private(key.p, key.q, key.dp, key.dq, key.qinv, key.e, key.n, block)
         if out is None:
             raise CryptoError("RSA private operation failed")
         return out
@@ -486,6 +488,32 @@ def rsa_modpow(base: bytes, exp: bytes, mod: bytes) -> bytes:
 
         return feuristic_native.modpow(base, exp, mod)
     return _h.modpow(base, exp, mod)
+
+
+def rsa_sieve(candidate: bytes) -> bool:
+    """Trial division of an odd prime candidate by the first 2048 odd primes.
+
+    Returns ``False`` if one of them divides ``candidate`` (also for even
+    candidates and candidates < 3). Constant time on the device.
+    """
+    if _backend.FIRMWARE:
+        import feuristic_native
+
+        return feuristic_native.rsa_sieve(candidate)
+    return _h.rsa_sieve(candidate)
+
+
+def rsa_mr_round(candidate: bytes, base: bytes) -> bool:
+    """One Miller-Rabin round (FIPS 186-5 B.3.1) with ``1 < base < candidate - 1``.
+
+    Raises ``ValueError`` for an even candidate, a candidate < 5 or a base
+    out of range. One 1024-bit round takes ~160 ms on a Cortex-M4.
+    """
+    if _backend.FIRMWARE:
+        import feuristic_native
+
+        return feuristic_native.rsa_mr_round(candidate, base)
+    return _h.rsa_mr_round(candidate, base)
 
 
 # ---------------------------------------------------------------------------

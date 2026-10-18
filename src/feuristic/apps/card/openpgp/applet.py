@@ -46,7 +46,8 @@ from ..ccid import HISTORICAL_BYTES
 from . import const as pgp
 from . import keys as alg
 from . import strings as _strings  # noqa: F401 - registers the i18n table
-from .storage import ZERO20, IdentityStore, PinRef, check_pin_length
+from .storage import ZERO20, PinRef, check_pin_length
+from .storage import default as _storage_default
 
 # volatile access status indices
 V_SIG = const(0)  # PW1 verified with P2=81 (PSO:CDS)
@@ -78,7 +79,7 @@ class OpenPgpApplet(Applet):
         super().__init__(ui)
         self.serial = card_serial(ms)
         self.AID = pgp.AID_PREFIX + self.serial + pgp.AID_RFU
-        self.store = store if store is not None else IdentityStore()
+        self.store = store if store is not None else _storage_default()
         self.rsa_yield = rsa_yield
         self.rsa_progress = rsa_progress
         self._verified = [False, False, False]

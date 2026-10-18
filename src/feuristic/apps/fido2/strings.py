@@ -32,6 +32,7 @@ STRINGS = {
     "fido2.title.wipe": ("Erase all FIDO data?", "Effacer toutes les données FIDO ?"),
     # prompt field labels
     "fido2.rp": ("Service", "Service"),
+    "fido2.rp_name": ("Name", "Nom"),
     "fido2.user": ("Account", "Compte"),
     "fido2.accounts": ("Accounts", "Comptes"),
     "fido2.type": ("Type", "Type"),
