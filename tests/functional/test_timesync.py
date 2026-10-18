@@ -58,17 +58,15 @@ def test_backward_jump_requires_confirmation(ready, emu):
     ready.select("Sync over USB")
     stop = threading.Event()
 
+    seen = []
+
     def approve():
         while not stop.is_set():
             s = ready.screen()
-            if s.title not in ("", "TOTP time", "Time sync") and s.component != "":
-                if (
-                    "Confirm" in s.text()
-                    or "confirm" in s.text()
-                    or s.title.lower().startswith(("move", "set"))
-                ):
-                    ready.approve()
-                    return
+            if s.title == "Move the clock back?":
+                seen.append(s.title)
+                ready.approve()
+                return
             stop.wait(0.3)
 
     t = threading.Thread(target=approve, daemon=True)
@@ -77,4 +75,5 @@ def test_backward_jump_requires_confirmation(ready, emu):
         reply = _send(emu, f"TIME 1 {now - 3600}\n".encode(), timeout=40)
     finally:
         stop.set()
-    assert reply in (f"OK {now - 3600}\n".encode(), b"ERR 4\n")
+    assert seen == ["Move the clock back?"]  # spec §4: confirmation required
+    assert reply == f"OK {now - 3600}\n".encode()
