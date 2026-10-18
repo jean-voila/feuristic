@@ -122,11 +122,21 @@ jobs:
         run: uv run --no-sync python tools/check_upy_compat.py
       - name: Functional tests
         run: uv run --no-sync pytest -v tests/functional --junitxml=build/functional.xml
+      - name: Interop tools (pcscd + vsmartcard vpcd, GnuPG, OpenSC)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y pcscd vsmartcard-vpcd opensc gnupg scdaemon
+          sudo systemctl stop pcscd.socket pcscd.service || true
+          sudo pcscd --disable-polkit
+      - name: Interop tests (real GnuPG / OpenSC against the emulator)
+        env:
+          FEURISTIC_INTEROP: "1"
+        run: uv run --no-sync pytest -v tests/functional/interop --junitxml=build/interop.xml
       - if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: functional-results
-          path: build/functional.xml
+          path: build/*.xml
 
   reproducibility:
     name: Reproducible build check (${{ matrix.model }})
