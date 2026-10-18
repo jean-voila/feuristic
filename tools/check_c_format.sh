@@ -4,7 +4,8 @@
 # Vendored code (lib/third_party) is never reformatted.
 set -euo pipefail
 ROOT=$(cd "$(dirname "$0")/.." && pwd)
-CF=${CLANG_FORMAT:-$(command -v clang-format || echo /opt/homebrew/opt/llvm/bin/clang-format)}
+ROOT_VENV_CF=$ROOT/.venv/bin/clang-format
+CF=${CLANG_FORMAT:-$ROOT_VENV_CF}
 if [ ! -x "$CF" ]; then
   echo "clang-format not found; skipping C format check" >&2
   exit 0

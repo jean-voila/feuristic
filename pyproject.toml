@@ -22,6 +22,7 @@ dev = [
     "pyserial>=3.5",
     "cbor2>=5.6",
     "trezor",
+    "clang-format==19.1.7",  # pinned so CI and developers format C identically
 ]
 
 [tool.uv]

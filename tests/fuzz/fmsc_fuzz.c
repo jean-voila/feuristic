@@ -8,7 +8,7 @@
 // engine's contract; any violation traps.
 //
 // Build (see tests/fuzz/README-fmsc.md):
-//   clang -fsanitize=fuzzer,address,undefined -Ilib/fmsc/include \
+//   clang -fsanitize=fuzzer,address,undefined -Ilib/fmsc/include
 //     tests/fuzz/fmsc_fuzz.c lib/fmsc/src/*.c -o fmsc_fuzz
 // With -DFMSC_FUZZ_REPLAY_MAIN=1 a plain main() replays files/directories.
 

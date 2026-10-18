@@ -123,52 +123,31 @@ static secbool add_ccid(uint8_t iface_num) {
       0x01,  // bcdCCID 1.10
       0x00,  // bMaxSlotIndex
       0x07,  // bVoltageSupport: 5.0V, 3.0V, 1.8V
-      0x02,
-      0x00,
-      0x00,
+      0x02, 0x00, 0x00,
       0x00,  // dwProtocols: T=1
-      0xA0,
-      0x0F,
-      0x00,
+      0xA0, 0x0F, 0x00,
       0x00,  // dwDefaultClock 4000 kHz
-      0xA0,
-      0x0F,
-      0x00,
+      0xA0, 0x0F, 0x00,
       0x00,  // dwMaximumClock 4000 kHz
       0x00,  // bNumClockSupported
-      0x80,
-      0x25,
-      0x00,
+      0x80, 0x25, 0x00,
       0x00,  // dwDataRate 9600 bps
-      0x80,
-      0x25,
-      0x00,
+      0x80, 0x25, 0x00,
       0x00,  // dwMaxDataRate
       0x00,  // bNumDataRatesSupported
-      0xFE,
-      0x00,
-      0x00,
+      0xFE, 0x00, 0x00,
       0x00,  // dwMaxIFSD 254
-      0x00,
-      0x00,
-      0x00,
+      0x00, 0x00, 0x00,
       0x00,  // dwSynchProtocols
-      0x00,
-      0x00,
-      0x00,
+      0x00, 0x00, 0x00,
       0x00,  // dwMechanical
       // dwFeatures: auto ATR config, auto activation, auto voltage, auto
       // clock, auto baud, auto parameters negotiation, auto PPS, short and
       // extended APDU level exchange
-      0xFE,
-      0x00,
-      0x04,
-      0x00,
+      0xFE, 0x00, 0x04, 0x00,
       // dwMaxCCIDMessageLength
       (FEURISTIC_CCID_MAX_MESSAGE_LEN) & 0xFF,
-      (FEURISTIC_CCID_MAX_MESSAGE_LEN >> 8) & 0xFF,
-      0x00,
-      0x00,
+      (FEURISTIC_CCID_MAX_MESSAGE_LEN >> 8) & 0xFF, 0x00, 0x00,
       0xFF,  // bClassGetResponse: echo
       0xFF,  // bClassEnvelope: echo
       0x00,
