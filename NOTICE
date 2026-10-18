@@ -1,0 +1,27 @@
+feuristic
+Copyright (C) 2026 The feuristic contributors
+Licensed under the GNU General Public License, version 3 only (GPL-3.0-only).
+
+feuristic is third-party firmware. It is not affiliated with, endorsed by,
+or signed by SatoshiLabs / Trezor Company. "Trezor" is a trademark of its
+owner and is used here only to identify the compatible hardware.
+
+This firmware incorporates third-party components, which keep their own
+licences:
+
+* trezor-firmware (https://github.com/trezor/trezor-firmware) — core/ and
+  storage/ under GPL-3.0; common/, python/ under LGPL-3.0; crypto/
+  (trezor-crypto) mostly under MIT with per-file exceptions (e.g. Brian
+  Gladman's AES licence, ed25519-donna). See upstream LICENSE.md and the
+  headers of each file. feuristic modifies upstream through the patch
+  series in patches/.
+* MicroPython (vendor/micropython) — MIT.
+* Nayuki QR-Code-generator — MIT.
+* libsecp256k1 — MIT.
+* ARM CMSIS, STMicroelectronics device headers and HAL — Apache-2.0 /
+  BSD-3-Clause.
+* mldsa-native — Apache-2.0 OR ISC OR MIT.
+* BearSSL 0.6 subset (lib/third_party/bearssl) — MIT, Copyright (c) 2016
+  Thomas Pornin.
+
+The exact component list of each release is published as an SPDX SBOM.
