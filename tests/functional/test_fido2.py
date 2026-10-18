@@ -92,6 +92,8 @@ def test_user_refusal_is_operation_denied(ctap, ready):
             ctap.make_credential(CDH, RP, USER, [{"type": "public-key", "alg": ES256.ALGORITHM}])
         finally:
             stop.set()
+            t.join(10)
+            assert not t.is_alive(), "refusal worker still using DebugLink at teardown"
 
     with pytest.raises(CtapError) as e:
         refuse()

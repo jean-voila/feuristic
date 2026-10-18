@@ -18,9 +18,12 @@ class StorageFull(Exception):
 
 
 class FakeKV:
-    # Approximate per-item overhead on T3B1 (blockwise norcow, encrypted):
-    # 16-byte header + 12-byte IV + 16-byte tag + validity byte, padded to 16.
-    ITEM_OVERHEAD = 48
+    # T3B1 blockwise norcow (storage/norcow_blockwise.h, FLASH_BLOCK_SIZE=16).
+    # Protected values add a 12-byte ChaCha20 IV and a 16-byte Poly1305 tag
+    # (storage/storage.c); public counters/settings are NOT encrypted.
+    # This is also an upper bound for T2B1's smaller bitwise item format.
+    BLOCK_SIZE = 16
+    ENCRYPTION_OVERHEAD = 28
     SECTOR_BYTES = 64 * 1024 - 16
 
     def __init__(self) -> None:
@@ -48,11 +51,15 @@ class FakeKV:
         return (app | (0x80 if public else 0), key)
 
     def used_bytes(self) -> int:
-        return sum(self._item_size(v) for v in self.data.values())
+        return sum(self._item_size(v, bool(k[0] & 0x80)) for k, v in self.data.items())
 
-    def _item_size(self, v: bytes) -> int:
-        n = self.ITEM_OVERHEAD + len(v)
-        return (n + 15) // 16 * 16
+    def _item_size(self, v: bytes, public: bool = False) -> int:
+        n = len(v) + (0 if public else self.ENCRYPTION_OVERHEAD)
+        block = self.BLOCK_SIZE
+        if n <= block - 4:  # key(2) + length(2) + value fit in one block
+            return block
+        # A large item has one header block, then the value + validity byte.
+        return block + (n + 1 + block - 1) // block * block
 
     # -- API ---------------------------------------------------------------
     def get(self, app: int, key: int, public: bool = False):
@@ -67,8 +74,8 @@ class FakeKV:
         if not public and not self.unlocked:
             raise RuntimeError("storage locked")
         old = self.data.get(k)
-        new_total = self.used_bytes() - (self._item_size(old) if old is not None else 0)
-        if new_total + self._item_size(value) > self.capacity:
+        new_total = self.used_bytes() - (self._item_size(old, public) if old is not None else 0)
+        if new_total + self._item_size(value, public) > self.capacity:
             raise StorageFull
         # norcow: delete the old item first, then append the new one
         if old is not None:

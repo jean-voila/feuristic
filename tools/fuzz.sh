@@ -46,7 +46,7 @@ for src in "$ROOT"/tests/fuzz/*_fuzz.c; do
   extra=()
   [[ "$name" == *inflate* ]] && extra+=(-lz)
   # shellcheck disable=SC2046
-  "$CLANG" "${CFLAGS[@]}" $(lib_includes "$lib") $(lib_sources "$lib") "$src" "${extra[@]}" -o "$OUT/$name"
+  "$CLANG" "${CFLAGS[@]}" $(lib_includes "$lib") $(lib_sources "$lib") "$src" ${extra[@]+"${extra[@]}"} -o "$OUT/$name"
   corpus=$ROOT/tests/fuzz/corpus/${name%_fuzz}
   [ -d "$corpus" ] || corpus=$ROOT/tests/fuzz/corpus/$lib
   work=$OUT/corpus-$name

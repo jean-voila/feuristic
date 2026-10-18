@@ -75,5 +75,7 @@ def test_backward_jump_requires_confirmation(ready, emu):
         reply = _send(emu, f"TIME 1 {now - 3600}\n".encode(), timeout=40)
     finally:
         stop.set()
+        t.join(10)
+        assert not t.is_alive(), "time confirmation worker still using DebugLink at teardown"
     assert seen == ["Move the clock back?"]  # spec §4: confirmation required
     assert reply == f"OK {now - 3600}\n".encode()

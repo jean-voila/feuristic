@@ -54,7 +54,7 @@ typedef struct {
   uint8_t reorder[IMPORT_REORDER_SECTORS * FMSC_SECTOR_SIZE];
 } import_static_t;
 
-#if defined(STM32F427xx) || defined(STM32F429xx)
+#if (defined(STM32F427xx) || defined(STM32F429xx)) && !defined(TREZOR_EMULATOR)
 // T2B1: CCM, not initialised at startup (fmsc_init() initialises it)
 static import_static_t g_static __attribute__((section(".no_dma_buffers")));
 #define IMPORT_STATIC_IN_CCM 1

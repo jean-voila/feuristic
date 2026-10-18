@@ -5,11 +5,12 @@ FIDO2 passkeys, OpenPGP card, PIV, TOTP/HOTP, AES-256-GCM and a hardware
 RNG, configured entirely on the device with its two buttons. No companion
 app, no cloud, no account, no cryptocurrency.
 
-> **Status: pre-release (0.1.0-dev).** Everything below is implemented and
-> tested on the emulator and with host test-suites. It has **not yet been
-> validated on real hardware**. The hardware acceptance tests R01–R16
-> ([docs/acceptance](docs/acceptance/README.md)) must pass on both
-> revisions before a stable release.
+> **Status: work in progress (0.1.0-dev).** Protocol implementations have
+> host and emulator tests; several device management menus and release
+> documents are still incomplete. See the verified
+> [development handoff](docs/developer/handoff.md). It has **not yet been
+> validated on real hardware**. Hardware acceptance tests R01–R16 must pass
+> on both revisions before a stable release.
 
 > **Third-party firmware.** feuristic is not made, endorsed or signed by
 > SatoshiLabs / Trezor Company. Installing it requires an irreversible
