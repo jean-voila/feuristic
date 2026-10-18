@@ -22,11 +22,11 @@
 
 typedef unsigned __int128 u128;
 
-#define CHECK(c)    \
-  do {              \
-    if (!(c)) {     \
-      abort();      \
-    }               \
+#define CHECK(c) \
+  do {           \
+    if (!(c)) {  \
+      abort();   \
+    }            \
   } while (0)
 
 typedef struct {
@@ -218,8 +218,7 @@ int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size) {
       uint8_t out[FRSA_MAX_MODULUS_BYTES + 8];
       size_t bl = take_len(&c, 260), el = take_len(&c, 260),
              ml = take_len(&c, 260);
-      const uint8_t *b = take(&c, &bl), *e = take(&c, &el),
-                    *m = take(&c, &ml);
+      const uint8_t *b = take(&c, &bl), *e = take(&c, &el), *m = take(&c, &ml);
       uint64_t bv, mv;
       int r = frsa_modpow(bl ? b : NULL, bl, el ? e : NULL, el, m, ml, out);
       if (r == FRSA_OK && fits64(m, ml, &mv) && fits64(b, bl, &bv)) {
@@ -304,12 +303,24 @@ int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size) {
         c.p += 3;
         c.n -= 3;
         switch (f % 6) {
-          case 0: p[pos % k->plen] ^= mask; break;
-          case 1: q[pos % k->qlen] ^= mask; break;
-          case 2: dp[pos % k->dplen] ^= mask; break;
-          case 3: dq[pos % k->dqlen] ^= mask; break;
-          case 4: qi[pos % k->qinvlen] ^= mask; break;
-          default: in[pos % k->nlen] ^= mask; break;
+          case 0:
+            p[pos % k->plen] ^= mask;
+            break;
+          case 1:
+            q[pos % k->qlen] ^= mask;
+            break;
+          case 2:
+            dp[pos % k->dplen] ^= mask;
+            break;
+          case 3:
+            dq[pos % k->dqlen] ^= mask;
+            break;
+          case 4:
+            qi[pos % k->qinvlen] ^= mask;
+            break;
+          default:
+            in[pos % k->nlen] ^= mask;
+            break;
         }
       }
       if (memcmp(in, k->n, k->nlen) >= 0) {
@@ -339,14 +350,13 @@ int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size) {
       size_t nl, cl, pl = take_len(&c, 140), ql = take_len(&c, 140);
       uint32_t e = 0;
       size_t el = 4, i;
-      const uint8_t *eb = take(&c, &el), *p = take(&c, &pl),
-                    *q = take(&c, &ql);
+      const uint8_t *eb = take(&c, &el), *p = take(&c, &pl), *q = take(&c, &ql);
       int r;
       for (i = 0; i < el; i++) {
         e = (e << 8) | eb[i];
       }
-      r = frsa_complete(pl ? p : NULL, pl, ql ? q : NULL, ql, e, n, &nl, dp,
-                        dq, qi, &cl);
+      r = frsa_complete(pl ? p : NULL, pl, ql ? q : NULL, ql, e, n, &nl, dp, dq,
+                        qi, &cl);
       CHECK(r == FRSA_OK || r == FRSA_ERR_PARAM || r == FRSA_ERR_KEY);
       if (r != FRSA_OK) {
         CHECK(all_zero(n, sizeof n) && all_zero(dp, sizeof dp));

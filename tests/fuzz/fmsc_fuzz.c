@@ -79,7 +79,9 @@ static void f_stall(void *u, fmsc_ep_t ep) {
   f->stalled[ep] = true;
 }
 
-static trk_t *rec(fz_t *f, uint32_t id) { return id - 1u < TRACKED ? &f->s[id - 1u] : NULL; }
+static trk_t *rec(fz_t *f, uint32_t id) {
+  return id - 1u < TRACKED ? &f->s[id - 1u] : NULL;
+}
 
 static bool f_start(void *u, uint32_t id) {
   fz_t *f = u;
@@ -91,7 +93,8 @@ static bool f_start(void *u, uint32_t id) {
   return !f->refuse;
 }
 
-static void f_data(void *u, uint32_t id, uint32_t off, const uint8_t *d, size_t n) {
+static void f_data(void *u, uint32_t id, uint32_t off, const uint8_t *d,
+                   size_t n) {
   fz_t *f = u;
   (void)d;
   trk_t *t = rec(f, id);
@@ -102,7 +105,8 @@ static void f_data(void *u, uint32_t id, uint32_t off, const uint8_t *d, size_t 
   }
 }
 
-static void f_complete(void *u, uint32_t id, const fmsc_file_name_t *nm, uint32_t size) {
+static void f_complete(void *u, uint32_t id, const fmsc_file_name_t *nm,
+                       uint32_t size) {
   fz_t *f = u;
   trk_t *t = rec(f, id);
   if (size == 0u || size > FMSC_MAX_FILE_SIZE) FAIL();
@@ -128,7 +132,9 @@ static void f_error(void *u, uint32_t id, fmsc_stream_error_t r) {
 
 static void f_event(void *u, fmsc_event_t ev) {
   (void)u;
-  if (ev != FMSC_EVT_EJECTED && ev != FMSC_EVT_STOPPED && ev != FMSC_EVT_HOST_RESET) FAIL();
+  if (ev != FMSC_EVT_EJECTED && ev != FMSC_EVT_STOPPED &&
+      ev != FMSC_EVT_HOST_RESET)
+    FAIL();
 }
 
 // --- host side --------------------------------------------------------------
@@ -208,7 +214,8 @@ static void make_sector(input_t *in, uint8_t kind, uint32_t seed, uint8_t *s) {
         uint32_t v = 0;
         if (c == 0) v = 0xFF8;
         if (c == 1 || c == 2 || c == 3) v = 0xFFF;
-        if (c >= start && c < start + n) v = c + 1u < start + n ? c + 1u : 0xFFF;
+        if (c >= start && c < start + n)
+          v = c + 1u < start + n ? c + 1u : 0xFFF;
         if (c == start + n / 2u && (take(in) & 7u) == 0u) v = take(in);
         const uint32_t off = c + c / 2u;
         if (off + 1u >= 512u) break;
@@ -237,8 +244,9 @@ static void make_sector(input_t *in, uint8_t kind, uint32_t seed, uint8_t *s) {
 }
 
 // One complete BOT transaction with a well-formed CBW.
-static void transaction(fz_t *f, input_t *in, const uint8_t *cdb, uint8_t cblen, bool dir_in,
-                        uint32_t xfer, uint8_t kind, uint32_t seed) {
+static void transaction(fz_t *f, input_t *in, const uint8_t *cdb, uint8_t cblen,
+                        bool dir_in, uint32_t xfer, uint8_t kind,
+                        uint32_t seed) {
   static uint32_t tag;
   uint8_t cbw[31];
   memset(cbw, 0, sizeof cbw);
@@ -260,9 +268,12 @@ static void transaction(fz_t *f, input_t *in, const uint8_t *cdb, uint8_t cblen,
       if (n < 64) break;
     }
   } else {
-    for (uint32_t i = 0; i < 4096u && done < xfer && !f->stalled[FMSC_EP_OUT]; i++) {
+    for (uint32_t i = 0; i < 4096u && done < xfer && !f->stalled[FMSC_EP_OUT];
+         i++) {
       const uint32_t in_sec = done % 512u;
-      if (in_sec == 0u) make_sector(in, i == 0u ? kind : (kind % 8u == 1u ? 3u : kind), seed + i, sec);
+      if (in_sec == 0u)
+        make_sector(in, i == 0u ? kind : (kind % 8u == 1u ? 3u : kind),
+                    seed + i, sec);
       const uint32_t n = xfer - done < 64u ? xfer - done : 64u;
       fmsc_on_out_packet(&f->ctx, sec + in_sec, n);
       done += n;
@@ -282,11 +293,16 @@ static uint32_t pick_lba(input_t *in) {
   const uint8_t r = take(in);
   const uint32_t v = (uint32_t)take(in) | ((uint32_t)take(in) << 8);
   switch (r % 5u) {
-    case 0: return 1u + v % 24u;                        // FAT1 / FAT2
-    case 1: return FMSC_ROOT_LBA + v % 4u;              // root directory
-    case 2: return FMSC_DATA_LBA + 16u + v % (48u * 8u);  // hot clusters 4..51
-    case 3: return FMSC_DATA_LBA + 16u + (v % 48u) * 8u;  // cluster starts
-    default: return v % (FMSC_TOTAL_SECTORS + 8u);
+    case 0:
+      return 1u + v % 24u;  // FAT1 / FAT2
+    case 1:
+      return FMSC_ROOT_LBA + v % 4u;  // root directory
+    case 2:
+      return FMSC_DATA_LBA + 16u + v % (48u * 8u);  // hot clusters 4..51
+    case 3:
+      return FMSC_DATA_LBA + 16u + (v % 48u) * 8u;  // cluster starts
+    default:
+      return v % (FMSC_TOTAL_SECTORS + 8u);
   }
 }
 
@@ -351,19 +367,37 @@ static void run(const uint8_t *data, size_t size) {
         const uint32_t lba = pick_lba(&in);
         const uint8_t cnt = (uint8_t)(1u + take(&in) % 16u);
         const uint8_t kind = take(&in);
-        const uint8_t cdb[10] = {0x2A, 0, (uint8_t)(lba >> 24), (uint8_t)(lba >> 16),
-                                 (uint8_t)(lba >> 8), (uint8_t)lba, 0, 0, cnt, 0};
+        const uint8_t cdb[10] = {0x2A,
+                                 0,
+                                 (uint8_t)(lba >> 24),
+                                 (uint8_t)(lba >> 16),
+                                 (uint8_t)(lba >> 8),
+                                 (uint8_t)lba,
+                                 0,
+                                 0,
+                                 cnt,
+                                 0};
         const uint8_t skew = take(&in);
         uint32_t xfer = (uint32_t)cnt * 512u;
-        if ((skew & 0x0Fu) == 0u) xfer += (uint32_t)(skew >> 4) * 64u;  // Ho > Do
-        transaction(f, &in, cdb, 10, (skew & 0xF0u) == 0x10u, xfer, kind, f->now + op);
+        if ((skew & 0x0Fu) == 0u)
+          xfer += (uint32_t)(skew >> 4) * 64u;  // Ho > Do
+        transaction(f, &in, cdb, 10, (skew & 0xF0u) == 0x10u, xfer, kind,
+                    f->now + op);
         break;
       }
       case 8: {  // READ(10)
         const uint32_t lba = pick_lba(&in);
         const uint8_t cnt = (uint8_t)(take(&in) % 9u);
-        const uint8_t cdb[10] = {0x28, 0, (uint8_t)(lba >> 24), (uint8_t)(lba >> 16),
-                                 (uint8_t)(lba >> 8), (uint8_t)lba, 0, 0, cnt, 0};
+        const uint8_t cdb[10] = {0x28,
+                                 0,
+                                 (uint8_t)(lba >> 24),
+                                 (uint8_t)(lba >> 16),
+                                 (uint8_t)(lba >> 8),
+                                 (uint8_t)lba,
+                                 0,
+                                 0,
+                                 cnt,
+                                 0};
         transaction(f, &in, cdb, 10, true, (uint32_t)cnt * 512u, 0, 0);
         break;
       }
@@ -451,8 +485,10 @@ int main(int argc, char **argv) {
     }
     closedir(d);
   }
-  printf("fmsc_fuzz_replay: %d inputs OK (streams: %lu started, %lu completed, %lu failed)\n",
-         files, n_started, n_completed, n_failed);
+  printf(
+      "fmsc_fuzz_replay: %d inputs OK (streams: %lu started, %lu completed, "
+      "%lu failed)\n",
+      files, n_started, n_completed, n_failed);
   return files > 0 ? 0 : 1;
 }
 #endif

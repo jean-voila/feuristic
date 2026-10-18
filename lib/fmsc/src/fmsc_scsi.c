@@ -173,7 +173,7 @@ static void cmd_request_sense(fmsc_ctx_t *ctx) {
   memset(b, 0, 18);
   b[0] = 0x70u;  // current error, fixed format
   b[2] = key;
-  b[7] = 10u;    // additional sense length
+  b[7] = 10u;  // additional sense length
   b[12] = asc;
   b[13] = ascq;
   ctx->sense_key = SK_NO_SENSE;
@@ -203,8 +203,8 @@ static void cmd_mode_sense(fmsc_ctx_t *ctx, bool ten) {
   uint8_t *p = b + hdr;
   p[0] = MODE_PAGE_CACHING;
   p[1] = CACHING_PAGE_LEN - 2u;
-  if (pc != 1u) {    // current / default values; changeable mask is all 0
-    p[2] = 0x04u;    // WCE: hosts then send SYNCHRONIZE CACHE on flush
+  if (pc != 1u) {  // current / default values; changeable mask is all 0
+    p[2] = 0x04u;  // WCE: hosts then send SYNCHRONIZE CACHE on flush
   }
   const size_t total = hdr + CACHING_PAGE_LEN;
   if (ten) {
@@ -235,7 +235,8 @@ static void cmd_start_stop(fmsc_ctx_t *ctx) {
   }
   if (loej) {
     if (ctx->prevent) {
-      check(ctx, SK_ILLEGAL_REQUEST, ASC_REMOVAL_PREVENTED, ASCQ_REMOVAL_PREVENTED);
+      check(ctx, SK_ILLEGAL_REQUEST, ASC_REMOVAL_PREVENTED,
+            ASCQ_REMOVAL_PREVENTED);
       return;
     }
     // The host flushed and released the medium: final verdict on streams.
@@ -387,7 +388,8 @@ void fmsc_scsi_execute(fmsc_ctx_t *ctx) {
       return;
     case OP_VERIFY10: {
       if ((cdb[1] >> 5) != 0u || (cdb[1] & 0x06u) != 0u) {
-        invalid_field(ctx);  // VRPROTECT / BYTCHK: data not kept, cannot compare
+        invalid_field(
+            ctx);  // VRPROTECT / BYTCHK: data not kept, cannot compare
         return;
       }
       if (!medium_ready(ctx)) {

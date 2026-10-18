@@ -6,8 +6,8 @@ import threading
 import pytest
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.asymmetric import ec
-from fido2.ctap2 import Ctap2
 from fido2.cose import ES256
+from fido2.ctap2 import Ctap2
 from harness.emulator import PORT_FIDO
 from harness.fido import open_device
 
@@ -67,9 +67,7 @@ def test_make_credential_and_assert(ctap, ready):
 
     assertion = _run_with_approval(
         ready,
-        lambda: ctap.get_assertion(
-            RP["id"], CDH, [{"type": "public-key", "id": cred.credential_id}]
-        ),
+        lambda: ctap.get_assertion(RP["id"], CDH, [{"type": "public-key", "id": cred.credential_id}]),
     )
     pub.verify(assertion.auth_data + CDH, assertion.signature)
 

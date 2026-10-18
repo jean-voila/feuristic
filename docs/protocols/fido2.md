@@ -1,3 +1,6 @@
+<!-- SPDX-License-Identifier: GPL-3.0-only -->
+<!-- Copyright (C) 2026 The feuristic contributors -->
+
 # FIDO2 / CTAP 2.1 and U2F — protocol notes
 
 Status: implemented in `src/feuristic/apps/fido2/` (shared MicroPython/CPython

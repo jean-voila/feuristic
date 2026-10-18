@@ -8,7 +8,8 @@
 //
 //   IDLE --valid CBW--> DATA_OUT --all data--> CSW --CSW consumed--> IDLE
 //        |              DATA_IN  --all data--> CSW
-//        |                       --short (Hi>Di)--> WAIT_CLEAR_IN --clear--> CSW
+//        |                       --short (Hi>Di)--> WAIT_CLEAR_IN --clear-->
+//        CSW
 //        |--CBW not valid--> NEED_RESET --fmsc_bot_reset()--> IDLE
 
 #include <string.h>
@@ -30,7 +31,9 @@
 
 // --- helpers ---------------------------------------------------------------
 
-static void do_stall(fmsc_ctx_t *ctx, fmsc_ep_t ep) { ctx->cb.stall(ctx->cb.user, ep); }
+static void do_stall(fmsc_ctx_t *ctx, fmsc_ep_t ep) {
+  ctx->cb.stall(ctx->cb.user, ep);
+}
 
 static void prepare_csw(fmsc_ctx_t *ctx, uint8_t status, uint32_t residue) {
   fmsc_put_le32(ctx->csw, CSW_SIGNATURE);
@@ -50,14 +53,16 @@ static void csw_now(fmsc_ctx_t *ctx, uint8_t status, uint32_t residue) {
 }
 
 // Halt IN; the CSW follows once the host has cleared the halt.
-static void csw_after_in_stall(fmsc_ctx_t *ctx, uint8_t status, uint32_t residue) {
+static void csw_after_in_stall(fmsc_ctx_t *ctx, uint8_t status,
+                               uint32_t residue) {
   prepare_csw(ctx, status, residue);
   ctx->state = BOT_WAIT_CLEAR_IN;
   do_stall(ctx, FMSC_EP_IN);
 }
 
 // Halt OUT and queue the CSW on IN.
-static void csw_after_out_stall(fmsc_ctx_t *ctx, uint8_t status, uint32_t residue) {
+static void csw_after_out_stall(fmsc_ctx_t *ctx, uint8_t status,
+                                uint32_t residue) {
   do_stall(ctx, FMSC_EP_OUT);
   csw_now(ctx, status, residue);
 }
@@ -187,8 +192,8 @@ static void handle_cbw(fmsc_ctx_t *ctx, const uint8_t *pkt, size_t len) {
   const uint8_t cblen = pkt[14];
   const bool host_in = (flags & 0x80u) != 0u;
   ctx->cbw_flags = flags;
-  const bool meaningful = (flags & 0x7Fu) == 0u && lun == 0u && cblen >= 1u &&
-                          cblen <= 16u;
+  const bool meaningful =
+      (flags & 0x7Fu) == 0u && lun == 0u && cblen >= 1u && cblen <= 16u;
   if (!meaningful) {
     // Valid but not meaningful (reserved bits, LUN != 0, CB length): phase
     // error, which makes the host perform a reset recovery.
@@ -210,7 +215,8 @@ static void handle_cbw(fmsc_ctx_t *ctx, const uint8_t *pkt, size_t len) {
 }
 
 static void handle_data_out(fmsc_ctx_t *ctx, const uint8_t *pkt, size_t len) {
-  const uint32_t take = len > ctx->h_remaining ? ctx->h_remaining : (uint32_t)len;
+  const uint32_t take =
+      len > ctx->h_remaining ? ctx->h_remaining : (uint32_t)len;
   const uint32_t use = take > ctx->d_remaining ? ctx->d_remaining : take;
   uint32_t off = 0;
   while (off < use) {
@@ -310,7 +316,8 @@ fmsc_status_t fmsc_init(fmsc_ctx_t *ctx, const fmsc_config_t *cfg,
     fmsc_secure_zero(ctx->cache_mem, (size_t)ctx->cache_n * FMSC_CLUSTER_SIZE);
   }
   if (ctx->reorder_n > 0u) {
-    fmsc_secure_zero(ctx->reorder_mem, (size_t)ctx->reorder_n * FMSC_SECTOR_SIZE);
+    fmsc_secure_zero(ctx->reorder_mem,
+                     (size_t)ctx->reorder_n * FMSC_SECTOR_SIZE);
   }
   fmsc_vol_init(ctx);
   ctx->ua_pending = 1;
@@ -431,7 +438,8 @@ void fmsc_wipe(fmsc_ctx_t *ctx) {
     fmsc_secure_zero(ctx->cache_mem, (size_t)ctx->cache_n * FMSC_CLUSTER_SIZE);
   }
   if (ctx->reorder_mem != NULL && ctx->reorder_n > 0u) {
-    fmsc_secure_zero(ctx->reorder_mem, (size_t)ctx->reorder_n * FMSC_SECTOR_SIZE);
+    fmsc_secure_zero(ctx->reorder_mem,
+                     (size_t)ctx->reorder_n * FMSC_SECTOR_SIZE);
   }
   fmsc_secure_zero(ctx, sizeof *ctx);
 }

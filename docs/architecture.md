@@ -1,3 +1,6 @@
+<!-- SPDX-License-Identifier: GPL-3.0-only -->
+<!-- Copyright (C) 2026 The feuristic contributors -->
+
 # feuristic — Architecture
 
 > Status: **design reference for v0.x (pre-release)**. This document is the

@@ -14,14 +14,13 @@
 static int g_failures = 0;
 static int g_checks = 0;
 
-#define CHECK(cond)                                                   \
-  do {                                                                \
-    g_checks++;                                                       \
-    if (!(cond)) {                                                    \
-      g_failures++;                                                   \
-      fprintf(stderr, "%s:%d: CHECK failed: %s\n", __FILE__, __LINE__, \
-              #cond);                                                 \
-    }                                                                 \
+#define CHECK(cond)                                                            \
+  do {                                                                         \
+    g_checks++;                                                                \
+    if (!(cond)) {                                                             \
+      g_failures++;                                                            \
+      fprintf(stderr, "%s:%d: CHECK failed: %s\n", __FILE__, __LINE__, #cond); \
+    }                                                                          \
   } while (0)
 
 #define COUNT(a) (sizeof(a) / sizeof((a)[0]))
@@ -146,8 +145,7 @@ static void test_kat_private_public(void) {
         eb[1] = (uint8_t)(k->e >> 16);
         eb[2] = (uint8_t)(k->e >> 8);
         eb[3] = (uint8_t)k->e;
-        CHECK(frsa_modpow(m->s, m->slen, eb, 4, k->n, k->nlen, out) ==
-              FRSA_OK);
+        CHECK(frsa_modpow(m->s, m->slen, eb, 4, k->n, k->nlen, out) == FRSA_OK);
         CHECK(memcmp(out, m->m, m->mlen) == 0);
       }
     }
@@ -205,8 +203,7 @@ static void test_wycheproof_decrypt(void) {
       r = frsa_private(&key, c->in, c->inlen, blind, k->nlen, out);
       if (c->valid_format) {
         CHECK(r == FRSA_OK);
-        CHECK(frsa_public(k->n, k->nlen, k->e, out, k->nlen, back) ==
-              FRSA_OK);
+        CHECK(frsa_public(k->n, k->nlen, k->e, out, k->nlen, back) == FRSA_OK);
         CHECK(memcmp(back, c->in, k->nlen) == 0);
         if (r != FRSA_OK) {
           fprintf(stderr, "  wycheproof decrypt tcId %d\n", c->tc);
@@ -482,8 +479,8 @@ static void test_complete_errors(void) {
   }
   {
     derived d;
-    CHECK(frsa_complete(NULL, 0, NULL, 0, 3, d.n, &d.nlen, d.dp, d.dq,
-                        d.qinv, &d.clen) == FRSA_ERR_PARAM);
+    CHECK(frsa_complete(NULL, 0, NULL, 0, 3, d.n, &d.nlen, d.dp, d.dq, d.qinv,
+                        &d.clen) == FRSA_ERR_PARAM);
   }
 }
 

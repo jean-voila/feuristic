@@ -122,8 +122,7 @@ int frsa_public(const uint8_t *n, size_t nlen, uint32_t e, const uint8_t *in,
 // modlen, the bit length of mod and explen leak). Sliding window of up to
 // 4 bits (5 for small moduli) over BearSSL br_i31_modpow_opt.
 int frsa_modpow(const uint8_t *base, size_t baselen, const uint8_t *exp,
-                size_t explen, const uint8_t *mod, size_t modlen,
-                uint8_t *out);
+                size_t explen, const uint8_t *mod, size_t modlen, uint8_t *out);
 
 // Trial division of an odd prime candidate by the first 2048 odd primes
 // (3 .. 17881), done in constant time as a single gcd test:
@@ -137,8 +136,7 @@ int frsa_sieve(const uint8_t *cand, size_t candlen);
 // w with base b, 1 < b < w - 1. Uses constant-time modular exponentiation.
 // Returns 1 ("probably prime" for this base), 0 (composite) or
 // FRSA_ERR_PARAM (w even or < 5, b out of range, sizes > 256 bytes).
-int frsa_mr_round(const uint8_t *w, size_t wlen, const uint8_t *b,
-                  size_t blen);
+int frsa_mr_round(const uint8_t *w, size_t wlen, const uint8_t *b, size_t blen);
 
 #ifdef __cplusplus
 }

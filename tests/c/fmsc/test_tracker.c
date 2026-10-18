@@ -27,9 +27,11 @@ static host_t *mk(void) { return mk_cfg(16, 2000, 15000); }
 
 static uint32_t nclusters(uint32_t size) { return (size + 4095) / 4096; }
 
-static bool completed_with(host_t *h, uint32_t id, const uint8_t *img, uint32_t size) {
+static bool completed_with(host_t *h, uint32_t id, const uint8_t *img,
+                           uint32_t size) {
   rec_stream_t *s = host_stream(h, id);
-  if (s == NULL || !s->completed || s->errored || s->terminal_events != 1) return false;
+  if (s == NULL || !s->completed || s->errored || s->terminal_events != 1)
+    return false;
   if (s->size != size || s->len < size) return false;
   return memcmp(s->data, img, size) == 0;
 }
@@ -194,9 +196,9 @@ static void test_lfn_names(void) {
   host_t *h = mk();
   sim_t s;
   CHECK(sim_mount(&s, h));
-  const char *names[2] = {
-      "Mon QR code (sauvegarde) 01.png",
-      "A very long file name that goes beyond sixty-three characters - frame 07.png"};
+  const char *names[2] = {"Mon QR code (sauvegarde) 01.png",
+                          "A very long file name that goes beyond sixty-three "
+                          "characters - frame 07.png"};
   for (uint32_t i = 0; i < 2; i++) {
     const uint32_t size = 2000 + i;
     uint8_t img[4096];
@@ -213,7 +215,8 @@ static void test_lfn_names(void) {
   }
   CHECK(strcmp(host_stream(h, 1)->name.long_name, names[0]) == 0);
   CHECK_EQ(strlen(host_stream(h, 2)->name.long_name), FMSC_LONG_NAME_MAX);
-  CHECK(strncmp(host_stream(h, 2)->name.long_name, names[1], FMSC_LONG_NAME_MAX) == 0);
+  CHECK(strncmp(host_stream(h, 2)->name.long_name, names[1],
+                FMSC_LONG_NAME_MAX) == 0);
   finish(h, &s);
 }
 
@@ -227,7 +230,8 @@ static void test_multiple_sequential(void) {
     make_image(img, size, 20 + i, (i & 1) != 0);
     const uint32_t c = sim_alloc(&s, nclusters(size));
     char short11[12];
-    snprintf(short11, sizeof short11, "FRAME%03u%s", (unsigned)i, (i & 1) ? "JPG" : "PNG");
+    snprintf(short11, sizeof short11, "FRAME%03u%s", (unsigned)i,
+             (i & 1) ? "JPG" : "PNG");
     sim_add_entry(&s, NULL, short11, 0x20, c, size);
     sim_flush_fat(&s, false, false);
     sim_flush_root(&s);
@@ -407,7 +411,8 @@ static void test_fragmented(void) {
   const uint32_t list[3] = {base, base + 1, base + 3};
   sim_fat_set(&s, base + 2, 0xFFF);  // occupied by "another file"
   sim_chain(&s, list, 3);
-  for (int k = 0; k < 3; k++) sim_write_file(&s, list[k], img + k * 4096, 4096, false);
+  for (int k = 0; k < 3; k++)
+    sim_write_file(&s, list[k], img + k * 4096, 4096, false);
   sim_add_entry(&s, NULL, "FRAG    PNG", 0x20, base, size);
   sim_flush_fat(&s, false, false);
   sim_flush_root(&s);
@@ -452,7 +457,8 @@ static void test_out_of_order_within_budget(void) {
   // Cluster 0 in order, cluster 1 sector by sector in reverse order, then
   // clusters 2, 4, 3 (whole-cluster reordering).
   sim_write(&s, sim_lba(c), 8, img);
-  for (int k = 15; k >= 8; k--) sim_write(&s, sim_lba(c) + (uint32_t)k, 1, img + k * 512);
+  for (int k = 15; k >= 8; k--)
+    sim_write(&s, sim_lba(c) + (uint32_t)k, 1, img + k * 512);
   CHECK_EQ(host_stream(h, 1)->len, 16 * 512);
   const int order[3] = {2, 4, 3};
   for (int k = 0; k < 3; k++) {
@@ -479,7 +485,8 @@ static void test_out_of_order_beyond_budget(void) {
   make_image(img, size, 81, false);
   const uint32_t c = sim_alloc(&s, 4);
   sim_write(&s, sim_lba(c), 8, img);
-  sim_write(&s, sim_lba(c + 2), 8, img + 2 * 4096);  // 8 sectors ahead > 4 slots
+  sim_write(&s, sim_lba(c + 2), 8,
+            img + 2 * 4096);  // 8 sectors ahead > 4 slots
   CHECK(errored_with(h, 1, FMSC_SERR_GAP));
   sim_write(&s, sim_lba(c + 1), 8, img + 4096);
   sim_write(&s, sim_lba(c + 3), 8, img + 3 * 4096);
@@ -587,8 +594,16 @@ static void test_bus_reset_mid_transfer(void) {
   const uint32_t c = sim_alloc(&s, 8);
   // WRITE(10) of 64 sectors interrupted after 300 packets (37.5 sectors).
   const uint32_t lba = sim_lba(c);
-  const uint8_t cdb[10] = {0x2A, 0, (uint8_t)(lba >> 24), (uint8_t)(lba >> 16),
-                           (uint8_t)(lba >> 8), (uint8_t)lba, 0, 0, 64, 0};
+  const uint8_t cdb[10] = {0x2A,
+                           0,
+                           (uint8_t)(lba >> 24),
+                           (uint8_t)(lba >> 16),
+                           (uint8_t)(lba >> 8),
+                           (uint8_t)lba,
+                           0,
+                           0,
+                           64,
+                           0};
   uint8_t cbw[31];
   host_build_cbw(cbw, 999, size, 0, 0, 10, cdb);
   host_send_out(h, cbw, 31);
@@ -644,7 +659,8 @@ static void test_overlapping_streams(void) {
   make_image(a, size, 130, false);
   make_image(b, size, 131, false);
   make_image(d, size, 132, false);
-  const uint32_t ca = sim_alloc(&s, 2), cb = sim_alloc(&s, 2), cd = sim_alloc(&s, 2);
+  const uint32_t ca = sim_alloc(&s, 2), cb = sim_alloc(&s, 2),
+                 cd = sim_alloc(&s, 2);
   sim_write_file(&s, ca, a, size, false);
   sim_write_file(&s, cb, b, size, false);  // A now waits for its metadata
   sim_add_entry(&s, NULL, "A       PNG", 0x20, ca, size);

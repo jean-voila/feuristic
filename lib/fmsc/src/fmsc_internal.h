@@ -55,7 +55,8 @@ void fmsc_secure_zero(void *p, size_t n);
 // --- geometry helpers --------------------------------------------------------
 
 static inline uint32_t fmsc_cluster_lba(uint32_t cluster) {
-  return FMSC_DATA_LBA + (cluster - FMSC_FIRST_CLUSTER) * FMSC_SECTORS_PER_CLUSTER;
+  return FMSC_DATA_LBA +
+         (cluster - FMSC_FIRST_CLUSTER) * FMSC_SECTORS_PER_CLUSTER;
 }
 static inline uint16_t fmsc_lba_cluster(uint32_t lba) {
   return (uint16_t)(FMSC_FIRST_CLUSTER +

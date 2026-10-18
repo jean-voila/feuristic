@@ -25,9 +25,9 @@ typedef struct {
   uint32_t volume_id;
   char label[12];
   char fs_type[9];
-  uint8_t *fat;    // FAT1 (fat_size sectors)
-  uint8_t *fat2;   // FAT2
-  uint8_t *root;   // root directory
+  uint8_t *fat;   // FAT1 (fat_size sectors)
+  uint8_t *fat2;  // FAT2
+  uint8_t *root;  // root directory
   char error[128];
 } fr_vol_t;
 
@@ -45,10 +45,11 @@ bool fr_mount(fr_vol_t *fr, fr_read_fn read, void *user);
 void fr_unmount(fr_vol_t *fr);
 uint32_t fr_fat_get(const fr_vol_t *fr, uint32_t cluster);
 /// Live entries of a directory buffer (LFN assembled). Returns the count.
-int fr_list(const fr_vol_t *fr, const uint8_t *dir, size_t entries, fr_entry_t *out,
-            int max);
+int fr_list(const fr_vol_t *fr, const uint8_t *dir, size_t entries,
+            fr_entry_t *out, int max);
 /// Read a whole directory cluster chain into `buf` (max bytes); returns bytes.
-size_t fr_read_chain(const fr_vol_t *fr, uint32_t cluster, uint8_t *buf, size_t max);
+size_t fr_read_chain(const fr_vol_t *fr, uint32_t cluster, uint8_t *buf,
+                     size_t max);
 /// Verify that every allocated chain terminates and no cluster is shared.
 bool fr_check_chains(fr_vol_t *fr);
 

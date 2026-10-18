@@ -55,8 +55,8 @@ static bool cb_stream_start(void *user, uint32_t id) {
   return true;
 }
 
-static void cb_stream_data(void *user, uint32_t id, uint32_t off, const uint8_t *d,
-                           size_t len) {
+static void cb_stream_data(void *user, uint32_t id, uint32_t off,
+                           const uint8_t *d, size_t len) {
   host_t *h = user;
   rec_stream_t *s = host_stream(h, id);
   if (s == NULL || s->data == NULL || s->terminal_events != 0) {
@@ -72,8 +72,8 @@ static void cb_stream_data(void *user, uint32_t id, uint32_t off, const uint8_t 
   s->len += (uint32_t)len;
 }
 
-static void cb_stream_complete(void *user, uint32_t id, const fmsc_file_name_t *name,
-                               uint32_t size) {
+static void cb_stream_complete(void *user, uint32_t id,
+                               const fmsc_file_name_t *name, uint32_t size) {
   host_t *h = user;
   rec_stream_t *s = host_stream(h, id);
   if (s == NULL || !s->started) {
@@ -90,7 +90,8 @@ static void cb_stream_complete(void *user, uint32_t id, const fmsc_file_name_t *
   h->n_completed++;
 }
 
-static void cb_stream_error(void *user, uint32_t id, fmsc_stream_error_t reason) {
+static void cb_stream_error(void *user, uint32_t id,
+                            fmsc_stream_error_t reason) {
   host_t *h = user;
   rec_stream_t *s = host_stream(h, id);
   if (s == NULL || !s->started) {
@@ -124,8 +125,9 @@ host_t *host_new(void) {
   h->reorder_sectors = 16;
   h->quiet_ms = 2000;
   h->settle_ms = 15000;
-  h->readme = "LISEZMOI / README\r\nCopiez une image PNG ou JPEG du QR code ici.\r\n"
-              "Copy one PNG or JPEG image of the QR code here.\r\n";
+  h->readme =
+      "LISEZMOI / README\r\nCopiez une image PNG ou JPEG du QR code ici.\r\n"
+      "Copy one PNG or JPEG image of the QR code here.\r\n";
   return h;
 }
 
@@ -236,8 +238,9 @@ void host_advance(host_t *h, uint32_t ms) {
   }
 }
 
-void host_build_cbw(uint8_t cbw[31], uint32_t tag, uint32_t xfer_len, uint8_t flags,
-                    uint8_t lun, uint8_t cb_len, const uint8_t *cdb) {
+void host_build_cbw(uint8_t cbw[31], uint32_t tag, uint32_t xfer_len,
+                    uint8_t flags, uint8_t lun, uint8_t cb_len,
+                    const uint8_t *cdb) {
   memset(cbw, 0, 31);
   cbw[0] = 0x55;
   cbw[1] = 0x53;
@@ -357,18 +360,34 @@ int scsi_sense(host_t *h, uint8_t *key, uint8_t *asc, uint8_t *ascq) {
 }
 
 int scsi_read10(host_t *h, uint32_t lba, uint16_t count, uint8_t *out) {
-  const uint8_t cdb[10] = {0x28, 0, (uint8_t)(lba >> 24), (uint8_t)(lba >> 16),
-                           (uint8_t)(lba >> 8), (uint8_t)lba, 0,
-                           (uint8_t)(count >> 8), (uint8_t)count, 0};
-  const xfer_t r = host_bot(h, cdb, 10, true, (uint32_t)count * 512u, NULL, out);
+  const uint8_t cdb[10] = {0x28,
+                           0,
+                           (uint8_t)(lba >> 24),
+                           (uint8_t)(lba >> 16),
+                           (uint8_t)(lba >> 8),
+                           (uint8_t)lba,
+                           0,
+                           (uint8_t)(count >> 8),
+                           (uint8_t)count,
+                           0};
+  const xfer_t r =
+      host_bot(h, cdb, 10, true, (uint32_t)count * 512u, NULL, out);
   return status_of(h, &r);
 }
 
 int scsi_write10(host_t *h, uint32_t lba, uint16_t count, const uint8_t *data) {
-  const uint8_t cdb[10] = {0x2A, 0, (uint8_t)(lba >> 24), (uint8_t)(lba >> 16),
-                           (uint8_t)(lba >> 8), (uint8_t)lba, 0,
-                           (uint8_t)(count >> 8), (uint8_t)count, 0};
-  const xfer_t r = host_bot(h, cdb, 10, false, (uint32_t)count * 512u, data, NULL);
+  const uint8_t cdb[10] = {0x2A,
+                           0,
+                           (uint8_t)(lba >> 24),
+                           (uint8_t)(lba >> 16),
+                           (uint8_t)(lba >> 8),
+                           (uint8_t)lba,
+                           0,
+                           (uint8_t)(count >> 8),
+                           (uint8_t)count,
+                           0};
+  const xfer_t r =
+      host_bot(h, cdb, 10, false, (uint32_t)count * 512u, data, NULL);
   return status_of(h, &r);
 }
 
@@ -379,7 +398,8 @@ int scsi_sync(host_t *h) {
 }
 
 int scsi_start_stop(host_t *h, bool loej, bool start) {
-  const uint8_t cdb[6] = {0x1B, 0, 0, 0, (uint8_t)((loej ? 2 : 0) | (start ? 1 : 0)), 0};
+  const uint8_t cdb[6] = {
+      0x1B, 0, 0, 0, (uint8_t)((loej ? 2 : 0) | (start ? 1 : 0)), 0};
   const xfer_t r = host_bot(h, cdb, 6, false, 0, NULL, NULL);
   return status_of(h, &r);
 }

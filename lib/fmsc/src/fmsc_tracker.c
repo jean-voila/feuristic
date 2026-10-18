@@ -109,7 +109,8 @@ static bool any_stream(const fmsc_ctx_t *ctx) {
 static void reorder_clear(fmsc_ctx_t *ctx) {
   for (size_t i = 0; i < ctx->reorder_n; i++) {
     if (ctx->ro[i].used) {
-      fmsc_secure_zero(ctx->reorder_mem + i * FMSC_SECTOR_SIZE, FMSC_SECTOR_SIZE);
+      fmsc_secure_zero(ctx->reorder_mem + i * FMSC_SECTOR_SIZE,
+                       FMSC_SECTOR_SIZE);
       ctx->ro[i].used = 0;
       ctx->ro[i].lba = 0;
     }
@@ -133,7 +134,8 @@ static void remember_finished(fmsc_ctx_t *ctx, const fmsc_stream_t *st) {
   }
 }
 
-static bool finished_match(const fmsc_ctx_t *ctx, uint16_t cluster, uint32_t size) {
+static bool finished_match(const fmsc_ctx_t *ctx, uint16_t cluster,
+                           uint32_t size) {
   for (size_t i = 0; i < 4u; i++) {
     if (ctx->done_cluster[i] == cluster && ctx->done_size[i] == size) {
       return true;
@@ -174,12 +176,14 @@ static uint32_t stream_limit(const fmsc_stream_t *st) {
   return lim;
 }
 
-// --- directory parsing ---------------------------------------------------------
+// --- directory parsing
+// ---------------------------------------------------------
 
 static uint8_t lfn_checksum(const uint8_t *name11) {
   uint8_t sum = 0;
   for (size_t i = 0; i < 11u; i++) {
-    sum = (uint8_t)((uint8_t)((sum & 1u) << 7) + (uint8_t)(sum >> 1) + name11[i]);
+    sum =
+        (uint8_t)((uint8_t)((sum & 1u) << 7) + (uint8_t)(sum >> 1) + name11[i]);
   }
   return sum;
 }
@@ -331,7 +335,8 @@ static bool find_entry(const fmsc_ctx_t *ctx, uint16_t cluster, uint32_t *size,
 }
 
 static chain_t chain_check(const fmsc_ctx_t *ctx, uint32_t start, uint32_t n) {
-  if (start < FMSC_FIRST_CLUSTER || n == 0u || start + n - 1u > FMSC_LAST_CLUSTER) {
+  if (start < FMSC_FIRST_CLUSTER || n == 0u ||
+      start + n - 1u > FMSC_LAST_CLUSTER) {
     return CHAIN_FRAGMENTED;
   }
   for (uint32_t i = 0; i < n; i++) {
@@ -373,9 +378,11 @@ static void stream_complete(fmsc_ctx_t *ctx, fmsc_stream_t *st) {
   fmsc_secure_zero(&name, sizeof name);
 }
 
-static void eval_stream(fmsc_ctx_t *ctx, fmsc_stream_t *st, fmsc_trigger_t trig) {
+static void eval_stream(fmsc_ctx_t *ctx, fmsc_stream_t *st,
+                        fmsc_trigger_t trig) {
   const bool eject = trig == FMSC_TRIG_EJECT;
-  const bool decisive = trig == FMSC_TRIG_SYNC || trig == FMSC_TRIG_SETTLE || eject;
+  const bool decisive =
+      trig == FMSC_TRIG_SYNC || trig == FMSC_TRIG_SETTLE || eject;
   fmsc_file_name_t name;
   uint32_t size = 0;
   bool deleted = false;
@@ -472,7 +479,8 @@ void fmsc_trk_evaluate(fmsc_ctx_t *ctx, fmsc_trigger_t trig) {
   }
 }
 
-// --- data path ------------------------------------------------------------------
+// --- data path
+// ------------------------------------------------------------------
 
 static void deliver(fmsc_ctx_t *ctx, fmsc_stream_t *st, uint32_t lba,
                     const uint8_t *d) {
@@ -521,7 +529,8 @@ static bool reorder_put(fmsc_ctx_t *ctx, uint32_t lba, const uint8_t *d) {
   if (free_slot < 0) {
     return false;
   }
-  memcpy(ctx->reorder_mem + (size_t)free_slot * FMSC_SECTOR_SIZE, d, FMSC_SECTOR_SIZE);
+  memcpy(ctx->reorder_mem + (size_t)free_slot * FMSC_SECTOR_SIZE, d,
+         FMSC_SECTOR_SIZE);
   ctx->ro[free_slot].used = 1;
   ctx->ro[free_slot].lba = lba;
   return true;
@@ -583,7 +592,8 @@ static void new_stream(fmsc_ctx_t *ctx, uint32_t lba, const uint8_t *d) {
     uint32_t size = 0;
     bool deleted = false;
     fmsc_file_name_t name;
-    if (find_entry(ctx, c, &size, &name, &deleted) && finished_match(ctx, c, size)) {
+    if (find_entry(ctx, c, &size, &name, &deleted) &&
+        finished_match(ctx, c, size)) {
       slot->stale = 1;
       slot->stale_size = size;
     }
@@ -655,7 +665,8 @@ void fmsc_trk_data_sector(fmsc_ctx_t *ctx, uint32_t lba, const uint8_t *d) {
       ctx->skip_next = lba + 1u;
       return;
     }
-    if (lba > rx->next_lba && lba < lim && lba - rx->next_lba <= FMSC_REORDER_WINDOW) {
+    if (lba > rx->next_lba && lba < lim &&
+        lba - rx->next_lba <= FMSC_REORDER_WINDOW) {
       if (!reorder_put(ctx, lba, d)) {
         stream_fail(ctx, rx, FMSC_SERR_GAP);
       }

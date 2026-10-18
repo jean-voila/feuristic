@@ -9,14 +9,19 @@
 // coreapp. All protocol logic (CCID messages, BOT/SCSI, FAT12) runs in the
 // coreapp. Endpoint control (ZLP, STALL) and class events (BOT reset, CCID
 // ABORT, halt cleared) are multiplexed on the same syshandle with a one-byte
-// frame header:
+// frame header.
 //
-//   coreapp -> kernel (syshandle_write)        kernel -> coreapp (syshandle_read)
-//   [USB_BULK_OP_DATA][1..64 bytes]            [USB_BULK_EV_DATA][0..64 bytes]
-//   [USB_BULK_OP_ZLP]                          [USB_BULK_EV_RESET][wValue lo, hi]
-//   [USB_BULK_OP_STALL_IN]                     [USB_BULK_EV_HALT_CLEARED][ep]
-//   [USB_BULK_OP_STALL_OUT]
-//   [USB_BULK_OP_INTR][1..8 bytes]
+// coreapp -> kernel (syshandle_write):
+//   - [USB_BULK_OP_DATA][1..64 bytes]   one bulk IN packet
+//   - [USB_BULK_OP_ZLP]                 a zero-length bulk IN packet
+//   - [USB_BULK_OP_STALL_IN]            stall the bulk IN endpoint
+//   - [USB_BULK_OP_STALL_OUT]           stall the bulk OUT endpoint
+//   - [USB_BULK_OP_INTR][1..8 bytes]    one interrupt IN packet
+//
+// kernel -> coreapp (syshandle_read):
+//   - [USB_BULK_EV_DATA][0..64 bytes]   one bulk OUT packet
+//   - [USB_BULK_EV_RESET][lo, hi]       class reset (BOT reset, CCID ABORT)
+//   - [USB_BULK_EV_HALT_CLEARED][ep]    the host cleared an endpoint halt
 //
 // The emulator (io/usb/unix/usb.c) carries the very same frames in UDP
 // datagrams, so host-side test tools exercise the exact same coreapp code.

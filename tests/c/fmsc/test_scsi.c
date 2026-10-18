@@ -17,7 +17,8 @@ static host_t *mk(void) {
 }
 
 static uint32_t be32(const uint8_t *p) {
-  return ((uint32_t)p[0] << 24) | ((uint32_t)p[1] << 16) | ((uint32_t)p[2] << 8) | p[3];
+  return ((uint32_t)p[0] << 24) | ((uint32_t)p[1] << 16) |
+         ((uint32_t)p[2] << 8) | p[3];
 }
 
 static void expect_sense(host_t *h, uint8_t key, uint8_t asc, uint8_t ascq) {
@@ -29,8 +30,8 @@ static void expect_sense(host_t *h, uint8_t key, uint8_t asc, uint8_t ascq) {
 }
 
 // Generic data-in command; returns status, fills `got`.
-static int cmd_in(host_t *h, const uint8_t *cdb, uint8_t len, uint32_t xfer, uint8_t *buf,
-                  uint32_t *got) {
+static int cmd_in(host_t *h, const uint8_t *cdb, uint8_t len, uint32_t xfer,
+                  uint8_t *buf, uint32_t *got) {
   const xfer_t r = host_bot(h, cdb, len, true, xfer, NULL, buf);
   CHECK(r.csw_ok);
   if (got != NULL) *got = r.got;
@@ -147,7 +148,8 @@ static void test_request_sense_format(void) {
 
 static void test_invalid_opcodes(void) {
   host_t *h = mk();
-  const uint8_t ops[] = {0xA0, 0x9E, 0x15, 0x55, 0x08, 0x0A, 0x04, 0xA1, 0x85, 0x4A, 0xFF};
+  const uint8_t ops[] = {0xA0, 0x9E, 0x15, 0x55, 0x08, 0x0A,
+                         0x04, 0xA1, 0x85, 0x4A, 0xFF};
   for (size_t i = 0; i < sizeof ops; i++) {
     uint8_t cdb[12];
     memset(cdb, 0, sizeof cdb);
@@ -285,7 +287,8 @@ static void test_verify_and_sync(void) {
   CHECK_EQ(cmd_none(h, v, 10), 1);
   expect_sense(h, 0x05, 0x21, 0x00);
   CHECK_EQ(scsi_sync(h), 0);
-  const uint8_t s2[10] = {0x35, 0, 0, 0, 0x7F, 0x9C, 0, 0, 2, 0};  // lba 32668, 2 blocks
+  const uint8_t s2[10] = {0x35, 0, 0, 0, 0x7F,
+                          0x9C, 0, 0, 2, 0};  // lba 32668, 2 blocks
   CHECK_EQ(cmd_none(h, s2, 10), 1);
   expect_sense(h, 0x05, 0x21, 0x00);
   CHECK_EQ(h->violations, 0);

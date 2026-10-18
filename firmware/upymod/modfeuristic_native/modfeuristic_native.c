@@ -165,9 +165,9 @@ static mp_obj_t mod_feuristic_native_rsa_private(size_t n_args,
   }
   return mp_obj_new_bytes_from_vstr(&out);
 }
-static MP_DEFINE_CONST_FUN_OBJ_VAR_BETWEEN(
-    mod_feuristic_native_rsa_private_obj, 8, 8,
-    mod_feuristic_native_rsa_private);
+static MP_DEFINE_CONST_FUN_OBJ_VAR_BETWEEN(mod_feuristic_native_rsa_private_obj,
+                                           8, 8,
+                                           mod_feuristic_native_rsa_private);
 
 /// def rsa_public(n: AnyBytes, e: int, block: AnyBytes) -> bytes:
 ///     """
@@ -186,9 +186,8 @@ static mp_obj_t mod_feuristic_native_rsa_public(mp_obj_t n_obj, mp_obj_t e_obj,
   }
   vstr_t out = {0};
   vstr_init_len(&out, n.len);
-  if (frsa_public((const uint8_t *)n.buf, n.len, e,
-                  (const uint8_t *)block.buf, block.len,
-                  (uint8_t *)out.buf) != FRSA_OK) {
+  if (frsa_public((const uint8_t *)n.buf, n.len, e, (const uint8_t *)block.buf,
+                  block.len, (uint8_t *)out.buf) != FRSA_OK) {
     vstr_clear(&out);
     mp_raise_ValueError(MP_ERROR_TEXT("invalid RSA input"));
   }
@@ -215,9 +214,9 @@ static mp_obj_t mod_feuristic_native_modpow(mp_obj_t base_obj, mp_obj_t exp_obj,
   }
   vstr_t out = {0};
   vstr_init_len(&out, mod.len);
-  if (frsa_modpow((const uint8_t *)base.buf, base.len,
-                  (const uint8_t *)exp.buf, exp.len, (const uint8_t *)mod.buf,
-                  mod.len, (uint8_t *)out.buf) != FRSA_OK) {
+  if (frsa_modpow((const uint8_t *)base.buf, base.len, (const uint8_t *)exp.buf,
+                  exp.len, (const uint8_t *)mod.buf, mod.len,
+                  (uint8_t *)out.buf) != FRSA_OK) {
     fn_wipe(out.buf, out.len);
     vstr_clear(&out);
     mp_raise_ValueError(MP_ERROR_TEXT("invalid modulus"));

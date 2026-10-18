@@ -51,7 +51,8 @@ static void put_dirent(uint8_t *e, const char *name11, uint8_t attr,
 static uint8_t lfn_checksum(const uint8_t *name11) {
   uint8_t sum = 0;
   for (size_t i = 0; i < 11u; i++) {
-    sum = (uint8_t)((uint8_t)((sum & 1u) << 7) + (uint8_t)(sum >> 1) + name11[i]);
+    sum =
+        (uint8_t)((uint8_t)((sum & 1u) << 7) + (uint8_t)(sum >> 1) + name11[i]);
   }
   return sum;
 }
@@ -94,7 +95,8 @@ static size_t put_lfn(uint8_t *dst, const char *lname, const char *short11) {
   return count;
 }
 
-// --- FAT ----------------------------------------------------------------------
+// --- FAT
+// ----------------------------------------------------------------------
 
 uint16_t fmsc_fat_get(const fmsc_ctx_t *ctx, uint32_t cluster) {
   if (cluster > FMSC_LAST_CLUSTER) {
@@ -332,18 +334,22 @@ void fmsc_vol_read(fmsc_ctx_t *ctx, uint32_t lba, uint8_t *out) {
   if (lba == 0u) {
     gen_boot(ctx, out);
   } else if (lba < FMSC_FAT2_LBA) {
-    memcpy(out, ctx->fat + (lba - FMSC_FAT1_LBA) * FMSC_SECTOR_SIZE, FMSC_SECTOR_SIZE);
+    memcpy(out, ctx->fat + (lba - FMSC_FAT1_LBA) * FMSC_SECTOR_SIZE,
+           FMSC_SECTOR_SIZE);
   } else if (lba < FMSC_ROOT_LBA) {
-    memcpy(out, ctx->fat + (lba - FMSC_FAT2_LBA) * FMSC_SECTOR_SIZE, FMSC_SECTOR_SIZE);
+    memcpy(out, ctx->fat + (lba - FMSC_FAT2_LBA) * FMSC_SECTOR_SIZE,
+           FMSC_SECTOR_SIZE);
   } else if (lba < FMSC_DATA_LBA) {
-    memcpy(out, ctx->root + (lba - FMSC_ROOT_LBA) * FMSC_SECTOR_SIZE, FMSC_SECTOR_SIZE);
+    memcpy(out, ctx->root + (lba - FMSC_ROOT_LBA) * FMSC_SECTOR_SIZE,
+           FMSC_SECTOR_SIZE);
   } else if (lba < FMSC_TOTAL_SECTORS) {
     const uint16_t cluster = fmsc_lba_cluster(lba);
     const uint32_t s = fmsc_lba_sector_in_cluster(lba);
     const int i = cache_find(ctx, cluster);
     if (i >= 0) {
       ctx->cache[i].stamp = ++ctx->cache_clock;
-      memcpy(out, cache_data(ctx, (size_t)i) + s * FMSC_SECTOR_SIZE, FMSC_SECTOR_SIZE);
+      memcpy(out, cache_data(ctx, (size_t)i) + s * FMSC_SECTOR_SIZE,
+             FMSC_SECTOR_SIZE);
     } else if (gen_has(ctx, cluster)) {
       gen_cluster_sector(ctx, cluster, s, out);
     } else {
@@ -385,7 +391,8 @@ void fmsc_vol_write(fmsc_ctx_t *ctx, uint32_t lba, const uint8_t *data) {
     return;
   }
   if (lba < FMSC_DATA_LBA) {
-    memcpy(ctx->root + (lba - FMSC_ROOT_LBA) * FMSC_SECTOR_SIZE, data, FMSC_SECTOR_SIZE);
+    memcpy(ctx->root + (lba - FMSC_ROOT_LBA) * FMSC_SECTOR_SIZE, data,
+           FMSC_SECTOR_SIZE);
     ctx->meta_dirty = 1;
     return;
   }

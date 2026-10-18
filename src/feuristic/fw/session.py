@@ -48,7 +48,13 @@ def _load_stores() -> None:
 
     accounts.default().load()
     backup_registry.clear()
-    for p in (OtpBackupProvider(), OpenPgpBackupProvider(pgp_storage.default()), PivBackupProvider(), AesBackupProvider()):
+    providers = (
+        OtpBackupProvider(),
+        OpenPgpBackupProvider(pgp_storage.default()),
+        PivBackupProvider(),
+        AesBackupProvider(),
+    )
+    for p in providers:
         backup_registry.register(p)
 
 

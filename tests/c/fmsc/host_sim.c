@@ -30,7 +30,9 @@ bool sim_mount(sim_t *s, host_t *h) {
 
 void sim_unmount(sim_t *s) { fr_unmount(&s->fr); }
 
-uint32_t sim_lba(uint32_t cluster) { return FMSC_DATA_LBA + (cluster - 2u) * 8u; }
+uint32_t sim_lba(uint32_t cluster) {
+  return FMSC_DATA_LBA + (cluster - 2u) * 8u;
+}
 
 uint32_t sim_fat_get(const sim_t *s, uint32_t c) {
   const uint32_t off = c + c / 2u;
@@ -81,12 +83,13 @@ void sim_free_chain(sim_t *s, uint32_t c) {
 
 static uint8_t sfn_sum(const uint8_t *n) {
   uint8_t sum = 0;
-  for (int i = 0; i < 11; i++) sum = (uint8_t)(((sum & 1) << 7) + (sum >> 1) + n[i]);
+  for (int i = 0; i < 11; i++)
+    sum = (uint8_t)(((sum & 1) << 7) + (sum >> 1) + n[i]);
   return sum;
 }
 
-int sim_add_entry(sim_t *s, const char *long_name, const char *short11, uint8_t attr,
-                  uint32_t cluster, uint32_t size) {
+int sim_add_entry(sim_t *s, const char *long_name, const char *short11,
+                  uint8_t attr, uint32_t cluster, uint32_t size) {
   const size_t ln = long_name != NULL ? strlen(long_name) : 0;
   const int nlfn = (int)((ln + 12) / 13);
   const int need = nlfn + 1;
@@ -111,7 +114,9 @@ int sim_add_entry(sim_t *s, const char *long_name, const char *short11, uint8_t 
     static const int offs[13] = {1, 3, 5, 7, 9, 14, 16, 18, 20, 22, 24, 28, 30};
     for (int j = 0; j < 13; j++) {
       const size_t pos = (size_t)(k - 1) * 13 + (size_t)j;
-      const unsigned ch = pos < ln ? (unsigned char)long_name[pos] : pos == ln ? 0u : 0xFFFFu;
+      const unsigned ch = pos < ln    ? (unsigned char)long_name[pos]
+                          : pos == ln ? 0u
+                                      : 0xFFFFu;
       e[offs[j]] = (uint8_t)ch;
       e[offs[j] + 1] = (uint8_t)(ch >> 8);
     }
@@ -187,8 +192,8 @@ void sim_write(sim_t *s, uint32_t lba, uint32_t count, const uint8_t *data) {
   }
 }
 
-void sim_write_file(sim_t *s, uint32_t cluster, const uint8_t *data, uint32_t size,
-                    bool whole_clusters) {
+void sim_write_file(sim_t *s, uint32_t cluster, const uint8_t *data,
+                    uint32_t size, bool whole_clusters) {
   uint32_t sectors = (size + 511) / 512;
   if (whole_clusters) sectors = (sectors + 7) / 8 * 8;
   uint8_t *tmp = calloc(sectors, 512);
@@ -206,7 +211,8 @@ void make_image(uint8_t *buf, uint32_t size, uint32_t seed, bool jpeg) {
     buf[i] = (uint8_t)(x >> 7);
   }
   for (uint32_t i = 4096; i < size; i += 4096) buf[i] = 0x42;
-  static const uint8_t png[8] = {0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A};
+  static const uint8_t png[8] = {0x89, 0x50, 0x4E, 0x47,
+                                 0x0D, 0x0A, 0x1A, 0x0A};
   static const uint8_t jpg[4] = {0xFF, 0xD8, 0xFF, 0xE0};
   if (jpeg) {
     memcpy(buf, jpg, size < 4 ? size : 4);

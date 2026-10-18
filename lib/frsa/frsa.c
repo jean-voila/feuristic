@@ -537,8 +537,7 @@ int frsa_sieve(const uint8_t *cand, size_t candlen) {
     return FRSA_ERR_PARAM;
   }
   candlen = frsa_strip(&c, candlen);
-  if (candlen == 0 || (c[candlen - 1] & 1) == 0 ||
-      (candlen == 1 && c[0] < 3)) {
+  if (candlen == 0 || (c[candlen - 1] & 1) == 0 || (candlen == 1 && c[0] < 3)) {
     return 0;
   }
   br_i31_decode(C, c, candlen);

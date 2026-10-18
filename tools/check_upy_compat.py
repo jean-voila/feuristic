@@ -26,12 +26,41 @@ MPY_CROSS = ROOT / "upstream/trezor-firmware/core/build-xtask/mpy-cross/mpy-cros
 
 HOST_ONLY = {"platform/_host_crypto.py", "platform/testing.py"}
 FORBIDDEN_MODULES = {
-    "struct", "collections", "math", "re", "json", "binascii", "hashlib", "os", "io", "time",
-    "random", "dataclasses", "enum", "abc", "functools", "itertools", "contextlib", "typing_extensions",
+    "struct",
+    "collections",
+    "math",
+    "re",
+    "json",
+    "binascii",
+    "hashlib",
+    "os",
+    "io",
+    "time",
+    "random",
+    "dataclasses",
+    "enum",
+    "abc",
+    "functools",
+    "itertools",
+    "contextlib",
+    "typing_extensions",
 }
 # modules that only exist on the device (allowed)
-DEVICE_MODULES = {"micropython", "trezor", "trezorui_api", "trezorio", "trezorcrypto", "trezortranslate",
-                  "trezorconfig", "trezorutils", "utime", "feuristic_native", "storage", "apps", "typing"}
+DEVICE_MODULES = {
+    "micropython",
+    "trezor",
+    "trezorui_api",
+    "trezorio",
+    "trezorcrypto",
+    "trezortranslate",
+    "trezorconfig",
+    "trezorutils",
+    "utime",
+    "feuristic_native",
+    "storage",
+    "apps",
+    "typing",
+}
 
 
 def static_check(path: Path, rel: str) -> list[str]:
@@ -51,9 +80,8 @@ def static_check(path: Path, rel: str) -> list[str]:
                 errors.append(f"{rel}:{node.lineno}: three-argument pow()")
             if node.func.id == "frozenset":
                 errors.append(f"{rel}:{node.lineno}: frozenset")
-            if node.func.id == "const" and node.args:
-                if not _is_const_expr(node.args[0]):
-                    errors.append(f"{rel}:{node.lineno}: const() argument must be a literal expression")
+            if node.func.id == "const" and node.args and not _is_const_expr(node.args[0]):
+                errors.append(f"{rel}:{node.lineno}: const() argument must be a literal expression")
         elif isinstance(node, ast.Attribute) and node.attr in ("bit_length", "splitlines", "center"):
             errors.append(f"{rel}:{node.lineno}: unsupported method '.{node.attr}'")
         elif isinstance(node, ast.keyword) and node.arg == "signed":

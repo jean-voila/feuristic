@@ -15,9 +15,9 @@
 
 #include <io/usb_bulk.h>
 #include <sec/random_delays.h>
-#include "memzero.h"
 #include <sys/irq.h>
 #include <sys/sysevent_source.h>
+#include "memzero.h"
 
 #ifdef USE_SUSPEND
 #include <io/suspend.h>
@@ -55,12 +55,12 @@ typedef struct {
   uint8_t ep_out;
   uint8_t ep_intr;  // 0 = none (direction bit included otherwise)
 
-  uint8_t rx_len;          // bytes in rx_buf, valid if rx_full
-  uint8_t rx_full;         // a received packet waits to be read
-  uint8_t in_idle;         // bulk IN endpoint can accept a packet
-  uint8_t intr_idle;       // interrupt IN endpoint can accept a packet
-  uint8_t in_stalled;      // we stalled bulk IN and wait for CLEAR_FEATURE
-  uint8_t out_stalled;     // we stalled bulk OUT and wait for CLEAR_FEATURE
+  uint8_t rx_len;       // bytes in rx_buf, valid if rx_full
+  uint8_t rx_full;      // a received packet waits to be read
+  uint8_t in_idle;      // bulk IN endpoint can accept a packet
+  uint8_t intr_idle;    // interrupt IN endpoint can accept a packet
+  uint8_t in_stalled;   // we stalled bulk IN and wait for CLEAR_FEATURE
+  uint8_t out_stalled;  // we stalled bulk OUT and wait for CLEAR_FEATURE
   uint8_t evq_head;
   uint8_t evq_count;
   usb_bulk_event_t evq[USB_BULK_EVQ_LEN];
@@ -185,7 +185,8 @@ static void evq_push(usb_bulk_state_t *s, uint8_t type, const uint8_t *data,
     s->evq_head = (s->evq_head + 1) % USB_BULK_EVQ_LEN;
     s->evq_count--;
   }
-  usb_bulk_event_t *e = &s->evq[(s->evq_head + s->evq_count) % USB_BULK_EVQ_LEN];
+  usb_bulk_event_t *e =
+      &s->evq[(s->evq_head + s->evq_count) % USB_BULK_EVQ_LEN];
   e->type = type;
   e->len = MIN(len, sizeof(e->data));
   if (e->len > 0) {
@@ -282,8 +283,7 @@ static uint8_t usb_bulk_class_init(USBD_HandleTypeDef *dev, uint8_t cfg_idx) {
   return USBD_OK;
 }
 
-static uint8_t usb_bulk_class_deinit(USBD_HandleTypeDef *dev,
-                                     uint8_t cfg_idx) {
+static uint8_t usb_bulk_class_deinit(USBD_HandleTypeDef *dev, uint8_t cfg_idx) {
   usb_bulk_state_t *s = (usb_bulk_state_t *)dev->pUserData;
   UNUSED(cfg_idx);
 
@@ -385,8 +385,7 @@ static uint8_t usb_bulk_class_setup(USBD_HandleTypeDef *dev,
   return USBD_FAIL;
 }
 
-static uint8_t usb_bulk_class_data_in(USBD_HandleTypeDef *dev,
-                                      uint8_t ep_num) {
+static uint8_t usb_bulk_class_data_in(USBD_HandleTypeDef *dev, uint8_t ep_num) {
   usb_bulk_state_t *s = (usb_bulk_state_t *)dev->pUserData;
   if ((ep_num | USB_EP_DIR_IN) == s->ep_in) {
     wait_random();

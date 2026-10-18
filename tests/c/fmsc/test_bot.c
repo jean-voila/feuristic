@@ -361,8 +361,8 @@ static void test_not_meaningful_cbw(void) {
     bool in;
     uint32_t len;
   } cases[] = {
-      {0x00, 1, 6, false, 0},   {0x80, 1, 6, true, 36},  {0x00, 0, 0, false, 0},
-      {0x00, 0, 17, false, 64}, {0x80, 0, 31, true, 8},  {0x81, 0, 6, true, 36},
+      {0x00, 1, 6, false, 0},    {0x80, 1, 6, true, 36}, {0x00, 0, 0, false, 0},
+      {0x00, 0, 17, false, 64},  {0x80, 0, 31, true, 8}, {0x81, 0, 6, true, 36},
       {0x00, 0x10, 6, false, 0},
   };
   for (size_t i = 0; i < sizeof cases / sizeof cases[0]; i++) {
@@ -371,8 +371,8 @@ static void test_not_meaningful_cbw(void) {
     uint8_t cdb[16];
     memset(cdb, 0, sizeof cdb);
     inquiry_cdb(cdb, 36);
-    host_build_cbw(cbw, 0x1234, cases[i].len, cases[i].flags, cases[i].lun, cases[i].cblen,
-                   cdb);
+    host_build_cbw(cbw, 0x1234, cases[i].len, cases[i].flags, cases[i].lun,
+                   cases[i].cblen, cdb);
     fmsc_on_out_packet(&h->ctx, cbw, 31);
     if (cases[i].len > 0) {
       CHECK(h->stalled[cases[i].in ? FMSC_EP_IN : FMSC_EP_OUT]);

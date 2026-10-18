@@ -22,7 +22,8 @@ static void vol_read(void *user, uint32_t lba, uint8_t *out) {
   fmsc_volume_read(&h->ctx, lba, out);
 }
 
-static const fr_entry_t *find(const fr_entry_t *e, int n, const char *short_name) {
+static const fr_entry_t *find(const fr_entry_t *e, int n,
+                              const char *short_name) {
   for (int i = 0; i < n; i++) {
     if (strcmp(e[i].short_name, short_name) == 0) return &e[i];
   }
@@ -42,8 +43,8 @@ static void test_geometry(void) {
   CHECK_EQ(fr.fat_size, FMSC_FAT_SECTORS);
   CHECK_EQ(fr.fat_bits, 12);
   CHECK_EQ(fr.cluster_count, FMSC_CLUSTER_COUNT);
-  CHECK(fr.cluster_count <= 4084);       // Microsoft FAT12 rule
-  CHECK(fr.cluster_count + 2 < 4086);    // BSD fsck_msdos FAT12 rule
+  CHECK(fr.cluster_count <= 4084);     // Microsoft FAT12 rule
+  CHECK(fr.cluster_count + 2 < 4086);  // BSD fsck_msdos FAT12 rule
   CHECK_EQ(fr.fat_lba, FMSC_FAT1_LBA);
   CHECK_EQ(fr.root_lba, FMSC_ROOT_LBA);
   CHECK_EQ(fr.data_lba, FMSC_DATA_LBA);
@@ -56,7 +57,9 @@ static void test_geometry(void) {
   const uint8_t rc[10] = {0x25, 0, 0, 0, 0, 0, 0, 0, 0, 0};
   const xfer_t r = host_bot(h, rc, 10, true, 8, NULL, b);
   CHECK(r.csw_ok);
-  CHECK_EQ(((uint32_t)b[0] << 24 | (uint32_t)b[1] << 16 | (uint32_t)b[2] << 8 | b[3]) + 1,
+  CHECK_EQ(((uint32_t)b[0] << 24 | (uint32_t)b[1] << 16 | (uint32_t)b[2] << 8 |
+            b[3]) +
+               1,
            fr.total_sectors);
   fr_unmount(&fr);
   host_free(h);
@@ -84,27 +87,30 @@ static void test_root_contents(void) {
     free(buf);
   }
   const fr_entry_t *md = find(e, n, "METADA~1");
-  CHECK(md != NULL && strcmp(md->long_name, ".metadata_never_index") == 0 && md->size == 0 &&
-        md->cluster == 0 && (md->attr & 0x02));
+  CHECK(md != NULL && strcmp(md->long_name, ".metadata_never_index") == 0 &&
+        md->size == 0 && md->cluster == 0 && (md->attr & 0x02));
   const fr_entry_t *tr = find(e, n, "TRASHE~1");
-  CHECK(tr != NULL && strcmp(tr->long_name, ".Trashes") == 0 && !(tr->attr & 0x10));
+  CHECK(tr != NULL && strcmp(tr->long_name, ".Trashes") == 0 &&
+        !(tr->attr & 0x10));
   const fr_entry_t *fs = find(e, n, "FSEVEN~1");
-  CHECK(fs != NULL && strcmp(fs->long_name, ".fseventsd") == 0 && (fs->attr & 0x10) &&
-        fs->cluster == FMSC_FSEVENTSD_CLUSTER);
+  CHECK(fs != NULL && strcmp(fs->long_name, ".fseventsd") == 0 &&
+        (fs->attr & 0x10) && fs->cluster == FMSC_FSEVENTSD_CLUSTER);
   if (fs != NULL) {
     uint8_t dir[4096];
     CHECK_EQ(fr_read_chain(&fr, fs->cluster, dir, sizeof dir), 4096);
     fr_entry_t d[8];
     const int dn = fr_list(&fr, dir, 128, d, 8);
     CHECK_EQ(dn, 3);
-    CHECK(strcmp(d[0].short_name, ".") == 0 && d[0].cluster == FMSC_FSEVENTSD_CLUSTER);
+    CHECK(strcmp(d[0].short_name, ".") == 0 &&
+          d[0].cluster == FMSC_FSEVENTSD_CLUSTER);
     CHECK(strcmp(d[1].short_name, "..") == 0 && d[1].cluster == 0);
     CHECK(strcmp(d[2].short_name, "NO_LOG") == 0 && d[2].size == 0);
     CHECK_EQ(dir[64 + 12], 0x08);  // lowercase base name flag: "no_log"
   }
   // Free space: every other cluster is free.
   uint32_t used = 0;
-  for (uint32_t c = 2; c < fr.cluster_count + 2; c++) used += fr_fat_get(&fr, c) != 0;
+  for (uint32_t c = 2; c < fr.cluster_count + 2; c++)
+    used += fr_fat_get(&fr, c) != 0;
   CHECK_EQ(used, 2);
   CHECK_EQ(fr_fat_get(&fr, 0), 0xFF8);
   CHECK_EQ(fr_fat_get(&fr, 1), 0xFFF);
@@ -284,8 +290,10 @@ static void test_wipe(void) {
   CHECK_EQ(scsi_write10(h, FMSC_DATA_LBA + 9 * 8, 1, s), 0);
   fmsc_wipe(&h->ctx);
   bool zero = true;
-  for (size_t i = 0; i < sizeof h->cache_mem; i++) zero = zero && h->cache_mem[i] == 0;
-  for (size_t i = 0; i < sizeof h->reorder_mem; i++) zero = zero && h->reorder_mem[i] == 0;
+  for (size_t i = 0; i < sizeof h->cache_mem; i++)
+    zero = zero && h->cache_mem[i] == 0;
+  for (size_t i = 0; i < sizeof h->reorder_mem; i++)
+    zero = zero && h->reorder_mem[i] == 0;
   const uint8_t *raw = (const uint8_t *)&h->ctx;
   for (size_t i = 0; i < sizeof h->ctx; i++) zero = zero && raw[i] == 0;
   CHECK(zero);

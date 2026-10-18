@@ -15,41 +15,43 @@
 
 #include "fmsc.h"
 
-// --- check framework -----------------------------------------------------------
+// --- check framework
+// -----------------------------------------------------------
 
 extern int t_failures;
 extern int t_checks;
 
-#define CHECK(c)                                                         \
-  do {                                                                   \
-    t_checks++;                                                          \
-    if (!(c)) {                                                          \
-      t_failures++;                                                      \
+#define CHECK(c)                                                            \
+  do {                                                                      \
+    t_checks++;                                                             \
+    if (!(c)) {                                                             \
+      t_failures++;                                                         \
       fprintf(stderr, "%s:%d: CHECK failed: %s\n", __FILE__, __LINE__, #c); \
-    }                                                                    \
+    }                                                                       \
   } while (0)
 
-#define CHECK_EQ(a, b)                                                       \
-  do {                                                                       \
-    const long long t_a_ = (long long)(a);                                   \
-    const long long t_b_ = (long long)(b);                                   \
-    t_checks++;                                                              \
-    if (t_a_ != t_b_) {                                                      \
-      t_failures++;                                                          \
-      fprintf(stderr, "%s:%d: CHECK_EQ failed: %s == %s (%lld vs %lld)\n",    \
-              __FILE__, __LINE__, #a, #b, t_a_, t_b_);                        \
-    }                                                                        \
+#define CHECK_EQ(a, b)                                                     \
+  do {                                                                     \
+    const long long t_a_ = (long long)(a);                                 \
+    const long long t_b_ = (long long)(b);                                 \
+    t_checks++;                                                            \
+    if (t_a_ != t_b_) {                                                    \
+      t_failures++;                                                        \
+      fprintf(stderr, "%s:%d: CHECK_EQ failed: %s == %s (%lld vs %lld)\n", \
+              __FILE__, __LINE__, #a, #b, t_a_, t_b_);                     \
+    }                                                                      \
   } while (0)
 
-#define RUN(fn)                          \
-  do {                                   \
-    fprintf(stderr, "  %s\n", #fn);      \
-    fn();                                \
+#define RUN(fn)                     \
+  do {                              \
+    fprintf(stderr, "  %s\n", #fn); \
+    fn();                           \
   } while (0)
 
 int t_finish(const char *suite);
 
-// --- fake host -------------------------------------------------------------------
+// --- fake host
+// -------------------------------------------------------------------
 
 #define HOST_MAX_STREAMS 64
 #define HOST_STALL (-1)
@@ -96,12 +98,12 @@ typedef struct {
 } host_t;
 
 typedef struct {
-  bool csw_ok;      // a well-formed 13-byte CSW with matching tag arrived
-  uint8_t status;   // bCSWStatus
-  uint32_t residue; // dCSWDataResidue
-  uint32_t got;     // data-in bytes received
-  bool in_stalled;  // IN halted during the transfer
-  bool out_stalled; // OUT halted during the transfer
+  bool csw_ok;       // a well-formed 13-byte CSW with matching tag arrived
+  uint8_t status;    // bCSWStatus
+  uint32_t residue;  // dCSWDataResidue
+  uint32_t got;      // data-in bytes received
+  bool in_stalled;   // IN halted during the transfer
+  bool out_stalled;  // OUT halted during the transfer
 } xfer_t;
 
 /// Allocate + configure (defaults: 4 cache clusters, 16 reorder sectors,
@@ -127,8 +129,9 @@ void host_advance(host_t *h, uint32_t ms);
 xfer_t host_bot(host_t *h, const uint8_t *cdb, uint8_t cdb_len, bool dir_in,
                 uint32_t xfer_len, const uint8_t *out_data, uint8_t *in_data);
 /// Raw CBW builder (31 bytes).
-void host_build_cbw(uint8_t cbw[31], uint32_t tag, uint32_t xfer_len, uint8_t flags,
-                    uint8_t lun, uint8_t cb_len, const uint8_t *cdb);
+void host_build_cbw(uint8_t cbw[31], uint32_t tag, uint32_t xfer_len,
+                    uint8_t flags, uint8_t lun, uint8_t cb_len,
+                    const uint8_t *cdb);
 
 // SCSI helpers (status 0 = GOOD).
 int scsi_tur(host_t *h);

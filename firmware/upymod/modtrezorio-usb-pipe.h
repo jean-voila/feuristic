@@ -136,7 +136,8 @@ static mp_obj_t mod_trezorio_usb_set_mode(mp_obj_t mode_obj,
   params.serial_number[len] = '\0';
   params.usb21_landing = secfalse;
   if (sectrue != usb_set_mode((usb_mode_t)mode, &params)) {
-    mp_raise_msg(&mp_type_RuntimeError, MP_ERROR_TEXT("USB mode switch failed"));
+    mp_raise_msg(&mp_type_RuntimeError,
+                 MP_ERROR_TEXT("USB mode switch failed"));
   }
   return mp_const_none;
 }
@@ -160,18 +161,17 @@ static MP_DEFINE_CONST_FUN_OBJ_0(mod_trezorio_usb_get_mode_obj,
 /// USB_MODE_TIMESYNC: int
 /// USB_MODE_IMPORT: int
 /// USB_MODE_DETACH_MS: int
-#define FEURISTIC_TREZORIO_ENTRIES                                          \
-  {MP_ROM_QSTR(MP_QSTR_USBPipe), MP_ROM_PTR(&mod_trezorio_USBPipe_type)},  \
-      {MP_ROM_QSTR(MP_QSTR_usb_set_mode),                                  \
-       MP_ROM_PTR(&mod_trezorio_usb_set_mode_obj)},                        \
-      {MP_ROM_QSTR(MP_QSTR_usb_get_mode),                                  \
-       MP_ROM_PTR(&mod_trezorio_usb_get_mode_obj)},                        \
-      {MP_ROM_QSTR(MP_QSTR_USBIF_CCID), MP_ROM_INT(SYSHANDLE_USB_CCID)},   \
-      {MP_ROM_QSTR(MP_QSTR_USBIF_MSC), MP_ROM_INT(SYSHANDLE_USB_MSC)},     \
-      {MP_ROM_QSTR(MP_QSTR_USBIF_VCP), MP_ROM_INT(SYSHANDLE_USB_VCP)},     \
-      {MP_ROM_QSTR(MP_QSTR_USB_MODE_NORMAL), MP_ROM_INT(USB_MODE_NORMAL)}, \
-      {MP_ROM_QSTR(MP_QSTR_USB_MODE_TIMESYNC),                             \
-       MP_ROM_INT(USB_MODE_TIMESYNC)},                                     \
-      {MP_ROM_QSTR(MP_QSTR_USB_MODE_IMPORT), MP_ROM_INT(USB_MODE_IMPORT)}, \
-      {MP_ROM_QSTR(MP_QSTR_USB_MODE_DETACH_MS),                            \
+#define FEURISTIC_TREZORIO_ENTRIES                                             \
+  {MP_ROM_QSTR(MP_QSTR_USBPipe), MP_ROM_PTR(&mod_trezorio_USBPipe_type)},      \
+      {MP_ROM_QSTR(MP_QSTR_usb_set_mode),                                      \
+       MP_ROM_PTR(&mod_trezorio_usb_set_mode_obj)},                            \
+      {MP_ROM_QSTR(MP_QSTR_usb_get_mode),                                      \
+       MP_ROM_PTR(&mod_trezorio_usb_get_mode_obj)},                            \
+      {MP_ROM_QSTR(MP_QSTR_USBIF_CCID), MP_ROM_INT(SYSHANDLE_USB_CCID)},       \
+      {MP_ROM_QSTR(MP_QSTR_USBIF_MSC), MP_ROM_INT(SYSHANDLE_USB_MSC)},         \
+      {MP_ROM_QSTR(MP_QSTR_USBIF_VCP), MP_ROM_INT(SYSHANDLE_USB_VCP)},         \
+      {MP_ROM_QSTR(MP_QSTR_USB_MODE_NORMAL), MP_ROM_INT(USB_MODE_NORMAL)},     \
+      {MP_ROM_QSTR(MP_QSTR_USB_MODE_TIMESYNC), MP_ROM_INT(USB_MODE_TIMESYNC)}, \
+      {MP_ROM_QSTR(MP_QSTR_USB_MODE_IMPORT), MP_ROM_INT(USB_MODE_IMPORT)},     \
+      {MP_ROM_QSTR(MP_QSTR_USB_MODE_DETACH_MS),                                \
        MP_ROM_INT(USB_MODE_DETACH_MS)},

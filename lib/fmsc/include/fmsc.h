@@ -34,10 +34,10 @@
 //   OUT packet received            -> fmsc_on_out_packet()
 //   IN packet consumed by the host -> fmsc_on_in_ready()
 //   CLEAR_FEATURE(ENDPOINT_HALT)   -> fmsc_on_clear_halt()
-//   Bulk-Only Mass Storage Reset   -> fmsc_bot_reset()   (also on USB bus reset)
-//   Get Max LUN                    -> answer fmsc_get_max_lun() (always 0)
-//   periodically (>= every 100 ms) -> fmsc_poll(now_ms)
-//   cb.send_in(): queue one IN packet (<= 64 bytes, copied by the glue).
+//   Bulk-Only Mass Storage Reset   -> fmsc_bot_reset()   (also on USB bus
+//   reset) Get Max LUN                    -> answer fmsc_get_max_lun() (always
+//   0) periodically (>= every 100 ms) -> fmsc_poll(now_ms) cb.send_in(): queue
+//   one IN packet (<= 64 bytes, copied by the glue).
 //       fmsc never calls it again before fmsc_on_in_ready().
 //   cb.stall(ep): set ENDPOINT_HALT on the bulk IN or OUT endpoint.
 
@@ -64,7 +64,8 @@ extern "C" {
 // BSD/macOS fsck_msdos limit (clusters + 2 < 4086).
 #define FMSC_CLUSTER_COUNT 4080u
 #define FMSC_FIRST_CLUSTER 2u
-#define FMSC_LAST_CLUSTER (FMSC_FIRST_CLUSTER + FMSC_CLUSTER_COUNT - 1u)  // 4081
+#define FMSC_LAST_CLUSTER \
+  (FMSC_FIRST_CLUSTER + FMSC_CLUSTER_COUNT - 1u)  // 4081
 #define FMSC_RESERVED_SECTORS 1u
 #define FMSC_NUM_FATS 2u
 #define FMSC_FAT_SECTORS 12u  // ceil((4082 * 1.5) / 512)
@@ -146,16 +147,16 @@ typedef enum {
 /// Why a stream was abandoned (cb.stream_error). A stream that received an
 /// error never completes; its id is never reused.
 typedef enum {
-  FMSC_SERR_BUSY = 1,         ///< cb.stream_start() refused it
-  FMSC_SERR_SUPERSEDED = 2,   ///< evicted by newer streams before completion
-  FMSC_SERR_OVERWRITTEN = 3,  ///< its first sector was rewritten (new stream)
-  FMSC_SERR_REWRITE = 4,      ///< already-delivered data rewritten, differs
-  FMSC_SERR_GAP = 5,          ///< out-of-order data beyond the reorder budget
-  FMSC_SERR_TOO_LARGE = 6,    ///< directory entry size > FMSC_MAX_FILE_SIZE
-  FMSC_SERR_FRAGMENTED = 7,   ///< FAT chain not contiguous
-  FMSC_SERR_MISSING_DATA = 8, ///< metadata complete but bytes never written
-  FMSC_SERR_DELETED = 9,      ///< its directory entry was deleted
-  FMSC_SERR_INCOMPLETE = 10,  ///< medium ejected before completion
+  FMSC_SERR_BUSY = 1,          ///< cb.stream_start() refused it
+  FMSC_SERR_SUPERSEDED = 2,    ///< evicted by newer streams before completion
+  FMSC_SERR_OVERWRITTEN = 3,   ///< its first sector was rewritten (new stream)
+  FMSC_SERR_REWRITE = 4,       ///< already-delivered data rewritten, differs
+  FMSC_SERR_GAP = 5,           ///< out-of-order data beyond the reorder budget
+  FMSC_SERR_TOO_LARGE = 6,     ///< directory entry size > FMSC_MAX_FILE_SIZE
+  FMSC_SERR_FRAGMENTED = 7,    ///< FAT chain not contiguous
+  FMSC_SERR_MISSING_DATA = 8,  ///< metadata complete but bytes never written
+  FMSC_SERR_DELETED = 9,       ///< its directory entry was deleted
+  FMSC_SERR_INCOMPLETE = 10,   ///< medium ejected before completion
 } fmsc_stream_error_t;
 
 /// Name of a completed file.
@@ -254,10 +255,10 @@ typedef struct {
   uint32_t next_lba;   // frontier: first sector not delivered yet
   uint32_t file_size;  // from the directory entry (when entry_seen)
   uint16_t start_cluster;
-  uint8_t receiving;   // accepts sectors at its frontier
-  uint8_t entry_seen;  // a live (non-stale) directory entry was matched
-  uint8_t stale;       // a finished file's entry referenced start_cluster
-  uint32_t stale_size; // ... with this size when the stream started
+  uint8_t receiving;    // accepts sectors at its frontier
+  uint8_t entry_seen;   // a live (non-stale) directory entry was matched
+  uint8_t stale;        // a finished file's entry referenced start_cluster
+  uint32_t stale_size;  // ... with this size when the stream started
   fmsc_file_name_t name;
   uint16_t sum[FMSC_MAX_FILE_SECTORS];  // checksum of each delivered sector
 } fmsc_stream_t;

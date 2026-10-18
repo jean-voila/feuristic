@@ -40,8 +40,8 @@ void sim_free_chain(sim_t *s, uint32_t start);
 
 /// Add a root directory entry (+ LFN when long_name != NULL). `short11` is
 /// the 11-byte 8.3 name. Returns the index of the short entry.
-int sim_add_entry(sim_t *s, const char *long_name, const char *short11, uint8_t attr,
-                  uint32_t cluster, uint32_t size);
+int sim_add_entry(sim_t *s, const char *long_name, const char *short11,
+                  uint8_t attr, uint32_t cluster, uint32_t size);
 void sim_set_entry(sim_t *s, int idx, uint32_t cluster, uint32_t size);
 void sim_delete_entry(sim_t *s, int idx);
 
@@ -53,8 +53,8 @@ void sim_flush_root(sim_t *s);
 void sim_write(sim_t *s, uint32_t lba, uint32_t count, const uint8_t *data);
 /// Write a file's data at `cluster` (contiguous); `whole_clusters` pads the
 /// last cluster like a page-cache writeback.
-void sim_write_file(sim_t *s, uint32_t cluster, const uint8_t *data, uint32_t size,
-                    bool whole_clusters);
+void sim_write_file(sim_t *s, uint32_t cluster, const uint8_t *data,
+                    uint32_t size, bool whole_clusters);
 
 /// Deterministic fake image: PNG/JPEG signature + pseudo-random bytes. Bytes
 /// at cluster boundaries are forced to 0x42 so that no accidental signature

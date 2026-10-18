@@ -1,3 +1,6 @@
+<!-- SPDX-License-Identifier: GPL-3.0-only -->
+<!-- Copyright (C) 2026 The feuristic contributors -->
+
 # Writing code that runs on CPython *and* the device MicroPython
 
 Everything under `src/feuristic/core` and `src/feuristic/apps` (except the
