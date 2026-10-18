@@ -103,6 +103,27 @@ STRINGS = {
     ),
     "usb.eject_now": ("Eject the volume on your computer.", "Éjectez le volume sur votre ordinateur."),
     "usb.restored": ("Normal USB mode restored", "Mode USB normal rétabli"),
+    # QR import mode (fw/import_mode.py)
+    "import.receiving": ("Receiving {}...", "Réception de {}..."),
+    "import.err.stream": (
+        "File not usable (code {}). Copy it again.",
+        "Fichier inutilisable (code {}). Recopiez-le.",
+    ),
+    "import.err.image": ("Unsupported or damaged image ({}).", "Image non prise en charge ou abîmée ({})."),
+    "import.err.no_qr": ("No QR code found in the image.{}", "Aucun QR code trouvé dans l'image.{}"),
+    "import.err.multiple_qr": (
+        "The image must contain exactly one QR code.{}",
+        "L'image doit contenir un seul QR code.{}",
+    ),
+    "import.err.qr_damaged": (
+        "QR code unreadable (damaged or blurred).{}",
+        "QR code illisible (abîmé ou flou).{}",
+    ),
+    "import.err.truncated": ("Image truncated. Copy it again.{}", "Image tronquée. Recopiez-la.{}"),
+    "import.err.memory": ("Not enough memory for the import.", "Mémoire insuffisante pour l'import."),
+    "import.leave_now": ("Leave now", "Quitter"),
+    "backup.restore.done": ("Restore finished", "Restauration terminée"),
+    "backup.restore.summary": ("{} restored, {} skipped", "{} restaurée(s), {} ignorée(s)"),
 }
 
 

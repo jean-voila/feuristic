@@ -8,6 +8,7 @@ compiled into release firmware).
 
 from __future__ import annotations
 
+import contextlib
 import json
 import time
 
@@ -74,13 +75,34 @@ class Screen:
 
 class Debug:
     def __init__(self, port: int, model=models.T3B1) -> None:
-        self.dl = DebugLink(UdpTransport(f"127.0.0.1:{port}"), auto_interact=True)
-        self.dl.model = model
+        self.port = port
+        self.model = model
+        self._connect()
 
-    def screen(self) -> Screen:
-        st = self.dl.state(messages.DebugWaitType.IMMEDIATE)
-        raw = "".join(st.tokens)
-        return Screen(json.loads(raw) if raw else {})
+    def _connect(self) -> None:
+        self.dl = DebugLink(UdpTransport(f"127.0.0.1:{self.port}"), auto_interact=True)
+        self.dl.model = self.model
+
+    def screen(self, retries: int = 6) -> Screen:
+        """Current layout. Survives USB re-enumerations (mode switches), during
+        which the emulated debuglink socket is closed and reopened."""
+        for attempt in range(retries):
+            try:
+                st = self.dl._call(
+                    messages.DebugLinkGetState(wait_layout=messages.DebugWaitType.IMMEDIATE), timeout=3
+                )
+                while not isinstance(st, messages.DebugLinkState):
+                    st = self.dl._read(timeout=3)
+                raw = "".join(st.tokens)
+                return Screen(json.loads(raw) if raw else {})
+            except Exception:
+                if attempt == retries - 1:
+                    raise
+                with contextlib.suppress(Exception):
+                    self.dl.close()
+                time.sleep(0.5)
+                self._connect()
+        raise AssertionError("unreachable")
 
     def wait_for(self, predicate, timeout: float = 10.0) -> Screen:
         deadline = time.monotonic() + timeout

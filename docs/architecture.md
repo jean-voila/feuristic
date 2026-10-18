@@ -136,7 +136,7 @@ Consequences that shape the design:
 | `NORMAL` | 0: HID FIDO (int IN/OUT 64 B) · 1: CCID (bulk IN/OUT 64 B, int IN 8 B) | 3 | default |
 | `TIMESYNC` | 0–1: CDC-ACM (IAD; int IN 8 B, bulk IN/OUT 64 B) | 2 | Réglages → Heure TOTP |
 | `IMPORT` | 0: MSC BOT (bulk IN/OUT 64 B), FAT12 `FEURISTIC-IMPORT` | 1 | Ajouter QR / Restaurer |
-| `DEBUG` (debug builds only) | `NORMAL` + 2: vendor debuglink (int IN/OUT) | 4 | build flag |
+| debug builds only | every mode + a vendor debuglink interface (EP3, int IN/OUT) | +1 | build flag |
 
 The coreapp requests a mode with the new syscall `usb_set_mode(mode)`; the
 kernel performs `usb_deinit → usb_init(dev_info(mode)) → class adds →

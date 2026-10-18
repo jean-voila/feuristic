@@ -278,10 +278,16 @@ static secbool configure_mode(usb_mode_t mode) {
 #endif
       break;
     case USB_MODE_TIMESYNC:
-      ok = add_cdc_acm(0);
+      ok = add_cdc_acm(0);  // interfaces 0 and 1
+#ifdef USE_USB_IFACE_DEBUG
+      ok = secbool_and(ok, add_debuglink(2));
+#endif
       break;
     case USB_MODE_IMPORT:
       ok = add_msc(0);
+#ifdef USE_USB_IFACE_DEBUG
+      ok = secbool_and(ok, add_debuglink(1));
+#endif
       break;
     default:
       ok = secfalse;
