@@ -376,8 +376,12 @@ def ed25519_public(seed: bytes) -> bytes:
 
 
 def ed25519_sign(seed: bytes, msg: bytes) -> bytes:
+    """Ed25519 signature. Empty messages are rejected on every backend
+    (trezor-crypto refuses them; no feuristic protocol signs empty data)."""
     if len(seed) != 32:
         raise CryptoError("Ed25519 seed size")
+    if not msg:
+        raise CryptoError("Ed25519 empty message")
     if _backend.FIRMWARE:
         return _ed25519.sign(seed, msg)
     return _h.ed25519_sign(seed, msg)

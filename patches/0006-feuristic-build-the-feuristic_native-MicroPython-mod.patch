@@ -1,0 +1,73 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: feuristic build <build@feuristic.invalid>
+Date: Sun, 18 Oct 2026 05:11:31 +0200
+Subject: [PATCH] feuristic: build the feuristic_native MicroPython module
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Compiles firmware/upymod/modfeuristic_native (RSA primitives) with
+lib/frsa and the vendored BearSSL i31 subset (unmodified, -O2, upstream
+warnings disabled for third-party code) into the upymod library.
+
+Feuristic-Rationale: spec §6.1/§6.2 (RSA-2048 for PIV and OpenPGP);
+trezor-crypto has no RSA.
+
+diff --git a/core/embed/upymod/build.rs b/core/embed/upymod/build.rs
+index d9e228754b0f2f469cc7e4fec54c94fadd4cd5c7..058b2c9cb568bfb6a3db2e869149e43c24cf52e1 100644
+--- a/core/embed/upymod/build.rs
++++ b/core/embed/upymod/build.rs
+@@ -114,6 +114,53 @@ fn main() -> Result<()> {
+             lib.add_sources(["modtrezorio/ff.c", "modtrezorio/ffunicode.c"]);
+         }
+ 
++        if cfg!(feature = "feuristic") {
++            // feuristic_native: RSA (lib/frsa over a vendored BearSSL subset)
++            lib.add_sources([
++                "../feuristic/upymod/modfeuristic_native/modfeuristic_native.c",
++                "../feuristic_lib/frsa/frsa.c",
++            ]);
++            lib.add_private_include("../feuristic_lib/frsa");
++            lib.add_private_include("../feuristic_lib/third_party/bearssl/src");
++            lib.add_private_include("../feuristic_lib/third_party/bearssl/inc");
++            // vendored, unmodified third-party code: -O2 for the Montgomery
++            // loops (timings in docs/developer/rsa.md), upstream warnings off
++            let bearssl_attrs = xbuild::CompileAttrs::new().with_flag("-w");
++            let bearssl_attrs = if cfg!(feature = "emulator") {
++                bearssl_attrs
++            } else {
++                bearssl_attrs.with_flag("-O2")
++            };
++            lib.add_sources_in_dir_with_attrs(
++                "../feuristic_lib/third_party/bearssl/src",
++                [
++                    "codec/ccopy.c",
++                    "int/i31_add.c",
++                    "int/i31_bitlen.c",
++                    "int/i31_decmod.c",
++                    "int/i31_decode.c",
++                    "int/i31_decred.c",
++                    "int/i31_encode.c",
++                    "int/i31_fmont.c",
++                    "int/i31_iszero.c",
++                    "int/i31_moddiv.c",
++                    "int/i31_modpow2.c",
++                    "int/i31_montmul.c",
++                    "int/i31_mulacc.c",
++                    "int/i31_muladd.c",
++                    "int/i31_ninv31.c",
++                    "int/i31_reduce.c",
++                    "int/i31_rshift.c",
++                    "int/i31_sub.c",
++                    "int/i31_tmont.c",
++                    "int/i32_div32.c",
++                    "rsa/rsa_i31_priv.c",
++                    "rsa/rsa_i31_pub.c",
++                ],
++                Some(bearssl_attrs),
++            );
++        }
++
+         let attrs =
+             cfg!(not(feature = "emulator")).then(|| xbuild::CompileAttrs::new().with_flag("-O3"));
+ 
