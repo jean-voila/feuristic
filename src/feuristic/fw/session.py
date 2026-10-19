@@ -20,6 +20,7 @@ def register_strings() -> None:
     from ..apps.otp import strings as otp_strings
     from ..apps.timesync import strings as ts_strings
     from ..ui import strings as ui_strings
+    from ..ui import strings_apps, strings_backup
 
     for mod in (
         ui_strings,
@@ -31,31 +32,27 @@ def register_strings() -> None:
         aes_strings,
         backup_strings,
         import_strings,
+        strings_apps,
+        strings_backup,
     ):
         mod.register()
 
 
 def _load_stores() -> None:
-    """Resolve interrupted copy-on-write updates and build RAM indexes, and
-    register the backup providers."""
+    """Register providers lazily; stores recover their records at first use."""
     from ..apps.backup import provider as backup_registry
-    from ..apps.card.aes.provider import AesBackupProvider
-    from ..apps.card.openpgp import storage as pgp_storage
-    from ..apps.card.openpgp.provider import OpenPgpBackupProvider
-    from ..apps.card.piv.provider import PivBackupProvider
-    from ..apps.otp import accounts
-    from ..apps.otp.provider import OtpBackupProvider
+    from .backup_providers import create
 
-    accounts.default().load()
     backup_registry.clear()
-    providers = (
-        OtpBackupProvider(),
-        OpenPgpBackupProvider(pgp_storage.default()),
-        PivBackupProvider(),
-        AesBackupProvider(),
+    entries = (
+        ("otp", "otp.title"),
+        ("openpgp", "openpgp.backup.label"),
+        ("piv", "piv.title"),
+        ("aes", "aes.title"),
+        ("fido2", "fido2.app"),
     )
-    for p in providers:
-        backup_registry.register(p)
+    for kind, label_key in entries:
+        backup_registry.register(backup_registry.LazyProvider(kind, label_key, create))
 
 
 def _start_transports() -> None:
@@ -63,13 +60,9 @@ def _start_transports() -> None:
     if _transports_started:
         return
     _transports_started = True
-    try:
-        from . import transports
+    from . import transports
 
-        transports.start()
-    except ImportError:
-        if __debug__:
-            log.warning(__name__, "USB transports not available")
+    transports.start()
 
 
 async def _home() -> None:
@@ -85,17 +78,12 @@ async def _lockscreen() -> None:
 
 
 def _register_fido_provider() -> None:
+    """Keep the FIDO registry entry independent of the current HID server."""
     from ..apps.backup import provider as backup_registry
-    from ..apps.fido2.provider import Fido2BackupProvider
-    from . import transports
+    from .backup_providers import create
 
-    server = transports.fido_server()
-    if server is not None:
-        try:
-            backup_registry.unregister("fido2")
-        except Exception:
-            pass
-        backup_registry.register(Fido2BackupProvider(server.app.auth))
+    if not any(p.TYPE == "fido2" for p in backup_registry.all()):
+        backup_registry.register(backup_registry.LazyProvider("fido2", "fido2.app", create))
 
 
 def lock() -> None:
@@ -111,10 +99,50 @@ def lock() -> None:
         transports.on_lock()
     except ImportError:
         pass
+    _forget_stores()
     workflow.set_default(_lockscreen)
     workflow.close_others()
     workflow.kill_default()
     workflow.start_default()
+
+
+def _forget_stores() -> None:
+    """Release providers and singleton caches containing unlocked identities."""
+    from ..apps.backup import provider
+
+    provider.clear()
+    release_import_stores()
+
+
+def release_import_stores() -> None:
+    """Drop singleton identities between streamed restores, keeping registry/KDF.
+
+    Looking up modules avoids loading an unused application's code just to
+    discard its cache. The registry contains lazy providers and therefore no
+    references to these stores or to the suspended FIDO HID server.
+    """
+    import sys
+
+    for name in (
+        "feuristic.apps.otp.accounts",
+        "feuristic.apps.card.openpgp.storage",
+        "feuristic.apps.card.piv.storage",
+        "feuristic.apps.card.aes.keys",
+    ):
+        module = sys.modules.get(name)
+        if module is not None:
+            module._reset_default()
+
+
+def reload_stores() -> None:
+    """Refresh shared stores/providers after a temporary import session."""
+    from . import transports
+
+    transports.on_lock()
+    _forget_stores()
+    if config.is_unlocked():
+        _load_stores()
+        _register_fido_provider()
 
 
 def after_unlock_from_usb() -> None:

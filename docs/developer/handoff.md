@@ -117,29 +117,45 @@ Vérifications locales de ce lot :
 | Fuzz QR local | 15 034 exécutions en 61 s, aucun échec signalé |
 | Lint, format, SPDX, shellcheck et compatibilité MicroPython | passent |
 
-Les résultats de cette reprise sont locaux ; ils ne signifient pas qu'une
-nouvelle CI distante est verte. La modification de `ui/screens.py` commencée
-par Claude est conservée ; elle ne constitue pas les menus encore absents.
+Les résultats de ce premier lot sont locaux. La CI distante `39120687843`
+a ensuite validé les deux firmwares et les couches hôte/C/fuzz, mais échoué
+sur deux tests PC/SC : GET CHALLENGE après sélection OpenSC et GnuPG sans TTY.
+Ces deux défauts ont été corrigés ; les quatre tests GnuPG/OpenSC passent
+localement contre un lecteur virtuel Linux relié à l'émulateur macOS.
+
+Le deuxième lot implémente les menus FIDO2, OpenPGP, PIV, AES/RNG et
+sauvegarde, avec chaînes FR/EN, PIN appareil, confirmations maintenues,
+annulation et exports chiffrés. Les 13 scénarios de gestion passent sur T3B1,
+dont les contrôles CCID et python-fido2 ; 26 tests hôte couvrent les transitions
+de l'interface. Le parcours de restauration fragmentée a été vérifié par
+un encodeur/déchiffreur indépendant, avec mauvaise phrase puis nouvelle
+tentative, export de toutes les trames et annulation.
+
+Les guides utilisateur/développeur, les ADR 0001/0002 et les fiches
+d'acceptation R01–R16 existent désormais. Le verrouillage libère les tâches,
+providers et caches privés ; GET CHALLENGE reste accessible sur appareil
+verrouillé. Les modes USB temporaires suspendent les tâches normales et
+attendent la libération de leurs références avant d'allouer le décodeur.
+
+La saisie native accepte maintenant les phrases de 128 octets (patch 0008).
+Les fermetures du workflow parent par les écrans de saisie et de progression
+ont été corrigées et testées sur MicroPython.
 
 ## Prochain travail prioritaire
 
-1. Terminer `ui/app_fido2.py`, `app_openpgp.py`, `app_piv.py`, `app_aes.py` et
-   `app_backup.py`, leurs chaînes FR/EN et les tests fonctionnels des parcours.
-   Réutiliser les `localmgmt`, les providers de sauvegarde et l'interaction
-   inline ; exiger la réauthentification avant export ; gérer refus,
-   temporisations, retour et annulation. Prévoir les séquences QR et le repli
-   des longues URI OTP vers la sauvegarde fragmentée.
-2. Tester l'interopérabilité PC/SC sous Linux (`pcscd`, vsmartcard-vpcd,
-   OpenSC, GnuPG ; `FEURISTIC_INTEROP=1`). Les tests désactivés par défaut
-   ne sont pas des validations. Vérifier aussi les sauvegardes fragmentées
-   de bout en bout et les identités PIV/RSA sur l'émulateur.
-3. Écrire les guides d'installation et d'usage FR/EN, de construction,
-   d'émulation, de test, de release, les ADR 0001/0002, l'index de documentation,
-   le plan R01–R16 et la checklist de publication. Décrire le comportement
-   effectivement livré et distinguer les essais non exécutés.
-4. Refaire les builds des firmwares complets après ajout des menus, mesurer
-   flash et RAM T2B1, examiner la nouvelle CI, puis établir un état de
-   préparation à l'acceptation matérielle, sans publier de version stable.
+1. Terminer la correction RAM d'import/restauration T2B1. Son heap matériel
+   mesure 167 400 octets ; le décodeur 512 px occupe à lui seul environ
+   113 Kio, hors objets Python. Le harness à 20 Mio masque cette contrainte.
+   La sonde frozen et les corrections de traitement par identité sont en cours.
+2. Terminer le correctif de navigation native : confirmation avec les deux
+   boutons, maintien continu non cumulable, combinaison intermédiaire sans
+   action latérale. Les tests natifs et une première intégration T2B1 passent ;
+   la série de patchs doit être exportée après régression complète.
+3. Refaire les suites complètes, les deux builds matériels, les budgets
+   flash/RAM et la CI (désormais matricée sur les deux modèles d'émulateur).
+   Exécuter la reproductibilité Nix, puis produire le candidat et son manifeste.
+4. Établir la préparation à l'acceptation réelle, sans publier de version
+   stable avant les résultats physiques R01–R16 sur les deux révisions.
 
 Le PID USB de test `1209:0001`, la lisibilité physique des QR, les essais
 R01–R16 sur les deux révisions et la reproductibilité restent des points de

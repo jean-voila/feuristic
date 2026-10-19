@@ -21,6 +21,7 @@ import utime
 from micropython import const
 from trezor import io, loop, utils
 
+from ..apps.importer import payload
 from ..apps.importer import session as isession
 from ..core.i18n import t
 from ..ui import screens
@@ -38,10 +39,16 @@ def _readme() -> bytes:
         "feuristic - QR import\r\n\r\n"
         "Copy PNG or baseline JPEG images (max 256 KiB, 1024x1024) of one QR code\r\n"
         "each to this drive, then follow the instructions on the device.\r\n"
+        "Copy all QR images of ONE identity, confirm on the device, then copy\r\n"
+        "the next identity. While confirmation is pending, writes fail with\r\n"
+        "NOT READY: wait for the device to resume, then retry failed copies.\r\n"
         "Copied images are decoded on the fly and are not stored: reading them\r\n"
         "back returns zeros. Eject the drive when the device asks for it.\r\n\r\n"
         "Copiez des images PNG ou JPEG baseline (max 256 Kio, 1024x1024) contenant\r\n"
         "chacune un QR code, puis suivez les instructions sur l'appareil.\r\n"
+        "Copiez UNE identite, confirmez sur l'appareil puis copiez la suivante.\r\n"
+        "Pendant la confirmation, les copies sont refusees : attendez la\r\n"
+        "reprise puis recommencez les copies qui ont echoue.\r\n"
         "Les images sont decodees a la volee et ne sont pas conservees : leur\r\n"
         "relecture renvoie des zeros. Ejectez le volume quand l'appareil le demande.\r\n"
     )
@@ -49,11 +56,15 @@ def _readme() -> bytes:
 
 
 class _State:
-    def __init__(self) -> None:
-        self.message = t("importer.instructions")
+    def __init__(self, purpose="otp") -> None:
+        self.purpose = purpose
+        self.message = t("import.ui.instructions")
         self.changed = loop.mailbox()
         self.ejected = False
         self.detached = False
+        self.decoder_paused = False
+        self.retry_copy = False
+        self.finishing = False
 
     def set(self, message: str) -> None:
         self.message = message
@@ -91,35 +102,58 @@ async def _usb_task(sess, imp, state) -> None:
                 state.set(t("import.receiving", name or "..."))
             elif kind == "stream_error":
                 state.set(t("import.err.stream", code))
+            elif kind == "write_paused":
+                state.retry_copy = True
+                state.set(t("import.ui.copy_paused"))
             elif kind in ("ejected", "stopped"):
                 state.ejected = True
                 state.changed.put(True, replace=True)
         res = sess.decode()
         if res is not None:
             if res[0] == "qr":
+                kind = payload.classify(res[1]).kind
+                if (state.purpose == "backup" and kind == payload.KIND_OTPAUTH) or (
+                    state.purpose == "otp" and kind == payload.KIND_BACKUP_FRAME
+                ):
+                    state.set(t("import.ui.wrong_purpose"))
+                    continue
                 ev = imp.add_payload(res[1])
-                msg = t(ev.key) if ev.key else ""
+                msg = t(ev.key, ev.index, ev.total) if ev.key else ""
                 if ev.total:
                     msg += "\n" + t("importer.progress", ev.received, ev.total)
+                if imp.has_backup():
+                    done, missing = imp.counts()
+                    msg += "\n" + t("importer.progress.sequences", done, missing)
                 state.set(msg)
             else:
                 state.set(t("import.err." + res[1], res[2]))
+        # At this point the completed image's payload was copied into the
+        # bounded collector and no QR decoder is using the scratch buffers.
+        # Pause only at a BOT boundary; new writes then fail explicitly.
+        if not state.decoder_paused and (state.finishing or _has_ready(imp)) and sess.pause_decode():
+            state.decoder_paused = True
+            state.changed.put(True, replace=True)
 
 
 async def _wait_screen(state, title: str, text: str, button: str):
-    """Show ``text`` until the user presses the button (returns True) or the
-    state changes (returns False)."""
+    """True = approved, False = updated, None = cancelled. Never interpret
+    the long-left cancellation as permission to restore."""
     layout = trezorui_api.show_warning(title=title, button=button, description=text, allow_cancel=True)
     res = await loop.race(screens.run(layout, 0, False), state.changed)
-    return res is not True
+    if res is True:
+        return False
+    if res is trezorui_api.CONFIRMED:
+        return True
+    return None
 
 
 async def _passphrase(req):
-    p = await screens.request_text(t("backup.passphrase.enter"), 128)
+    p = await screens.request_text(t("backup.passphrase.enter"), 128, close_others=False)
     return None if p is None else bytearray(p.encode())
 
 
 async def _do_action(imp) -> None:
+    """OTP action. Backup envelopes use the streaming controller below."""
     action = imp.action()
     ui = InlineInteraction()
     if action.kind == isession.ACTION_OTP:
@@ -130,22 +164,6 @@ async def _do_action(imp) -> None:
             await screens.show_info(t("otp.import.added"), timeout_ms=2000, close_others=False)
         except Exception as e:
             await screens.show_error(t(_otp_error_key(e)))
-    elif action.kind == isession.ACTION_RESTORE:
-        from ..apps.backup import restore, strings
-
-        progress = screens.Progress(t("backup.kdf.progress"))
-        try:
-            report = await restore.restore(
-                ui, action.envelopes, _passphrase, progress=lambda d, n: progress.report(d / n if n else 1)
-            )
-        except Exception as e:
-            progress.stop()
-            await screens.show_error(t(strings.error_key(e)))
-            return
-        progress.stop()
-        await screens.show_info(
-            t("backup.restore.done"), t("backup.restore.summary", len(report.restored), len(report.skipped))
-        )
 
 
 def _otp_error_key(e) -> str:
@@ -163,54 +181,152 @@ def _otp_error_key(e) -> str:
     return "ui.error"
 
 
-async def _controller(imp, state) -> None:
+def _has_ready(imp) -> bool:
+    return imp.has_otp() or imp.counts()[0] > 0
+
+
+async def _resume_decoder(sess, state) -> None:
+    from . import session
+
+    session.release_import_stores()
+    gc.collect()
+    while not sess.resume_decode():
+        await loop.sleep(POLL_MS)
+    state.decoder_paused = False
+    state.retry_copy = False
+    state.set(t("import.ui.instructions"))
+
+
+async def _controller(sess, imp, state) -> None:
+    from ..core.errors import FeuristicError, UserCancelled
+
     title = t("importer.title")
-    # phase 1: collect images until an action is ready (or the user cancels)
-    cancelled = False
-    while not imp.is_ready():
-        if state.ejected:
-            return
-        if await _wait_screen(state, title, state.message, t("ui.cancel")):
-            cancelled = True  # nothing is imported; still ask for a clean eject
-            break
-    if not cancelled:
-        # phase 2: confirm and perform the action on the device
-        await _do_action(imp)
+    streaming = None
+    progress = None
+    raw = None
+    try:
+        while not state.ejected:
+            ready = _has_ready(imp) and state.decoder_paused
+            if ready and state.purpose == "otp":
+                await _do_action(imp)
+                break
+            text = state.message
+            if ready:
+                text += "\n" + t("import.ui.ready")
+            elif streaming is not None:
+                text += "\n" + t("import.ui.restored", len(streaming.report.restored))
+            button = t("ui.continue") if ready else t("ui.done" if streaming else "ui.cancel")
+            result = await _wait_screen(state, title, text, button)
+            if result is None or (result is True and not ready):
+                missing = imp.counts()[1]
+                incomplete = [] if streaming is None else streaming.incomplete_sets()
+                if (missing or incomplete) and not await screens.confirm(
+                    t("backup.restore_incomplete.title"),
+                    t("import.ui.incomplete"),
+                    verb=t("ui.done"),
+                    close_others=False,
+                ):
+                    continue
+                break
+            if result is not True or not ready:
+                continue
+            raw = imp.take_complete()
+            if raw is None:
+                continue
+            # Decoder RAM is already freed; hold at most one authenticated
+            # identity, then release it before accepting the next images.
+            from ..apps.backup import restore, strings
+            from ..ui.app_backup import _Derivation, _yield
+
+            if streaming is None:
+                progress = _Derivation()
+                streaming = restore.StreamingRestore(
+                    InlineInteraction(), _passphrase, progress=progress.report, yield_fn=_yield
+                )
+            try:
+                report = await streaming.restore_envelope(raw)
+                if report.failed is not None:
+                    await screens.show_error(t(strings.error_key(report.failed[2])), close_others=False)
+                    break
+            except UserCancelled:
+                break
+            except FeuristicError as exc:
+                await screens.show_error(t(strings.error_key(exc)), close_others=False)
+                break
+            finally:
+                raw = None
+                progress.stop()
+                gc.collect()
+            await screens.show_info(
+                t("backup.restore_done.title"),
+                t("import.ui.restored", len(streaming.report.restored)),
+                timeout_ms=1500,
+                close_others=False,
+            )
+            if state.ejected:
+                break
+            if state.retry_copy:
+                await screens.show_warning(t("importer.title"), t("import.ui.retry_copy"), close_others=False)
+            await _resume_decoder(sess, state)
+    except MemoryError:
+        await screens.show_error(t("import.err.memory"), close_others=False)
+    finally:
+        raw = None
+        if progress is not None:
+            progress.stop()
+        if streaming is not None:
+            streaming.close()
+        gc.collect()
     imp.finish()
-    # phase 3: eject. The interface disappears only after the host ejects the
-    # volume (spec §3.3); pressing the button here leaves anyway (the host
-    # may then warn about an unclean removal, nothing is lost).
+    state.finishing = True
+    # Phase 3: keep MSC until host ejects, or the session times out.
     while not state.ejected:
-        if await _wait_screen(state, title, t("importer.eject"), t("import.leave_now")):
-            return
+        await _wait_screen(state, title, t("importer.eject"), t("ui.ok"))
 
 
 async def run(purpose: str = "otp") -> None:
     """Run the import mode from the device menu."""
-    from . import transports
+    from . import session, transports
 
+    if purpose not in ("otp", "backup"):
+        raise ValueError("unknown import purpose")
+    import feuristic_import
+
+    sess = None
+    imp = None
+    completed = False
+    no_memory = False
     try:
-        import feuristic_import
-    except ImportError:
-        await screens.show_error(t("ui.not_implemented"))
-        return
-    transports.on_lock()  # drop protocol objects: free heap for the decoder
-    gc.collect()
-    max_out = 512 if utils.INTERNAL_MODEL == "T2B1" else 720
-    try:
+        transports.suspend()  # free protocol objects before allocating the decoder
+        await transports.wait_suspended()
+        session.release_import_stores()
+        gc.collect()
+        max_out = 384 if utils.INTERNAL_MODEL == "T2B1" else 720
         sess = feuristic_import.Session(_readme(), max_out, utime.ticks_ms())
-    except MemoryError:
-        gc.collect()
-        await screens.show_error(t("import.err.memory"))
-        return
-    imp = isession.ImportSession()
-    state = _State()
-    try:
+        imp = isession.ImportSession(
+            max_backups=isession.DEVICE_MAX_BACKUPS, max_bytes=isession.DEVICE_MAX_BYTES, compact=True
+        )
+        state = _State(purpose)
         await usbmodes.switch(usbmodes.IMPORT)
-        await loop.race(_controller(imp, state), _usb_task(sess, imp, state), loop.sleep(IDLE_TIMEOUT_MS))
+        await loop.race(
+            _controller(sess, imp, state), _usb_task(sess, imp, state), loop.sleep(IDLE_TIMEOUT_MS)
+        )
+        completed = True
+    except MemoryError:
+        no_memory = True
+        completed = True
     finally:
-        imp.abort()
-        sess.close()
-        del sess
+        if imp is not None:
+            imp.abort()
+        if sess is not None:
+            sess.close()
+        sess = None
+        imp = None
         gc.collect()
-        await usbmodes.switch(usbmodes.NORMAL)
+        # GeneratorExit may not yield: the independent cleanup task survives
+        # both workflow closure and cancellation while awaiting its mailbox.
+        done = usbmodes.restore_normal()
+        if completed:
+            await done
+    if no_memory:
+        await screens.show_error(t("import.err.memory"))

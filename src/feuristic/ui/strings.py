@@ -40,6 +40,10 @@ STRINGS = {
     "pin.mismatch": ("PINs do not match", "Les PIN ne correspondent pas"),
     "pin.too_short": ("PIN must have 4 to 50 digits", "Le PIN doit avoir 4 à 50 chiffres"),
     "pin.wrong": ("Wrong PIN", "PIN incorrect"),
+    "pin.backup_distinct": (
+        "Backup phrase must differ from the device PIN",
+        "La phrase de sauvegarde doit différer du PIN de l'appareil",
+    ),
     "pin.attempts": ("{} attempts left", "{} essais restants"),
     "pin.last_attempt": ("Last attempt!", "Dernier essai !"),
     "pin.changed": ("PIN changed", "PIN modifié"),

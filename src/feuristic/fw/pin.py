@@ -8,6 +8,8 @@ from trezor import config
 
 from ..core import i18n
 from ..core.i18n import t
+from ..core.secure import wipe
+from ..platform import crypto
 from ..ui import screens
 from . import device
 
@@ -91,12 +93,27 @@ async def change_pin() -> bool:
     return True
 
 
-async def reauthenticate() -> bool:
-    """Re-enter the device PIN before exporting secrets (spec §9)."""
+async def reauthenticate(distinct_from=None) -> bool:
+    """Re-enter the device PIN before exporting secrets (spec §9).
+
+    If ``distinct_from`` is a backup passphrase, compare it with the PIN
+    the user actually entered, after verifying that PIN. Never submit a
+    passphrase to the PIN checker: a different phrase must not consume a try.
+    """
     pin = await screens.request_pin(t("pin.enter"))
     if pin is None:
         return False
-    if config.check_pin(pin, None):
+    raw = None
+    try:
+        if not config.check_pin(pin, None):
+            await screens.show_error(t("pin.wrong"))
+            return False
+        if distinct_from is not None:
+            raw = bytearray(pin.encode())
+            if crypto.ct_equal(raw, distinct_from):
+                await screens.show_error(t("pin.backup_distinct"))
+                return False
         return True
-    await screens.show_error(t("pin.wrong"))
-    return False
+    finally:
+        pin = None
+        wipe(raw)

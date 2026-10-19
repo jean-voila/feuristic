@@ -144,6 +144,19 @@ def test_fallback_applet():
     assert rng.resets == 1
 
 
+def test_public_rng_after_app_selection_preserves_selection():
+    from feuristic.apps.card.aes.rng import RngApplet
+
+    a = Dummy(AID_A, "a")
+    d = Dispatcher([a], fallback=RngApplet())
+    select(d, AID_A)
+    data, sw = tx(d, b"\x00\x84\x00\x00\x20")
+    assert sw == 0x9000 and len(data) == 32
+    assert d.selected is a and a.deselects == 0
+    assert tx(d, b"\x00\x84\x00\x00\x21") == (b"", 0x6C20)
+    assert tx(d, b"\x00\x01\x00\x00\x01\x09") == (b"\x09", 0x9000)
+
+
 # --- CLA / malformed -----------------------------------------------------------------
 
 

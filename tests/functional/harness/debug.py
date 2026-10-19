@@ -147,13 +147,23 @@ class Debug:
                 return b
         return {}
 
-    def approve(self, max_steps: int = 20) -> None:
+    def approve(self, max_steps: int = 20, *, hold: bool = False) -> None:
         """Scroll a confirmation screen to its last page and confirm it."""
         for _ in range(max_steps):
             scr = self.screen()
             btns = self._buttons(scr)
-            right = (btns.get("right_btn") or {}).get("text")
-            middle = (btns.get("middle_btn") or {}).get("text")
+            middle_btn = btns.get("middle_btn") or {}
+            right_btn = btns.get("right_btn") or {}
+            for button, physical in (
+                (middle_btn, messages.DebugPhysicalButton.MIDDLE_BTN),
+                (right_btn, messages.DebugPhysicalButton.RIGHT_BTN),
+            ):
+                if button.get("component") == "HoldToConfirm":
+                    assert hold, "held confirmation requires approve(hold=True)"
+                    self._press(physical, hold_ms=1500)
+                    return
+            right = right_btn.get("text")
+            middle = middle_btn.get("text")
             if right:
                 self.right()
                 return

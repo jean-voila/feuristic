@@ -26,12 +26,13 @@ Phases — nothing is written before phase 5:
 
 from micropython import const
 
-from ...core.errors import FeuristicError, InvalidInput, UserCancelled
+from ...core.errors import FeuristicError, InvalidInput, PolicyDenied, UserCancelled
 from ...core.interaction import DANGER, NORMAL, SENSITIVE, Prompt
 from ...core.secure import wipe
+from ...platform import crypto
 from . import envelope
 from . import provider as registry
-from .errors import AuthenticationFailed, PlaintextError
+from .errors import AuthenticationFailed, FrameConflict, PlaintextError
 from .export import PURPOSE_RESTORE, PassphraseRequest, acquire_passphrase, category_name
 
 #: wrong-passphrase attempts per envelope group before giving up
@@ -239,3 +240,217 @@ async def restore(
         ),
     )
     return report
+
+
+class RecentReceipts:
+    """Exact total plus the last four public receipts, independent of set size.
+
+    ``len`` is the total. Iteration exposes the retained examples only, so a
+    full-device restore does not keep hundreds of long labels in the heap.
+    """
+
+    def __init__(self) -> None:
+        self.total = 0
+        self.recent = []
+
+    def append(self, receipt) -> None:
+        self.total += 1
+        if len(self.recent) == 4:
+            self.recent.pop(0)
+        self.recent.append(receipt)
+
+    def __len__(self) -> int:
+        return self.total
+
+    def __iter__(self):
+        return iter(self.recent)
+
+
+class StreamingRestore:
+    """Restore complete envelopes one at a time while the MSC volume stays up.
+
+    The wire format and authentication checks are identical to ``restore``.
+    Every item in the current envelope is authenticated and validated before
+    any of its items are written. Earlier, explicitly approved identities
+    remain restored if a later envelope is missing, refused or damaged.
+    Only derived keys, public progress and receipts survive between envelopes;
+    ciphertext and decoded identity objects are never cached here.
+    """
+
+    def __init__(
+        self,
+        ui,
+        get_passphrase,
+        progress=None,
+        yield_fn=None,
+        max_attempts: int = DEFAULT_MAX_ATTEMPTS,
+    ) -> None:
+        self.ui = ui
+        self.get_passphrase = get_passphrase
+        self.progress = progress
+        self.yield_fn = yield_fn
+        self.max_attempts = max_attempts
+        self.report = RestoreReport()
+        self.report.restored = RecentReceipts()
+        self.report.skipped = RecentReceipts()
+        self._keys = []  # at most four (public salt, wipeable derived key)
+        self._sets = []  # [salt, count, bitset of accepted envelope sequence numbers]
+        self._seen = bytearray()  # fixed-width public backup id(8) + envelope SHA-256(32)
+        self._closed = False
+        self.last_duplicate = False
+
+    def _already_seen(self, raw, header) -> bool:
+        digest = crypto.sha256(raw)
+        for offset in range(0, len(self._seen), 40):
+            if self._seen[offset : offset + 8] == header.backup_id:
+                if self._seen[offset + 8 : offset + 40] != digest:
+                    raise FrameConflict("completed backup id reused with different content")
+                return True
+        return False
+
+    async def _open(self, raw, header):
+        for salt, key in self._keys:
+            if salt == header.salt:
+                return envelope.open_with_key(raw, key, header)
+        for attempt in range(1, self.max_attempts + 1):
+            request = PassphraseRequest(PURPOSE_RESTORE, attempt, len(self._keys) + 1, len(self._keys) + 1)
+            pw = await acquire_passphrase(self.ui, self.get_passphrase, request)
+            try:
+                key = await envelope.derive_key(pw, header.salt, self.progress, self.yield_fn)
+            finally:
+                if isinstance(pw, bytearray):
+                    wipe(pw)
+            keep = False
+            try:
+                try:
+                    contents = envelope.open_with_key(raw, key, header)
+                except AuthenticationFailed:
+                    if attempt >= self.max_attempts:
+                        raise
+                    await self.ui.notify("backup.wrong_passphrase", "backup.wrong_passphrase.title")
+                    continue
+                if len(self._keys) == 4:
+                    _, old_key = self._keys.pop(0)
+                    wipe(old_key)
+                self._keys.append((header.salt, key))
+                keep = True
+                return contents
+            finally:
+                if not keep:
+                    wipe(key)
+        raise AuthenticationFailed("authentication failed")
+
+    def _full_set(self, contents):
+        if contents.kind != envelope.KIND_FULL:
+            return None
+        for entry in self._sets:
+            if entry[0] == contents.header.salt:
+                if entry[1] != contents.count:
+                    raise PlaintextError("inconsistent full export count")
+                bit = contents.seq - 1
+                if entry[2][bit // 8] & (1 << (bit % 8)):
+                    raise FrameConflict("full export sequence reused with a different backup id")
+                return entry
+        if len(self._sets) >= MAX_ENVELOPES:
+            raise InvalidInput("too many full export sets")
+        return [contents.header.salt, contents.count, bytearray((contents.count + 7) // 8)]
+
+    def incomplete_sets(self) -> list:
+        """Public progress: (accepted envelopes, expected envelopes) per set."""
+        incomplete = []
+        for _, count, bits in self._sets:
+            present = 0
+            for bit in range(count):
+                if bits[bit // 8] & (1 << (bit % 8)):
+                    present += 1
+            if present != count:
+                incomplete.append((present, count))
+        return incomplete
+
+    async def restore_envelope(self, raw) -> RestoreReport:
+        if self._closed:
+            raise PolicyDenied("restore session closed")
+        if self.report.failed is not None:
+            raise PolicyDenied("restore session has a failed identity")
+        header = envelope.parse_header(raw)
+        self.last_duplicate = self._already_seen(raw, header)
+        if self.last_duplicate:
+            return self.report
+        if len(self._seen) // 40 >= MAX_ENVELOPES:
+            raise InvalidInput("too many backup envelopes")
+        contents = await self._open(raw, header)
+        # No mutation, including partial restore of a multi-item envelope,
+        # takes place before every authenticated item has passed validation.
+        items = [_validate_item(obj, contents.backup_id) for obj in contents.items]
+        full_set = self._full_set(contents)
+        if (
+            full_set is not None
+            and full_set not in self._sets
+            and contents.count > 1
+            and not await self.ui.confirm(
+                Prompt(
+                    "backup.restore_incomplete",
+                    "backup.restore_incomplete.title",
+                    (("backup.field.present", "1/" + str(contents.count)),),
+                    severity=NORMAL,
+                )
+            )
+        ):
+            raise UserCancelled("incremental full export refused")
+        fields = [("backup.field.count", str(len(items)))]
+        fingerprint = None
+        if len(items) == 1:
+            fields.extend(
+                (
+                    ("backup.field.identity", items[0].label),
+                    ("backup.field.category", category_name(items[0].provider)),
+                )
+            )
+            fingerprint = items[0].fingerprint or None
+        if not await self.ui.confirm(
+            Prompt(
+                "backup.restore", "backup.restore.title", fields, severity=SENSITIVE, fingerprint=fingerprint
+            )
+        ):
+            raise UserCancelled("restore refused")
+        for index in range(len(items)):
+            item = items[index]
+            try:
+                exists = bool(item.provider.exists(item.obj))
+                if exists and not await self.ui.confirm(
+                    Prompt(
+                        "backup.overwrite",
+                        "backup.overwrite.title",
+                        (
+                            ("backup.field.identity", item.label),
+                            ("backup.field.category", category_name(item.provider)),
+                        ),
+                        severity=DANGER,
+                        fingerprint=item.fingerprint or None,
+                    )
+                ):
+                    self.report.skipped.append((item.type, item.label))
+                    continue
+                uid = item.provider.restore_identity(item.obj, exists)
+                self.report.restored.append((item.type, item.label, uid))
+            except FeuristicError as exc:
+                self.report.failed = (item.type, item.label, exc)
+                for remaining in items[index + 1 :]:
+                    self.report.not_attempted.append((remaining.type, remaining.label))
+                break
+        if self.report.failed is None:
+            self._seen.extend(header.backup_id)
+            self._seen.extend(crypto.sha256(raw))
+            if full_set is not None:
+                if full_set not in self._sets:
+                    self._sets.append(full_set)
+                bit = contents.seq - 1
+                full_set[2][bit // 8] |= 1 << (bit % 8)
+        self.report.incomplete_sets = self.incomplete_sets()
+        return self.report
+
+    def close(self) -> None:
+        for _, key in self._keys:
+            wipe(key)
+        self._keys = []
+        self._closed = True

@@ -226,3 +226,99 @@ class Reassembler:
         if not self.is_complete():
             raise FrameIncomplete(self.missing())
         return b"".join(self._chunks)
+
+
+class PackedReassembler(Reassembler):
+    """Same wire semantics using one arena and four bytes of index per frame.
+
+    Small-screen exports contain many 22-byte chunks. A separate Python bytes
+    object and list pointer for every chunk cost more RAM than the ciphertext
+    itself. This representation retains out-of-order and duplicate detection
+    without those per-frame objects. It is used by constrained device imports;
+    the general reassembler and all format limits remain available unchanged.
+    """
+
+    def __init__(self, backup_id=None, max_frames=MAX_FRAMES, max_bytes=MAX_TOTAL_BYTES):
+        super().__init__(backup_id, max_frames, max_bytes)
+        self._data = bytearray()
+        self._index = None  # u16 offset + u16 length; length zero means absent
+
+    def _entry(self, index):
+        at = (index - 1) * 4
+        table = self._index
+        return (table[at] << 8) | table[at + 1], (table[at + 2] << 8) | table[at + 3]
+
+    def add(self, frame) -> bool:
+        if not isinstance(frame, Frame):
+            frame = parse_frame(frame)
+        if self.backup_id is not None and frame.backup_id != self.backup_id:
+            raise FrameIdMismatch("frame from another backup")
+        if self.total is not None and frame.total != self.total:
+            raise FrameTotalMismatch("frame total differs")
+        if self.total is None and frame.total > self.max_frames:
+            raise FrameLimitExceeded("too many frames")
+        if self._index is not None:
+            offset, length = self._entry(frame.index)
+            if length:
+                if self._data[offset : offset + length] == frame.chunk:
+                    return False
+                raise FrameConflict("conflicting duplicate frame")
+        if (
+            self.bytes_received + len(frame.chunk) > min(self.max_bytes, MAX_TOTAL_BYTES)
+            or len(frame.chunk) > 65535
+        ):
+            raise FrameLimitExceeded("backup too large")
+        if self._index is None:
+            # Native export balances chunk sizes to within one byte. Even if
+            # the last/smaller chunk arrives first, this upper bound reserves
+            # its complete envelope once, without reserving the transport's
+            # entire 12 KiB for a 379-byte OTP. Unbalanced third-party frames
+            # remain valid and may grow the bounded arena below.
+            reserve = min(self.max_bytes, MAX_TOTAL_BYTES, frame.total * (len(frame.chunk) + 1))
+            arena = bytearray(reserve)
+            table = bytearray(4 * frame.total)
+            self._data = arena
+            self._index = table
+            self.backup_id = frame.backup_id
+            self.total = frame.total
+        offset = self.bytes_received
+        length = len(frame.chunk)
+        if offset + length > len(self._data):
+            capacity = min(self.max_bytes, MAX_TOTAL_BYTES, max(offset + length, 2 * len(self._data)))
+            arena = bytearray(capacity)
+            arena[:offset] = memoryview(self._data)[:offset]
+            self._data = arena
+        # Publish the index only after append succeeded: a MemoryError cannot
+        # turn a missing chunk into an apparently complete/valid frame.
+        self._data[offset : offset + length] = frame.chunk
+        at = (frame.index - 1) * 4
+        self._index[at] = offset >> 8
+        self._index[at + 1] = offset & 255
+        self._index[at + 2] = length >> 8
+        self._index[at + 3] = length & 255
+        self.received += 1
+        self.bytes_received += length
+        return True
+
+    def missing(self, limit=None) -> list:
+        out = []
+        if self._index is not None:
+            for index in range(1, self.total + 1):
+                if self._entry(index)[1] == 0:
+                    out.append(index)
+                    if limit is not None and len(out) >= limit:
+                        break
+        return out
+
+    def assemble(self):
+        if not self.is_complete():
+            raise FrameIncomplete(self.missing())
+        # Firmware releases decoder buffers before assembling, and drops this
+        # arena as soon as the complete envelope is returned to the caller.
+        out = bytearray(self.bytes_received)
+        position = 0
+        for index in range(1, self.total + 1):
+            offset, length = self._entry(index)
+            out[position : position + length] = memoryview(self._data)[offset : offset + length]
+            position += length
+        return out

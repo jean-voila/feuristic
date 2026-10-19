@@ -69,6 +69,12 @@ MAX_BACKUPS = const(192)
 #: envelope bytes kept in RAM per session (all sequences together); the
 #: firmware may pass a lower bound on T2B1
 MAX_SESSION_BYTES = const(96 * 1024)
+# Device import processes one native identity at a time. Every currently
+# exported provider identity fits this envelope bound (tested with maximum
+# metadata, three OpenPGP RSA keys, PIV certificates and FIDO largeBlobs).
+# The public v1 envelope/parser bounds remain unchanged for host decoders.
+DEVICE_MAX_BYTES = const(12 * 1024)
+DEVICE_MAX_BACKUPS = const(1)
 #: missing indices reported per sequence in progress snapshots
 MISSING_REPORT_LIMIT = const(16)
 
@@ -144,9 +150,12 @@ class Action:
 
 
 class ImportSession:
-    def __init__(self, max_backups: int = MAX_BACKUPS, max_bytes: int = MAX_SESSION_BYTES) -> None:
+    def __init__(
+        self, max_backups: int = MAX_BACKUPS, max_bytes: int = MAX_SESSION_BYTES, compact=False
+    ) -> None:
         self.max_backups = max_backups
         self.max_bytes = max_bytes
+        self.compact = compact
         self._backups = []  # [frames.Reassembler] in arrival order
         self._otp = None  # bytearray
         self._finished = False
@@ -216,7 +225,8 @@ class ImportSession:
         if is_new:
             if len(self._backups) >= self.max_backups:
                 return ImportEvent(REJECTED_LIMIT, backup_id=f.backup_id)
-            r = frames.Reassembler(f.backup_id)
+            reassembler = frames.PackedReassembler if self.compact else frames.Reassembler
+            r = reassembler(f.backup_id)
         # remaining session budget for this sequence (duplicates are detected first)
         others = self.bytes_used() - (0 if is_new else r.bytes_received)
         budget = self.max_bytes - others
@@ -285,6 +295,25 @@ class ImportSession:
         if self._otp is not None:
             return Action(ACTION_OTP, otp_uri=self._otp)
         return Action(ACTION_RESTORE, envelopes=[r.assemble() for r in self._backups])
+
+    def take_complete(self):
+        """Consume one complete identity envelope without ending USB import.
+
+        Firmware pauses its image decoder before calling this method. The
+        reassembler's chunk list is released immediately, so authentication
+        does not retain both all QR chunks and every assembled envelope.
+        Incomplete identities remain pending and are never returned. The
+        caller must authenticate and validate the complete envelope before
+        making any persistent change.
+        """
+        if self._finished or self._otp is not None:
+            return None
+        for r in self._backups:
+            if r.is_complete():
+                raw = r.assemble()
+                self._backups.remove(r)
+                return raw
+        return None
 
     def discard(self, backup_id) -> bool:
         """Drop one sequence (user decision for an incomplete sequence)."""

@@ -138,7 +138,11 @@ class Dispatcher:
         if cmd.ins == INS_SELECT:
             resp = await self._select(cmd)
         else:
-            target = self.selected if self.selected is not None else self.fallback
+            # Card-level public RNG stays available after a PC/SC client
+            # auto-selects OpenPGP or PIV (e.g. opensc-tool before -s).
+            target = self.fallback if cmd.ins == 0x84 and self.fallback is not None else self.selected
+            if target is None:
+                target = self.fallback
             if target is None:
                 return _sw(_apdu.SW_INS_NOT_SUPPORTED)
             resp = await self._call(target.process, cmd)

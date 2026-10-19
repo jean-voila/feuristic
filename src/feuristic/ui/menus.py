@@ -10,8 +10,7 @@ feuristic
 └── Verrouiller
 
 Application sub-menus live next to their application glue
-(``feuristic.ui.app_*``); entries whose application is not part of the
-build show "not available".
+(``feuristic.ui.app_*``).
 """
 
 from trezor import config, utils
@@ -22,17 +21,9 @@ from . import screens
 from .interaction import InlineInteraction
 
 
-async def _not_available() -> None:
-    await screens.show_info(t("ui.not_implemented"), timeout_ms=2000)
-
-
 async def _call(module: str, func: str) -> None:
-    """Run ``feuristic.ui.<module>.<func>()`` if that UI module exists."""
-    try:
-        mod = __import__("feuristic.ui." + module, None, None, [func])
-    except ImportError:
-        await _not_available()
-        return
+    """Load an application screen on demand, keeping the idle heap small."""
+    mod = __import__("feuristic.ui." + module, None, None, [func])
     await getattr(mod, func)()
 
 

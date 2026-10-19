@@ -104,3 +104,27 @@ def test_base_class_defaults():
     p.validate({"type": "otp", "v": 1})
     with pytest.raises(InvalidInput):
         p.validate({"type": "piv", "v": 1})
+
+
+def test_lazy_provider_factory_is_not_resolved_or_retained_at_registration():
+    from feuristic.apps.backup.provider import LazyProvider
+
+    calls = []
+
+    class Concrete:
+        def list_identities(self):
+            return [(b"identity", "Example")]
+
+        def describe(self, obj):
+            return (obj["name"], "")
+
+    def factory(kind):
+        calls.append(kind)
+        return Concrete()
+
+    proxy = LazyProvider("example", "example.title", factory)
+    assert calls == [] and not hasattr(proxy, "auth")
+    assert proxy.list_identities() == [(b"identity", "Example")]
+    assert proxy.describe({"name": "hello"}) == ("hello", "")
+    assert calls == ["example", "example"]
+    assert vars(proxy) == {"TYPE": "example", "LABEL_KEY": "example.title", "_factory": factory}

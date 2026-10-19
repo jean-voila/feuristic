@@ -239,3 +239,50 @@ def test_parse_fuzz_only_frame_errors(data):
     for candidate in (data, b"FB1:" + data):
         with contextlib.suppress(FrameError):
             frames.parse_frame(candidate)
+
+
+@pytest.mark.parametrize("profile", ["large", "dense"])
+@pytest.mark.parametrize("size", [1, 400, 5127, 12288])
+def test_packed_reassembly_matches_general_out_of_order(profile, size):
+    import random
+
+    from feuristic.apps.backup import frames as frame_module
+
+    data = bytes(i % 251 for i in range(size))
+    texts = frame_module.split(data, b"packed01", profile)
+    random.Random(5).shuffle(texts)
+    packed = frame_module.PackedReassembler(b"packed01")
+    standard = frame_module.Reassembler(b"packed01")
+    for text in texts:
+        assert packed.add(text) == standard.add(text)
+        assert packed.add(text) is False
+        assert packed.missing(16) == standard.missing(16)
+        assert packed.bytes_received == standard.bytes_received
+    assert packed.assemble() == standard.assemble() == data
+    assert len(packed._index) == len(texts) * 4
+    assert size <= len(packed._data) <= packed.max_bytes
+
+
+def test_packed_incomplete_conflicts_and_budget_are_non_destructive():
+    from feuristic.apps.backup import frames as frame_module
+    from feuristic.apps.backup.errors import FrameConflict, FrameIncomplete, FrameLimitExceeded
+
+    packed = frame_module.PackedReassembler(b"packed01", max_bytes=40)
+    text = frame_module.encode_frame(b"packed01", 2, 3, b"a" * 20)
+    assert packed.add(text)
+    before = bytes(packed._data), bytes(packed._index), packed.bytes_received
+    with pytest.raises(FrameConflict):
+        packed.add(frame_module.encode_frame(b"packed01", 2, 3, b"b" * 20))
+    with pytest.raises(FrameLimitExceeded):
+        packed.add(frame_module.encode_frame(b"packed01", 1, 3, b"x" * 21))
+    with pytest.raises(FrameIncomplete):
+        packed.assemble()
+    assert (bytes(packed._data), bytes(packed._index), packed.bytes_received) == before
+
+
+def test_packed_unbalanced_third_party_frames_preserve_v1_acceptance():
+    packed = frames.PackedReassembler(b"packed01", max_bytes=1000)
+    for index, chunk in ((3, b"z"), (1, b"a" * 400), (2, b"b" * 200)):
+        assert packed.add(frames.encode_frame(b"packed01", index, 3, chunk))
+    assert packed.assemble() == b"a" * 400 + b"b" * 200 + b"z"
+    assert len(packed._data) <= 1000

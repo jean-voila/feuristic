@@ -1,0 +1,27 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Jean Herail <jeanherail@icloud.com>
+Date: Sun, 18 Oct 2026 20:56:48 +0200
+Subject: [PATCH] Keep the T2B1 interpreter value stack in non-DMA CCM
+
+Feuristic-Rationale: Recover 4096 bytes of GC heap for bounded image import using the existing unprivileged CCM region; explicitly initialise the value stack because that section is not startup-cleared.
+
+diff --git a/core/embed/projects/firmware/main.c b/core/embed/projects/firmware/main.c
+index 827b5d59350409a93662064adc3c72a33e424942..84d24f74385bd3227743b5df8412d08ca3864e3e 100644
+--- a/core/embed/projects/firmware/main.c
++++ b/core/embed/projects/firmware/main.c
+@@ -136,7 +136,15 @@ int main_func(uint32_t cmd, void *arg) {
+                      (char *)&_stack_section_start - 1024);
+ 
+ #if MICROPY_ENABLE_PYSTACK
++#if defined(STM32F427xx) || defined(STM32F429xx)
++  // The interpreter value stack is never a DMA buffer. Keep it in the
++  // unprivileged CCM region so image import has 4 KiB more GC heap on T2B1.
++  // This section is not startup-initialised, unlike the usual .bss.
++  static mp_obj_t pystack[1024] __attribute__((section(".no_dma_buffers")));
++  memset(pystack, 0, sizeof(pystack));
++#else
+   static mp_obj_t pystack[1024];
++#endif
+   mp_pystack_init(pystack, &pystack[MP_ARRAY_SIZE(pystack)]);
+ #endif
+ 

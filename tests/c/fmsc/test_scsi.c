@@ -359,6 +359,49 @@ static void test_eject_during_bot_reset(void) {
   host_free(h);
 }
 
+static void test_write_pause_has_explicit_failure_and_recovery(void) {
+  host_t *h = mk();
+  uint8_t data[FMSC_SECTOR_SIZE] = {0};
+  uint8_t before[FMSC_SECTOR_SIZE] = {0};
+  CHECK_EQ(scsi_read10(h, FMSC_ROOT_LBA, 1, before), 0);
+  CHECK(fmsc_set_write_paused(&h->ctx, true));
+  uint8_t write[10] = {0x2A, 0, 0, 0, 0, FMSC_ROOT_LBA, 0, 0, 1, 0};
+  const xfer_t r = host_bot(h, write, 10, false, sizeof(data), data, NULL);
+  CHECK(r.csw_ok);
+  CHECK_EQ(r.status, 1);
+  CHECK_EQ(r.residue, sizeof(data));
+  CHECK(r.out_stalled);
+  expect_sense(h, 0x02, 0x04, 0x07);
+  CHECK_EQ(host_count_events(h, FMSC_EVT_WRITE_PAUSED), 1);
+  CHECK_EQ(scsi_read10(h, FMSC_ROOT_LBA, 1, data), 0);
+  CHECK(memcmp(before, data, sizeof(data)) ==
+        0);  // refused write changed nothing
+  // Reset recovery does not remove application backpressure.
+  host_reset_recovery(h);
+  CHECK(h->ctx.write_paused);
+  CHECK(fmsc_set_write_paused(&h->ctx, false));
+  CHECK_EQ(scsi_write10(h, FMSC_ROOT_LBA, 1, before), 0);
+  CHECK_EQ(scsi_tur(h), 0);
+  CHECK_EQ(scsi_start_stop(h, true, false), 0);
+  CHECK(fmsc_is_ejected(&h->ctx));
+  CHECK_EQ(h->violations, 0);
+  host_free(h);
+}
+
+static void test_write_pause_refuses_mid_command(void) {
+  host_t *h = mk();
+  uint8_t write[10] = {0x2A, 0, 0, 0, 0, FMSC_ROOT_LBA, 0, 0, 1, 0};
+  uint8_t cbw[31];
+  host_build_cbw(cbw, 5, FMSC_SECTOR_SIZE, 0, 0, 10, write);
+  fmsc_on_out_packet(&h->ctx, cbw, sizeof(cbw));
+  CHECK(!fmsc_set_write_paused(&h->ctx, true));
+  CHECK(!h->ctx.write_paused);
+  host_reset_recovery(h);
+  CHECK(fmsc_set_write_paused(&h->ctx, true));
+  CHECK_EQ(h->violations, 0);
+  host_free(h);
+}
+
 int main(void) {
   RUN(test_unit_attention);
   RUN(test_inquiry_standard);
@@ -373,5 +416,7 @@ int main(void) {
   RUN(test_eject);
   RUN(test_stop_start);
   RUN(test_eject_during_bot_reset);
+  RUN(test_write_pause_has_explicit_failure_and_recovery);
+  RUN(test_write_pause_refuses_mid_command);
   return t_finish("test_scsi");
 }

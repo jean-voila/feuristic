@@ -275,12 +275,13 @@ specified behaviour, not presented as fast or convenient (spec §8.2).
   rejected (`FrameConflict`), as is a frame with a different `total`
   (`FrameTotalMismatch`). A frame whose CRC fails is rejected
   (`FrameChecksumError`). A rejected frame never changes the state.
-* Bounds: ≤ 999 frames and ≤ 65 536 envelope bytes per backup. Each import
-  session also has a total budget (default 96 KiB, lower on T2B1 if needed)
-  and a maximum of 192 sequences.
+* Generic format/parser bounds: ≤ 999 frames and ≤ 65 536 envelope bytes per
+  backup. The host-oriented collection API defaults to 96 KiB and 192 sequences.
+  Device reception uses the separate, published 12 KiB per-identity budget and
+  one active sequence; see §8.3. These device budgets do not change format v1.
 * Reassembly is refused while any index is missing (`FrameIncomplete`,
   which lists the missing indices). **A missing frame blocks the restore
-  and modifies nothing.**
+  of that identity and modifies none of its active data.**
 
 ## 7. Provider interface
 
@@ -347,6 +348,47 @@ provider without `validate` gets only the generic checks.
 8. A report shows the identities restored, skipped, failed and not
    attempted.
 
+### 8.3 Memory-bounded device restore (same v1 bytes)
+
+The batch procedure above remains the host/test API `restore.restore`.
+Firmware uses `restore.StreamingRestore`: it collects **one identity's complete
+sequence**, releases the image decoder's workspace/bitmap/payload while keeping
+MSC active, consumes that sequence's chunks, then authenticates and validates
+**every item of the current envelope before any of them is written**. No
+partial/unauthenticated identity is ever restored. Earlier confirmed identities
+stay restored if a later independent identity is missing or damaged, as required
+by per-identity atomicity. This is not a transaction over an entire full export.
+
+The device receiver accepts one active sequence, ≤ 999 frames and ≤ 12 KiB
+of encrypted envelope data. Tests cover maximal native exports: OpenPGP with
+three RSA keys/auxiliary data (5127 B), FIDO with 64 associated largeBlob entries
+(4847 B), PIV/RSA with certificate (2500 B), HOTP (379 B) and AES (241 B).
+The native exporter emits one identity per envelope. A generic third-party
+Full envelope may contain up to 16 items/64 KiB under format v1; the generic
+parser supports that format, while device reception explicitly applies its
+smaller transport budget. Oversized/interleaved input is refused, never
+silently truncated or committed.
+
+The user copies all frames of one identity, presses Continue and confirms it,
+then waits for the next-identity invitation before copying more. During prompts
+and derivation the MSC interface stays present but WRITE(10) returns NOT READY
+(04/07), with the unaccepted residue; the host must retry a refused file after
+resume. Done finishes the import and requests normal host eject. Do not copy a
+whole full-export image directory during a paused confirmation.
+
+`PackedReassembler` preserves arbitrary frame order and exact-duplicate checks
+using a reserved byte arena plus four index bytes per frame. It does not keep a
+Python bytes object for every tiny QR chunk. `StreamingRestore` caches at most
+four wipeable salt/key pairs, records accepted backup-id/SHA-256 pairs and
+full-set sequence bitmaps, rejects conflicting reused ids/sequence numbers, and
+never calls a partial set complete. Missing sets are visibly reported. Exact
+restored/skipped counters and the last four receipt examples are retained,
+preventing hundreds of long labels from accumulating beside decoder buffers.
+A later failure reports those prior successes. Keys are wiped on close.
+
+See [memory evidence](../developer/import-memory.md). None of these software
+checks replaces physical R04/R05/R13/R14 acceptance.
+
 ## 9. Import payloads and sessions
 
 A QR found in an imported PNG/JPEG (spec §3.3) is classified as follows:
@@ -363,9 +405,10 @@ Session rules (`ImportSession`):
 * It accepts any number of files without leaving the mode. Each file
   produces an event (accepted, duplicate or a specific rejection) with
   progress: received/total and the missing indices.
-* It may collect several backup sequences at once (a full export). It is
-  ready only when **all** of them are complete. The user may explicitly
-  discard an incomplete sequence.
+* The generic host collection API may collect several backup sequences and
+  becomes batch-ready only when all are complete. Device streaming reception
+  accepts one identity at a time (§8.3). Missing frames block that identity;
+  `take_complete()` cannot return an incomplete envelope.
 * At most one `otpauth://` URI per session. A different second URI is
   rejected. An identical one counts as a duplicate.
 * **Mixing:** an `otpauth://` image while backup frames are being

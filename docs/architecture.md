@@ -79,7 +79,10 @@ Rules:
 
 * `upstream/trezor-firmware` is pinned to `core/v2.12.5`.
 * `patches/series` is applied with `git am` onto a local branch
-  `feuristic/patched` by `tools/upstream.py apply`. Patches are regenerated with
+  `feuristic/patched` by `tools/upstream.py apply`. This helper resets and
+  switches the submodule branch: run only when that preparation is explicitly
+  intended, never automatically in a no-branch-change working checkout.
+  Patches are regenerated with
   `tools/upstream.py export`. Every patch has a descriptive commit message and
   a `Feuristic-Rationale:` trailer.
 * feuristic-owned sources are reached from the upstream tree through relative
@@ -103,19 +106,22 @@ Consequences that shape the design:
 
 * **Storage is 64 KiB of live data.** Records have hard size caps (§6.3) and a
   quota check refuses writes that would endanger compaction. Contractual
-  capacity: 100 discoverable credentials + 32 OTP accounts + 4 KiB largeBlobs.
+  capacity: 100 discoverable credentials + 32 OTP accounts + 4 KiB serialized
+  largeBlobs. Other card identities share the remaining sector space; this is
+  not a promise that every application maximum also fits simultaneously.
+  See [measured storage budget](developer/storage-budget.md).
 * **T2B1 cannot hold a 256 KiB image file** in RAM or free flash (only 64 KiB
   of scattered spare flash exists and the bootloader requires the firmware
   area padding to stay erased). Image import therefore decodes the file *while
   it is being written* into a bounded 1-bpp bitmap and only interprets it after
   the transfer is complete and synchronised. See ADR-0003.
 * **Optiga after bootloader unlock.** The unlock procedure wipes the Optiga
-  pairing secret: the shielded channel and the attestation keys are lost, but
+  pairing secret: the shielded channel and access to the original attestation keys are lost, but
   the PIN-stretching objects remain usable (upstream continues without the
   shielded channel). FIDO attestation is therefore *self attestation*.
 * **Boot screen.** A firmware not signed by SatoshiLabs runs under the
-  "UNSAFE, DO NOT USE!" vendor header: a red warning and a click are required
-  at every boot. This is enforced by the locked bootloader and cannot be
+  "UNSAFE, DO NOT USE!" vendor header: a warning and a click are required
+  at every boot. This is enforced by the official bootloader and cannot be
   removed by any third-party firmware.
 
 ## 5. USB
@@ -135,7 +141,7 @@ Consequences that shape the design:
 |---|---|---|---|
 | `NORMAL` | 0: HID FIDO (int IN/OUT 64 B) · 1: CCID (bulk IN/OUT 64 B, int IN 8 B) | 3 | default |
 | `TIMESYNC` | 0–1: CDC-ACM (IAD; int IN 8 B, bulk IN/OUT 64 B) | 2 | Réglages → Heure TOTP |
-| `IMPORT` | 0: MSC BOT (bulk IN/OUT 64 B), FAT12 `FEURISTIC-IMPORT` | 1 | Ajouter QR / Restaurer |
+| `IMPORT` | 0: MSC BOT (bulk IN/OUT 64 B), FAT12 label `FEURISTIC` (SCSI product `FEURISTIC-IMPORT`) | 1 | Ajouter QR / Restaurer |
 | debug builds only | every mode + a vendor debuglink interface (EP3, int IN/OUT) | +1 | build flag |
 
 The coreapp requests a mode with the new syscall `usb_set_mode(mode)`; the
@@ -172,7 +178,7 @@ and allocates:
 | `0x90` SYS_PUBLIC | public | language, init flag, storage schema version, autolock |
 | `0x11` OTP | protected | OTP account records (slots 0–32, record type 0x01) |
 | `0x91` OTP_COUNTERS | public | HOTP redundant counters: stable index i (0–32) → keys 2i, 2i+1 |
-| `0x12` FIDO_CREDS | protected | discoverable credential records (slots 0–101) |
+| `0x12` FIDO_CREDS | protected | discoverable credential records (slots 0–100) |
 | `0x13` FIDO_STATE | protected | clientPIN state, largeBlob array (A/B), misc |
 | `0x14` CARD | protected | OpenPGP identity, PIV slot identities, PIV data objects, AES keys |
 | `0x94` CARD_COUNTERS | public | AES-GCM nonce reservation (A/B), app PIN retry counters |
@@ -197,7 +203,7 @@ then B (see `feuristic.core.counters`).
 | Discoverable credential | 384 B (rpId ≤ 128 B, user.id ≤ 64 B, name/displayName ≤ 64 B each) |
 | largeBlob array | 4096 B (+ 16 B header) |
 | PIV slot identity | 2400 B (key + X.509 certificate ≤ 2048 B) |
-| OpenPGP identity | 1536 B |
+| OpenPGP identity | 1536 B main record, plus auxiliary record ≤ 3712 B |
 | AES key | 96 B |
 
 ## 7. Keys and domain separation
@@ -253,9 +259,15 @@ the firmware passes `feuristic.ui`.
 
 | Variant | Command | Notes |
 |---|---|---|
-| Release T2B1/T3B1 | `make firmware MODEL=T2B1` | `pyopt`, frozen, no debuglink |
-| Debug hardware | `make firmware MODEL=T3B1 DEBUG=1` | debuglink iface, logs on SWO, `__debug__` asserts |
+| Hardware candidate T2B1/T3B1 | `make firmware MODEL=T2B1` | `pyopt`, frozen, no debuglink; upstream development signing keys |
+| Debug hardware | `make firmware-debug MODEL=T3B1` | debuglink iface, debug logs, `__debug__` asserts |
 | Emulator | `make emu MODEL=T3B1` | debug + debuglink + insecure storage testing mode |
 
 Release artifacts are named `feuristic-<version>-<model>-<gitsha>.bin` with
 SHA-256 sums, an SPDX SBOM and build provenance (see `docs/developer/release.md`).
+
+The default hardware build is a test candidate signed with publicly known
+upstream development keys, not a private vendor release. Stable distribution
+requires the signing/vendor review in [release.md](developer/release.md), a
+dedicated USB PID, and all physical [R01–R16 gates](acceptance/README.md).
+An emulator's 20 MiB test heap does not establish a hardware memory fit.

@@ -1,0 +1,134 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Jean Herail <jeanherail@icloud.com>
+Date: Sun, 18 Oct 2026 12:57:06 +0200
+Subject: [PATCH] Support bounded 128-byte on-device backup passphrases
+
+Feuristic-Rationale: Match the versioned backup format without expanding ordinary label buffers or allocating unbounded input.
+
+diff --git a/core/embed/rust/src/strutil.rs b/core/embed/rust/src/strutil.rs
+index 83d754823626813a8e06e34c3fec953a5fb46949..e11fd9bab707b8878e71336f0e46b5e12c19103e 100644
+--- a/core/embed/rust/src/strutil.rs
++++ b/core/embed/rust/src/strutil.rs
+@@ -10,6 +10,11 @@ use crate::translations::TR;
+ /// Unified-length String type, long enough for most simple use-cases.
+ pub type ShortString = String<50>;
+ 
++/// Bounded on-device input, including feuristic backup passphrases (12..128
++/// ASCII). Kept separate from ShortString so ordinary labels retain their small
++/// buffers.
++pub type InputString = String<128>;
++
+ pub fn hexlify(data: &[u8], buffer: &mut [u8]) {
+     const HEX_LOWER: [u8; 16] = *b"0123456789abcdef";
+     let mut i: usize = 0;
+@@ -309,6 +314,19 @@ impl ufmt::uDebug for TString<'_> {
+ 
+ #[cfg(test)]
+ mod tests {
++    #[test]
++    fn backup_input_bounds_and_memory() {
++        use super::{InputString, ShortString};
++        let mut input = InputString::new();
++        for _ in 0..128 {
++            assert!(input.push('a').is_ok());
++        }
++        assert_eq!(input.len(), 128);
++        assert!(input.push('b').is_err());
++        assert!(ShortString::new().capacity() == 50);
++        // Only input buffers grow; no allocator or unbounded String is used.
++        assert!(core::mem::size_of::<InputString>() <= 128 + 2 * core::mem::size_of::<usize>());
++    }
+ 
+     #[test]
+     fn test_format_code() {
+diff --git a/core/embed/rust/src/ui/component/text/common.rs b/core/embed/rust/src/ui/component/text/common.rs
+index 7560f380ee4d07d39f46c4459cd9d76faeb818c4..e18f571f285ceebbd4454f86f069e277ecc12e0b 100644
+--- a/core/embed/rust/src/ui/component/text/common.rs
++++ b/core/embed/rust/src/ui/component/text/common.rs
+@@ -1,4 +1,4 @@
+-use crate::strutil::ShortString;
++use crate::strutil::InputString;
+ use crate::ui::component::EventCtx;
+ use crate::ui::util::ResultExt;
+ 
+@@ -15,13 +15,13 @@ pub enum TextEdit {
+ /// operations over it. Text ops usually take a `EventCtx` to request a paint
+ /// pass in case of any state modification.
+ pub struct TextBox {
+-    text: ShortString,
++    text: InputString,
+ }
+ 
+ impl TextBox {
+     /// Create a new `TextBox` with content `text`.
+     pub fn new(text: &str, max_len: usize) -> Self {
+-        let text = unwrap!(ShortString::try_from(text));
++        let text = unwrap!(InputString::try_from(text));
+         debug_assert!(text.capacity() >= max_len);
+         Self { text }
+     }
+diff --git a/core/embed/rust/src/ui/layout_caesar/component/changing_text.rs b/core/embed/rust/src/ui/layout_caesar/component/changing_text.rs
+index 9c0f3991fe8973904012f8e28a7d883999573900..f218df9aa6ee97e737e483e9aad824b70eb4d2a2 100644
+--- a/core/embed/rust/src/ui/layout_caesar/component/changing_text.rs
++++ b/core/embed/rust/src/ui/layout_caesar/component/changing_text.rs
+@@ -1,6 +1,6 @@
+ use super::super::fonts;
+ use super::theme;
+-use crate::strutil::ShortString;
++use crate::strutil::InputString;
+ use crate::ui::component::{Component, Event, EventCtx, Never, Pad};
+ use crate::ui::display::Font;
+ use crate::ui::geometry::{Alignment, Point, Rect};
+@@ -12,7 +12,7 @@ use crate::ui::util::long_line_content_with_ellipsis;
+ /// and without being affected by other components.
+ pub struct ChangingTextLine {
+     pad: Pad,
+-    text: ShortString,
++    text: InputString,
+     font: Font,
+     /// Whether to show the text. Can be disabled.
+     show_content: bool,
+@@ -25,7 +25,7 @@ pub struct ChangingTextLine {
+ 
+ impl ChangingTextLine {
+     pub fn new(text: &str, font: Font, alignment: Alignment, max_len: usize) -> Self {
+-        let text = unwrap!(ShortString::try_from(text));
++        let text = unwrap!(InputString::try_from(text));
+         debug_assert!(text.capacity() >= max_len);
+         Self {
+             pad: Pad::with_background(theme::BG),
+diff --git a/core/embed/rust/src/ui/layout_caesar/component/input_methods/passphrase.rs b/core/embed/rust/src/ui/layout_caesar/component/input_methods/passphrase.rs
+index c44c5c70c0b9cf89077c0d65c35299e5b8d8c997..2b96473e0d4d3c619c9f67c5fdf96e9b9e16fb8d 100644
+--- a/core/embed/rust/src/ui/layout_caesar/component/input_methods/passphrase.rs
++++ b/core/embed/rust/src/ui/layout_caesar/component/input_methods/passphrase.rs
+@@ -2,7 +2,7 @@ use super::super::{
+     theme, ButtonDetails, ButtonLayout, CancelConfirmMsg, ChangingTextLine, ChoiceControls,
+     ChoiceFactory, ChoiceItem, ChoiceMsg, ChoicePage,
+ };
+-use crate::strutil::{ShortString, TString};
++use crate::strutil::{InputString, TString};
+ use crate::translations::TR;
+ use crate::trezorhal::random;
+ use crate::ui::component::text::common::TextBox;
+@@ -287,17 +287,17 @@ impl PassphraseEntry {
+ 
+     fn update_passphrase_dots(&mut self, ctx: &mut EventCtx) {
+         debug_assert!({
+-            let s = ShortString::new();
++            let s = InputString::new();
+             s.capacity() >= self.max_len
+         });
+ 
+         let text_to_show = if self.show_plain_passphrase {
+-            unwrap!(ShortString::try_from(self.passphrase()))
++            unwrap!(InputString::try_from(self.passphrase()))
+         } else if self.is_empty() {
+-            unwrap!(ShortString::try_from(""))
++            unwrap!(InputString::try_from(""))
+         } else {
+             // Showing asterisks and possibly the last digit.
+-            let mut dots = ShortString::new();
++            let mut dots = InputString::new();
+             for _ in 0..self.textbox.len() - 1 {
+                 unwrap!(dots.push('*'));
+             }

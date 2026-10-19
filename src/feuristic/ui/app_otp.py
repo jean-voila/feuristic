@@ -55,15 +55,23 @@ async def _export(uid) -> None:
 
     store = _store()
     acc = store.get(uid)
+    uri = store.export_uri(uid)
+    if not screens.qr_fits(uri):
+        from . import app_backup
+
+        uri = None
+        await screens.show_info(t("otp.export_qr"), t("backup.ui.otp_long"))
+        await app_backup.export_record("otp", uid)
+        return
     if not await pin.reauthenticate():
         return
     if not await InlineInteraction().confirm(store.export_prompt(acc)):
         return
-    uri = store.export_uri(uid)
-    if len(uri) > screens.QR_MAX_BYTES:
-        await screens.show_error(t("ui.error"))
-        return
-    await screens.show_qr(acc.label(), uri, otp_accounts.EXPORT_DISPLAY_TIMEOUT_MS)
+    try:
+        await screens.show_qr(acc.label(), uri, otp_accounts.EXPORT_DISPLAY_TIMEOUT_MS)
+    finally:
+        uri = None
+        screens.show_busy(t("ui.qr_autohide"))
 
 
 async def _delete(uid) -> None:

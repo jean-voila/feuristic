@@ -124,6 +124,41 @@ class BackupProvider:
 # ---------------------------------------------------------------------------
 
 
+class LazyProvider(BackupProvider):
+    """Delegate each operation without keeping an application/server alive.
+
+    The factory receives TYPE and returns a short-lived concrete provider.
+    In particular, a registry entry must not retain a FIDO HID server while
+    the exclusive image-import mode needs its RAM.
+    """
+
+    def __init__(self, kind, label_key, factory) -> None:
+        self.TYPE = kind
+        self.LABEL_KEY = label_key
+        self._factory = factory
+
+    def list_identities(self):
+        return self._factory(self.TYPE).list_identities()
+
+    def export_identity(self, uid):
+        return self._factory(self.TYPE).export_identity(uid)
+
+    def validate(self, obj) -> None:
+        self._factory(self.TYPE).validate(obj)
+
+    def exists(self, obj):
+        return self._factory(self.TYPE).exists(obj)
+
+    def describe(self, obj):
+        return self._factory(self.TYPE).describe(obj)
+
+    def restore_identity(self, obj, overwrite):
+        return self._factory(self.TYPE).restore_identity(obj, overwrite)
+
+    def on_exported(self, uid) -> None:
+        self._factory(self.TYPE).on_exported(uid)
+
+
 def is_valid_type(t) -> bool:
     """``[a-z][a-z0-9_-]{0,15}``."""
     if not isinstance(t, str) or not 1 <= len(t) <= TYPE_MAX_LEN:

@@ -142,6 +142,9 @@ typedef enum {
   FMSC_EVT_STOPPED = 2,
   /// fmsc_bot_reset() was called (Bulk-Only reset / bus reset).
   FMSC_EVT_HOST_RESET = 3,
+  /// WRITE(10) refused while the application temporarily needs decoder RAM.
+  /// The command fails with NOT READY / operation in progress, not success.
+  FMSC_EVT_WRITE_PAUSED = 4,
 } fmsc_event_t;
 
 /// Why a stream was abandoned (cb.stream_error). A stream that received an
@@ -321,7 +324,9 @@ typedef struct fmsc_ctx {
   uint8_t sense_ascq;
   uint8_t ua_pending;
   uint8_t prevent;
-  uint8_t medium;          // 0 ready, 1 stopped, 2 ejected
+  uint8_t medium;  // 0 ready, 1 stopped, 2 ejected
+  uint8_t
+      write_paused;  // temporary application backpressure (reads/eject work)
   uint8_t pending_events;  // emitted once the CSW is consumed
 
   // BOT
@@ -384,6 +389,12 @@ uint8_t fmsc_get_max_lun(void);
 
 /// True once the medium was ejected (START STOP UNIT LoEj).
 bool fmsc_is_ejected(const fmsc_ctx_t *ctx);
+
+/// Change temporary write backpressure only at a BOT command boundary.
+/// Returns false if a command is still in flight (no state is changed).
+/// A paused WRITE(10) fails immediately with NOT READY (04/07), full residue,
+/// and an OUT halt; the host must retry that failed write after resumption.
+bool fmsc_set_write_paused(fmsc_ctx_t *ctx, bool paused);
 
 /// Read one 512-byte sector of the virtual volume as the host would see it
 /// (diagnostics, emulator, tests). lba >= FMSC_TOTAL_SECTORS yields zeros.

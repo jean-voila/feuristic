@@ -7,6 +7,7 @@ bridged into pcscd by tools/vpcd_bridge.py.
 """
 
 import os
+import selectors
 import shutil
 import subprocess
 import sys
@@ -78,29 +79,47 @@ def gpg_interactive(args, answers, env, timeout=300):
     """Drive gpg through --command-fd/--status-fd: ``answers`` maps a prompt
     keyword (e.g. ``cardedit.prompt``) to a list of replies consumed in order."""
     proc = subprocess.Popen(
-        ["gpg", "--command-fd", "0", "--status-fd", "1", "--pinentry-mode", "loopback", *args],
+        ["gpg", "--no-tty", "--command-fd", "0", "--status-fd", "1", "--pinentry-mode", "loopback", *args],
         stdin=subprocess.PIPE,
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,
-        text=True,
         env=env,
     )
     transcript = []
+    pending = b""
     deadline = time.monotonic() + timeout
-    for line in proc.stdout:
-        transcript.append(line)
-        if time.monotonic() > deadline:
+    try:
+        with selectors.DefaultSelector() as selector:
+            selector.register(proc.stdout, selectors.EVENT_READ)
+            while True:
+                remaining = deadline - time.monotonic()
+                if remaining <= 0 or not selector.select(remaining):
+                    raise AssertionError("GnuPG timed out:\n" + "".join(transcript)[-4000:])
+                chunk = os.read(proc.stdout.fileno(), 4096)
+                if not chunk:
+                    break
+                pending += chunk
+                while b"\n" in pending:
+                    raw, pending = pending.split(b"\n", 1)
+                    line = raw.decode(errors="replace") + "\n"
+                    transcript.append(line)
+                    parts = line.split()
+                    if (
+                        len(parts) >= 3
+                        and parts[0] == "[GNUPG:]"
+                        and parts[1] in ("GET_LINE", "GET_HIDDEN", "GET_BOOL")
+                    ):
+                        queue = answers.get(parts[2])
+                        reply = queue.pop(0) if queue else ("n" if parts[1] == "GET_BOOL" else "")
+                        proc.stdin.write((reply + "\n").encode())
+                        proc.stdin.flush()
+        transcript.append(pending.decode(errors="replace"))
+        assert proc.wait(10) == 0, "".join(transcript)[-4000:]
+        return "".join(transcript)
+    finally:
+        if proc.poll() is None:
             proc.kill()
-            break
-        parts = line.split()
-        if len(parts) >= 3 and parts[0] == "[GNUPG:]" and parts[1] in ("GET_LINE", "GET_HIDDEN", "GET_BOOL"):
-            key = parts[2]
-            queue = answers.get(key)
-            reply = queue.pop(0) if queue else ("n" if parts[1] == "GET_BOOL" else "")
-            proc.stdin.write(reply + "\n")
-            proc.stdin.flush()
-    proc.wait(30)
-    return "".join(transcript)
+            proc.wait(10)
 
 
 def test_gnupg_generate_and_sign(reader, gnupg_home):
@@ -123,7 +142,7 @@ def test_gnupg_generate_and_sign(reader, gnupg_home):
                 "cardedit.prompt": ["admin", "generate", "quit"],
                 "cardedit.genkeys.backup_enc": ["n"],
                 "cardedit.genkeys.replace_keys": ["y"],
-                "passphrase.enter": ["12345678", "123456", "123456", "123456"],
+                "passphrase.enter": ["123456", "12345678", "123456", "123456"],
                 "keygen.valid": ["0"],
                 "keygen.name": ["Feu Test"],
                 "keygen.email": ["feu@example.com"],
@@ -154,6 +173,8 @@ def test_gnupg_generate_and_sign(reader, gnupg_home):
         assert "Good signature" in ver.stderr
     finally:
         stop.set()
+        t.join(10)
+        assert not t.is_alive(), "GnuPG approval worker did not finish"
 
 
 def test_opensc_piv_detected(reader):

@@ -7,3 +7,6 @@
 0005-feuristic-frozen-module-set-and-AES-GCM-in-the-firmw.patch
 0006-feuristic-build-the-feuristic_native-MicroPython-mod.patch
 0007-feuristic-emulator-RNG-reads-dev-urandom-by-default.patch
+0008-Support-bounded-128-byte-on-device-backup-passphrase.patch
+0009-Require-both-buttons-for-device-confirmations.patch
+0010-Keep-the-T2B1-interpreter-value-stack-in-non-DMA-CCM.patch

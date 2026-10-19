@@ -108,15 +108,21 @@ jobs:
           path: dist/
 
   emulator-tests:
-    name: Emulator + functional tests (T3B1)
+    name: Emulator + functional tests (${{ matrix.model }})
     runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        model: [T2B1, T3B1]
+    env:
+      FEURISTIC_EMU: ${{ github.workspace }}/upstream/trezor-firmware/core/build-xtask/artifacts/${{ matrix.model }}/firmware-emu
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: cachix/install-nix-action@448cde739abec1eaf0646249e3d25bb8d9bc7702 # v31.11.2
       - uses: DeterminateSystems/magic-nix-cache-action@84c0677f58dcedf3b91f8223ce36a9ea5b3c84b7 # v15
       - uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
       - run: tools/ci/fetch-upstream.sh
-      - run: tools/ci/nix-build.sh emulator t3b1
+      - run: tools/ci/nix-build.sh emulator "$(echo ${{ matrix.model }} | tr A-Z a-z)"
       - run: uv sync
       - name: MicroPython compatibility (with mpy-cross)
         run: uv run --no-sync python tools/check_upy_compat.py
@@ -135,7 +141,7 @@ jobs:
       - if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: functional-results
+          name: functional-results-${{ matrix.model }}
           path: build/*.xml
 
   reproducibility:

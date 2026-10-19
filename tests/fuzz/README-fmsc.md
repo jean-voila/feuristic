@@ -6,7 +6,7 @@
 `fmsc_fuzz.c` acts as the USB glue and a hostile host. Byte 0 picks the
 configuration: cache 0–3 clusters, reorder 0–7 sectors, quiet/settle timers
 on or off, and a consumer that refuses streams. The remaining bytes are a
-sequence of operations (`op % 12`):
+sequence of operations (`op % 13`):
 
 | op | action |
 |---|---|
@@ -20,6 +20,7 @@ sequence of operations (`op % 12`):
 | 9 | arbitrary CDB (often a supported opcode), CB length, transfer length and direction |
 | 10 | SYNCHRONIZE CACHE / START STOP UNIT / PREVENT ALLOW |
 | 11 | `fmsc_volume_read` at a random LBA |
+| 12 | request write pause/resume at an arbitrary BOT boundary; verify refusal leaves the previous pause state intact |
 
 LBAs come from a mix of the FAT area, the root directory, the first 48 data
 clusters (biased towards cluster starts) and the whole volume. This
@@ -76,3 +77,4 @@ prints how many streams were started, completed and failed.
 | `seed_junk` | image followed by AppleDouble and a new directory; STOP |
 | `seed_enumeration` | INQUIRY, TUR, REQUEST SENSE, READ CAPACITY, MODE SENSE, READ |
 | `seed_invalid_cbw` | invalid CBW, clear-halts, reset recovery, TUR |
+| `seed_write_pause` | pause, refused WRITE, reset while paused, resume and retry WRITE |

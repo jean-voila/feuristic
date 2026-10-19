@@ -1,0 +1,216 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Jean Herail <jeanherail@icloud.com>
+Date: Sun, 18 Oct 2026 20:48:55 +0200
+Subject: [PATCH] Require both buttons for device confirmations
+
+Feuristic-Rationale: Follow the two-button navigation contract; destructive actions require one uninterrupted simultaneous hold and ambiguous chords must never trigger a side action.
+
+diff --git a/core/embed/rust/src/ui/layout_caesar/component/button_controller.rs b/core/embed/rust/src/ui/layout_caesar/component/button_controller.rs
+index 94fd40db831db22bbbef94b0cb396afefdde7db7..8b11a61ca4711e946647fcf72594e31fe854a4cb 100644
+--- a/core/embed/rust/src/ui/layout_caesar/component/button_controller.rs
++++ b/core/embed/rust/src/ui/layout_caesar/component/button_controller.rs
+@@ -58,7 +58,7 @@ pub enum ButtonType {
+ impl ButtonType {
+     pub fn from_button_details(pos: ButtonPos, btn_details: ButtonDetails) -> Self {
+         if btn_details.duration.is_some() {
+-            Self::HoldToConfirm(HoldToConfirm::from_button_details(btn_details))
++            Self::HoldToConfirm(HoldToConfirm::from_button_details(pos, btn_details))
+         } else {
+             Self::Button(Button::new(pos, btn_details))
+         }
+@@ -296,6 +296,8 @@ impl ButtonController {
+     /// We need to cancel possible holds in both other buttons.
+     fn middle_hold_started(&mut self, ctx: &mut EventCtx) {
+         self.left_btn.forward_hold(ctx, ButtonEvent::HoldEnded);
++        // A destructive action requires one uninterrupted two-button hold.
++        self.middle_btn.forward_hold(ctx, ButtonEvent::HoldCanceled);
+         self.middle_btn.forward_hold(ctx, ButtonEvent::HoldStarted);
+         self.right_btn.forward_hold(ctx, ButtonEvent::HoldEnded);
+     }
+@@ -454,19 +456,11 @@ impl Component for ButtonController {
+                                     Some(ButtonControllerMsg::Pressed(ButtonPos::Middle)),
+                                 )
+                             } else {
+-                                // When a button gets pressed while another one is being held,
+-                                // cancel the hold and do not register the press.
+-                                match which_down {
+-                                    PhysicalButton::Left => {
+-                                        self.left_btn.forward_hold(ctx, ButtonEvent::HoldCanceled);
+-                                    }
+-                                    PhysicalButton::Right => {
+-                                        self.right_btn.forward_hold(ctx, ButtonEvent::HoldCanceled);
+-                                    }
+-                                    _ => {}
+-                                }
+-
+-                                return None;
++                                // Consume the entire chord when this page has no validation
++                                // button. Neither release may turn it into a side-button action.
++                                self.left_btn.forward_hold(ctx, ButtonEvent::HoldCanceled);
++                                self.right_btn.forward_hold(ctx, ButtonEvent::HoldCanceled);
++                                (ButtonState::BothDown, None)
+                             }
+                         }
+                         _ => (self.state, None),
+@@ -475,20 +469,11 @@ impl Component for ButtonController {
+                     ButtonState::BothDown => match button_event {
+                         // ▲ * | * ▲
+                         ButtonEvent::ButtonReleased(b) => {
+-                            self.middle_btn.forward_hold(ctx, ButtonEvent::HoldEnded);
++                            // Releasing either button immediately cancels a hold. Do not
++                            // retain partial progress for a later, ambiguous chord.
++                            self.middle_btn.forward_hold(ctx, ButtonEvent::HoldCanceled);
+                             // _ ↓ | ↓ _
+-                            if self.handle_middle_button {
+-                                (ButtonState::OneReleased(b), None)
+-                            } else {
+-                                (
+-                                    ButtonState::OneReleased(b),
+-                                    match b {
+-                                        PhysicalButton::Left => self.left_btn.maybe_trigger(ctx),
+-                                        PhysicalButton::Right => self.right_btn.maybe_trigger(ctx),
+-                                        _ => None,
+-                                    },
+-                                )
+-                            }
++                            (ButtonState::OneReleased(b), None)
+                         }
+                         _ => (self.state, None),
+                     },
+@@ -496,7 +481,9 @@ impl Component for ButtonController {
+                     ButtonState::OneReleased(which_up) => match button_event {
+                         // * ▼ | ▼ *
+                         ButtonEvent::ButtonPressed(b) if b == which_up => {
+-                            self.middle_hold_started(ctx);
++                            if self.handle_middle_button {
++                                self.middle_hold_started(ctx);
++                            }
+                             // ↓ ↓
+                             (ButtonState::BothDown, None)
+                         }
+@@ -511,10 +498,7 @@ impl Component for ButtonController {
+                             if self.handle_middle_button {
+                                 (ButtonState::Nothing, self.middle_btn.maybe_trigger(ctx))
+                             } else {
+-                                (
+-                                    ButtonState::Nothing,
+-                                    Some(ButtonControllerMsg::Triggered(b.into(), false)),
+-                                )
++                                (ButtonState::Nothing, None)
+                             }
+                         }
+                         _ => (self.state, None),
+diff --git a/core/embed/rust/src/ui/layout_caesar/component/hold_to_confirm.rs b/core/embed/rust/src/ui/layout_caesar/component/hold_to_confirm.rs
+index 27cab47180bbfa1db803be5c76d0e5736d116312..1e96d01cc436285ce78ca41c56d78cc98e5b3903 100644
+--- a/core/embed/rust/src/ui/layout_caesar/component/hold_to_confirm.rs
++++ b/core/embed/rust/src/ui/layout_caesar/component/hold_to_confirm.rs
+@@ -1,11 +1,11 @@
+ use sys::time::{Duration, Instant};
+ 
+ use super::loader::{Loader, DEFAULT_DURATION_MS};
+-use super::{theme, ButtonContent, ButtonDetails, LoaderMsg, LoaderStyleSheet};
++use super::{theme, ButtonContent, ButtonDetails, ButtonPos, LoaderMsg, LoaderStyleSheet};
+ use crate::ui::component::{Component, Event, EventCtx};
+ use crate::ui::event::ButtonEvent;
+-use crate::ui::geometry::Rect;
+-use crate::ui::shape::Renderer;
++use crate::ui::geometry::{Alignment2D, Rect};
++use crate::ui::shape::{self, Renderer};
+ 
+ pub enum HoldToConfirmMsg {
+     Confirmed,
+@@ -14,10 +14,12 @@ pub enum HoldToConfirmMsg {
+ pub struct HoldToConfirm {
+     loader: Loader,
+     text_width: i16,
++    pos: ButtonPos,
++    area: Rect,
+ }
+ 
+ impl HoldToConfirm {
+-    pub fn from_button_details(btn_details: ButtonDetails) -> Self {
++    pub fn from_button_details(pos: ButtonPos, btn_details: ButtonDetails) -> Self {
+         let duration = btn_details
+             .duration
+             .unwrap_or_else(|| Duration::from_millis(DEFAULT_DURATION_MS));
+@@ -28,6 +30,8 @@ impl HoldToConfirm {
+                 Self {
+                     loader: Loader::text(text, styles).with_growing_duration(duration),
+                     text_width,
++                    pos,
++                    area: Rect::zero(),
+                 }
+             }
+             ButtonContent::Icon(_) => fatal_error!("Icon is not supported"),
+@@ -40,8 +44,12 @@ impl Component for HoldToConfirm {
+ 
+     fn place(&mut self, bounds: Rect) -> Rect {
+         let button_width = self.text_width + 2 * theme::BUTTON_OUTLINE;
+-        let loader_area = bounds.split_right(button_width).1;
+-        self.loader.place(loader_area)
++        self.area = match self.pos {
++            ButtonPos::Left => bounds.split_left(button_width).0,
++            ButtonPos::Middle => bounds.split_center(button_width).1,
++            ButtonPos::Right => bounds.split_right(button_width).1,
++        };
++        self.loader.place(self.area)
+     }
+ 
+     fn event(&mut self, ctx: &mut EventCtx, event: Event) -> Option<Self::Msg> {
+@@ -69,6 +77,18 @@ impl Component for HoldToConfirm {
+ 
+     fn render<'s>(&'s self, target: &mut impl Renderer<'s>) {
+         self.loader.render(target);
++        if matches!(self.pos, ButtonPos::Middle) {
++            // Match the normal middle-button decoration: the two arms tell
++            // the user that both physical buttons must stay pressed together.
++            shape::ToifImage::new(self.area.left_center(), theme::ICON_ARM_LEFT.toif)
++                .with_align(Alignment2D::TOP_RIGHT)
++                .with_fg(theme::FG)
++                .render(target);
++            shape::ToifImage::new(self.area.right_center(), theme::ICON_ARM_RIGHT.toif)
++                .with_align(Alignment2D::TOP_LEFT)
++                .with_fg(theme::FG)
++                .render(target);
++        }
+     }
+ }
+ 
+diff --git a/core/embed/rust/src/ui/layout_caesar/component/page.rs b/core/embed/rust/src/ui/layout_caesar/component/page.rs
+index 3ac1a56572038d5bda575f09d873785b46f41496..1896d85dde6d3f5e37d2e7d37a05a43783b2b4f6 100644
+--- a/core/embed/rust/src/ui/layout_caesar/component/page.rs
++++ b/core/embed/rust/src/ui/layout_caesar/component/page.rs
+@@ -107,7 +107,12 @@ where
+         };
+         let (btn_middle, btn_right) = match (has_next, self.has_menu) {
+             (true, _) => (None, self.next_btn_details.clone()),
+-            (false, false) => (None, self.confirm_btn_details.clone()),
++            // feuristic: validation always requires both physical buttons.
++            // A side-button press may navigate, but must never confirm.
++            (false, false) => (
++                self.confirm_btn_details.clone().map(|b| b.with_arms()),
++                None,
++            ),
+             (false, true) => (
+                 self.confirm_btn_details.clone().map(|b| b.with_arms()),
+                 Some(ButtonDetails::info_icon()),
+@@ -168,7 +173,9 @@ where
+                     }
+                 }
+                 ButtonPos::Middle => {
+-                    return Some(PageMsg::Confirmed);
++                    if !self.pager().has_next() && self.confirm_btn_details.is_some() {
++                        return Some(PageMsg::Confirmed);
++                    }
+                 }
+                 ButtonPos::Right => {
+                     if self.pager().has_next() {
+@@ -177,8 +184,6 @@ where
+                         self.change_page(ctx);
+                     } else if self.has_menu {
+                         return Some(PageMsg::Info);
+-                    } else {
+-                        return Some(PageMsg::Confirmed);
+                     }
+                 }
+             }

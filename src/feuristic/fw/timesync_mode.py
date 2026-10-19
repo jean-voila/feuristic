@@ -61,9 +61,13 @@ async def _serve(session) -> bool:
 async def run() -> bool:
     """Run the time-sync mode; returns True if a time was applied."""
     session = TimeSyncSession(InlineInteraction())
-    await usbmodes.switch(usbmodes.TIMESYNC)
+    completed = False
     try:
+        await usbmodes.switch(usbmodes.TIMESYNC)
         await loop.race(_serve(session), loop.sleep(IDLE_TIMEOUT_MS))
+        completed = True
     finally:
-        await usbmodes.switch(usbmodes.NORMAL)
+        done = usbmodes.restore_normal()
+        if completed:
+            await done
     return session.applied

@@ -4,7 +4,7 @@
 import io
 
 import segno
-from harness.emulator import PORT_MSC
+from harness.emulator import PORT_CCID, PORT_FIDO, PORT_MSC
 from harness.msc import Fat12Writer, MscClient
 
 URI = "otpauth://totp/Example:alice@example.com?secret=JBSWY3DPEHPK3PXP&issuer=Example"
@@ -61,10 +61,34 @@ def test_volume_appears_only_in_import_mode_and_is_fat12(ready, emu):
         assert bs == 512 and sectors > 30000
         boot = msc.read(0)
         assert boot[54:62] == b"FAT12   "
+        for interface in (PORT_FIDO, PORT_CCID):
+            with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
+                s.settimeout(0.3)
+                s.sendto(b"PINGPING", ("127.0.0.1", emu.port(interface)))
+                try:
+                    s.recvfrom(64)
+                    raise AssertionError("normal USB interface present in import mode")
+                except (TimeoutError, ConnectionRefusedError, OSError):
+                    pass
         assert msc.eject() == 0
     finally:
         msc.close()
     ready.wait_title("One-time passwords", timeout=20)  # back to the menu after eject
+    # Both long-lived polling tasks must resume, not merely the USB sockets.
+    from fido2.ctap2 import Ctap2
+    from harness.ccid import CcidClient
+    from harness.fido import open_device
+
+    dev = open_device(emu.port(PORT_FIDO))
+    card = CcidClient(emu.port(PORT_CCID))
+    try:
+        assert "FIDO_2_1" in Ctap2(dev).info.versions
+        card.power_on()
+        data, sw = card.transmit(bytes.fromhex("0084000020"))
+        assert sw == 0x9000 and len(data) == 32
+    finally:
+        dev.close()
+        card.close()
 
 
 def _import_otp(ready, emu, image: bytes, name: str):

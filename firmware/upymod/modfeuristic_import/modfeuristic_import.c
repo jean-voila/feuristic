@@ -69,6 +69,7 @@ typedef enum {
   EVT_STOPPED,
   EVT_HOST_RESET,
   EVT_IMAGE_ERROR,
+  EVT_WRITE_PAUSED,
 } import_evt_type_t;
 
 typedef struct {
@@ -95,7 +96,8 @@ typedef struct _mp_obj_ImportSession_t {
   uint32_t ready;     // stream id completed, awaiting decode() (0 = none)
   uint32_t ready_size;
   char ready_name[FMSC_LONG_NAME_MAX + 1];
-  uint8_t readme[FMSC_README_MAX];
+  uint8_t *readme;
+  size_t readme_len;
   // tx queue of frames to write to the kernel
   uint8_t txq[IMPORT_TXQ_LEN][IMPORT_FRAME_MAX];
   uint8_t txlen[IMPORT_TXQ_LEN];
@@ -104,7 +106,13 @@ typedef struct _mp_obj_ImportSession_t {
   import_evt_t evq[IMPORT_EVQ_LEN];
   uint8_t ev_head, ev_count;
   bool closed;
+  bool decode_paused;
 } mp_obj_ImportSession_t;
+
+// The hardware T2B1 uses one CCM context. Enforce the same ownership on the
+// emulator/other model so allocation failures and delayed finalizers exercise
+// the identical session-lifetime contract in native tests.
+static mp_obj_ImportSession_t *g_owner;
 
 static void push_frame(mp_obj_ImportSession_t *o, const uint8_t *frame,
                        size_t len) {
@@ -141,7 +149,37 @@ static void decoder_reset(mp_obj_ImportSession_t *o) {
   o->active = 0;
   o->image_failed = false;
   o->image_err = 0;
+  if (o->bitmap != NULL) fimg_secure_zero(o->bitmap, o->bitmap_len);
+}
+
+static void decoder_allocate(mp_obj_ImportSession_t *o) {
+  // Store every pointer immediately so close() also cleans partial allocation
+  // when MicroPython raises MemoryError. Writes stay paused until all exist.
+  if (o->fimg_ws == NULL) o->fimg_ws = m_new(uint8_t, o->fimg_ws_len);
+  if (o->bitmap == NULL) o->bitmap = m_new(uint8_t, o->bitmap_len);
+  if (o->payload == NULL) o->payload = m_new(uint8_t, IMPORT_PAYLOAD_MAX);
+  fimg_secure_zero(o->fimg_ws, o->fimg_ws_len);
   fimg_secure_zero(o->bitmap, o->bitmap_len);
+  fimg_secure_zero(o->payload, IMPORT_PAYLOAD_MAX);
+}
+
+static void decoder_release(mp_obj_ImportSession_t *o) {
+  decoder_reset(o);
+  if (o->fimg_ws != NULL) {
+    fimg_secure_zero(o->fimg_ws, o->fimg_ws_len);
+    m_del(uint8_t, o->fimg_ws, o->fimg_ws_len);
+    o->fimg_ws = NULL;
+  }
+  if (o->bitmap != NULL) {
+    fimg_secure_zero(o->bitmap, o->bitmap_len);
+    m_del(uint8_t, o->bitmap, o->bitmap_len);
+    o->bitmap = NULL;
+  }
+  if (o->payload != NULL) {
+    fimg_secure_zero(o->payload, IMPORT_PAYLOAD_MAX);
+    m_del(uint8_t, o->payload, IMPORT_PAYLOAD_MAX);
+    o->payload = NULL;
+  }
 }
 
 // --- fmsc callbacks ----------------------------------------------------------
@@ -163,7 +201,7 @@ static void cb_stall(void *user, fmsc_ep_t ep) {
 
 static bool cb_stream_start(void *user, uint32_t id) {
   mp_obj_ImportSession_t *o = user;
-  if (o->active != 0 || o->ready != 0) {
+  if (o->decode_paused || o->active != 0 || o->ready != 0) {
     return false;  // one image at a time; the host copies files one by one
   }
   decoder_reset(o);
@@ -219,9 +257,10 @@ static void cb_stream_error(void *user, uint32_t id,
 
 static void cb_event(void *user, fmsc_event_t ev) {
   mp_obj_ImportSession_t *o = user;
-  uint8_t t = (ev == FMSC_EVT_EJECTED)   ? EVT_EJECTED
-              : (ev == FMSC_EVT_STOPPED) ? EVT_STOPPED
-                                         : EVT_HOST_RESET;
+  uint8_t t = (ev == FMSC_EVT_EJECTED)        ? EVT_EJECTED
+              : (ev == FMSC_EVT_STOPPED)      ? EVT_STOPPED
+              : (ev == FMSC_EVT_WRITE_PAUSED) ? EVT_WRITE_PAUSED
+                                              : EVT_HOST_RESET;
   if (ev == FMSC_EVT_HOST_RESET) {
     o->tx_count = 0;
     o->in_pending = false;
@@ -239,6 +278,7 @@ static void cb_event(void *user, fmsc_event_t ev) {
 ///     One QR-import USB session (FAT12 volume + image decoding).
 ///     """
 static const mp_obj_type_t mod_feuristic_import_Session_type;
+static mp_obj_t mod_feuristic_import_Session_close(mp_obj_t self);
 
 /// def __init__(self, readme: bytes, max_out: int, volume_id: int) -> None:
 ///     """
@@ -262,53 +302,72 @@ static mp_obj_t mod_feuristic_import_Session_make_new(const mp_obj_type_t *type,
       mp_obj_malloc_with_finaliser(mp_obj_ImportSession_t, type);
   memset(&o->st, 0, sizeof(*o) - offsetof(mp_obj_ImportSession_t, st));
 
+  nlr_buf_t nlr;
+  if (nlr_push(&nlr) == 0) {
+    if (g_owner != NULL) {
+      mp_raise_msg(&mp_type_RuntimeError,
+                   MP_ERROR_TEXT("import session already active"));
+    }
+    g_owner = o;
+
 #ifdef IMPORT_STATIC_IN_CCM
-  o->st = &g_static;
-  o->st_owned = false;
+    o->st = &g_static;
+    o->st_owned = false;
 #else
-  o->st = m_new(import_static_t, 1);
-  o->st_owned = true;
+    o->st = m_new(import_static_t, 1);
+    o->st_owned = true;
 #endif
+    memset(o->st, 0, sizeof(*o->st));
 
-  fimg_config_default(&o->fcfg);
-  o->fcfg.max_out_width = (uint16_t)max_out;
-  o->fcfg.max_out_height = (uint16_t)max_out;
-  o->fcfg.max_out_pixels = 0;
-  o->fimg_ws_len = fimg_workspace_size(&o->fcfg);
-  if (o->fimg_ws_len < FQR_WORKSPACE_SIZE) {
-    o->fimg_ws_len = FQR_WORKSPACE_SIZE;  // reused by fqr after decoding
-  }
-  o->bitmap_len = fimg_bitmap_size(&o->fcfg);
-  o->fimg_ws = m_new(uint8_t, o->fimg_ws_len);
-  o->bitmap = m_new(uint8_t, o->bitmap_len);
-  o->payload = m_new(uint8_t, IMPORT_PAYLOAD_MAX);
-  memcpy(o->readme, readme.buf, readme.len);
+    fimg_config_default(&o->fcfg);
+    o->fcfg.max_out_width = (uint16_t)max_out;
+    o->fcfg.max_out_height = (uint16_t)max_out;
+    o->fcfg.max_out_pixels = 0;
+    o->fimg_ws_len = fimg_workspace_size(&o->fcfg);
+    if (o->fimg_ws_len < FQR_WORKSPACE_SIZE) {
+      o->fimg_ws_len = FQR_WORKSPACE_SIZE;  // reused by fqr after decoding
+    }
+    o->bitmap_len = fimg_bitmap_size(&o->fcfg);
+    o->readme_len = readme.len;
+    if (readme.len > 0) {
+      o->readme = m_new(uint8_t, readme.len);
+      memcpy(o->readme, readme.buf, readme.len);
+    }
+    decoder_allocate(o);
 
-  fmsc_config_t cfg = {
-      .cache_mem = o->st->cache,
-      .cache_clusters = IMPORT_CACHE_CLUSTERS,
-      .reorder_mem = o->st->reorder,
-      .reorder_sectors = IMPORT_REORDER_SECTORS,
-      .readme = o->readme,
-      .readme_len = readme.len,
-      .volume_id = (uint32_t)volume_id,
-      .serial = NULL,
-      .revision = NULL,
-      .quiet_ms = 2000,
-      .settle_ms = 15000,
-  };
-  fmsc_callbacks_t cb = {
-      .user = o,
-      .send_in = cb_send_in,
-      .stall = cb_stall,
-      .stream_start = cb_stream_start,
-      .stream_data = cb_stream_data,
-      .stream_complete = cb_stream_complete,
-      .stream_error = cb_stream_error,
-      .event = cb_event,
-  };
-  if (fmsc_init(&o->st->fmsc, &cfg, &cb) != FMSC_OK) {
-    mp_raise_ValueError(MP_ERROR_TEXT("fmsc init failed"));
+    fmsc_config_t cfg = {
+        .cache_mem = o->st->cache,
+        .cache_clusters = IMPORT_CACHE_CLUSTERS,
+        .reorder_mem = o->st->reorder,
+        .reorder_sectors = IMPORT_REORDER_SECTORS,
+        .readme = o->readme,
+        .readme_len = readme.len,
+        .volume_id = (uint32_t)volume_id,
+        .serial = NULL,
+        .revision = NULL,
+        .quiet_ms = 2000,
+        .settle_ms = 15000,
+    };
+    fmsc_callbacks_t cb = {
+        .user = o,
+        .send_in = cb_send_in,
+        .stall = cb_stall,
+        .stream_start = cb_stream_start,
+        .stream_data = cb_stream_data,
+        .stream_complete = cb_stream_complete,
+        .stream_error = cb_stream_error,
+        .event = cb_event,
+    };
+    if (fmsc_init(&o->st->fmsc, &cfg, &cb) != FMSC_OK) {
+      mp_raise_ValueError(MP_ERROR_TEXT("fmsc init failed"));
+    }
+    nlr_pop();
+  } else {
+    // A constructor failure must free partial buffers and release CCM now.
+    // Its eventual GC finalizer is then an idempotent no-op, so it cannot
+    // wipe the shared context of a subsequent successful session.
+    mod_feuristic_import_Session_close(MP_OBJ_FROM_PTR(o));
+    nlr_jump(nlr.ret_val);
   }
   return MP_OBJ_FROM_PTR(o);
 }
@@ -438,6 +497,9 @@ static mp_obj_t mod_feuristic_import_Session_event(mp_obj_t self) {
     case EVT_STOPPED:
       kind = MP_QSTR_stopped;
       break;
+    case EVT_WRITE_PAUSED:
+      kind = MP_QSTR_write_paused;
+      break;
     default:
       kind = MP_QSTR_reset;
       break;
@@ -541,6 +603,41 @@ static mp_obj_t mod_feuristic_import_Session_ejected(mp_obj_t self) {
 static MP_DEFINE_CONST_FUN_OBJ_1(mod_feuristic_import_Session_ejected_obj,
                                  mod_feuristic_import_Session_ejected);
 
+/// def pause_decode(self) -> bool:
+///     """At an image/BOT boundary, free decoder RAM and fail new writes
+///     explicitly. Return False while an image/command is still in flight.
+///     Reads, sense and eject remain available. Idempotent when paused."""
+static mp_obj_t mod_feuristic_import_Session_pause_decode(mp_obj_t self) {
+  mp_obj_ImportSession_t *o = live(self);
+  if (o->decode_paused) {
+    decoder_release(o);  // also clean partial allocations after a failed resume
+    return mp_const_true;
+  }
+  if (o->active != 0 || o->ready != 0 ||
+      !fmsc_set_write_paused(&o->st->fmsc, true)) {
+    return mp_const_false;
+  }
+  o->decode_paused = true;
+  decoder_release(o);
+  return mp_const_true;
+}
+static MP_DEFINE_CONST_FUN_OBJ_1(mod_feuristic_import_Session_pause_decode_obj,
+                                 mod_feuristic_import_Session_pause_decode);
+
+/// def resume_decode(self) -> bool:
+///     """Reallocate decoder RAM before accepting writes again. Return False
+///     while a BOT command is pending. MemoryError keeps writes paused."""
+static mp_obj_t mod_feuristic_import_Session_resume_decode(mp_obj_t self) {
+  mp_obj_ImportSession_t *o = live(self);
+  if (!o->decode_paused) return mp_const_true;
+  decoder_allocate(o);
+  if (!fmsc_set_write_paused(&o->st->fmsc, false)) return mp_const_false;
+  o->decode_paused = false;
+  return mp_const_true;
+}
+static MP_DEFINE_CONST_FUN_OBJ_1(mod_feuristic_import_Session_resume_decode_obj,
+                                 mod_feuristic_import_Session_resume_decode);
+
 /// def close(self) -> None:
 ///     """
 ///     Wipe every buffer (spec §3.3: temporary storage purged).
@@ -551,21 +648,24 @@ static mp_obj_t mod_feuristic_import_Session_close(mp_obj_t self) {
     return mp_const_none;
   }
   o->closed = true;
-  fmsc_wipe(&o->st->fmsc);
-  fimg_secure_zero(o->st, sizeof(*o->st));
-  if (o->fimg_ws) fimg_secure_zero(o->fimg_ws, o->fimg_ws_len);
-  if (o->bitmap) fimg_secure_zero(o->bitmap, o->bitmap_len);
-  if (o->payload) fimg_secure_zero(o->payload, IMPORT_PAYLOAD_MAX);
+  if (o->st != NULL) {
+    fmsc_wipe(&o->st->fmsc);
+    fimg_secure_zero(o->st, sizeof(*o->st));
+  }
+  decoder_release(o);
   fimg_secure_zero(o->txq, sizeof(o->txq));
-  fimg_secure_zero(o->readme, sizeof(o->readme));
-  if (o->st_owned) {
+  if (o->readme != NULL) {
+    fimg_secure_zero(o->readme, o->readme_len);
+    m_del(uint8_t, o->readme, o->readme_len);
+    o->readme = NULL;
+    o->readme_len = 0;
+  }
+  if (o->st_owned && o->st != NULL) {
     m_del(import_static_t, o->st, 1);
   }
-  m_del(uint8_t, o->fimg_ws, o->fimg_ws_len);
-  m_del(uint8_t, o->bitmap, o->bitmap_len);
-  m_del(uint8_t, o->payload, IMPORT_PAYLOAD_MAX);
   o->st = NULL;
   o->fimg_ws = o->bitmap = o->payload = NULL;
+  if (g_owner == o) g_owner = NULL;
   return mp_const_none;
 }
 static MP_DEFINE_CONST_FUN_OBJ_1(mod_feuristic_import_Session_close_obj,
@@ -587,6 +687,10 @@ static const mp_rom_map_elem_t
          MP_ROM_PTR(&mod_feuristic_import_Session_decode_obj)},
         {MP_ROM_QSTR(MP_QSTR_ejected),
          MP_ROM_PTR(&mod_feuristic_import_Session_ejected_obj)},
+        {MP_ROM_QSTR(MP_QSTR_pause_decode),
+         MP_ROM_PTR(&mod_feuristic_import_Session_pause_decode_obj)},
+        {MP_ROM_QSTR(MP_QSTR_resume_decode),
+         MP_ROM_PTR(&mod_feuristic_import_Session_resume_decode_obj)},
         {MP_ROM_QSTR(MP_QSTR_close),
          MP_ROM_PTR(&mod_feuristic_import_Session_close_obj)},
         {MP_ROM_QSTR(MP_QSTR___del__),

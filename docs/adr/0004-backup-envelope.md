@@ -132,9 +132,15 @@ Constraints that shaped the design:
   identities (OTP accounts) cost at least one image each. The format
   allows up to 16 items per full-export envelope, so a future exporter
   could group small items without breaking v1 decoders.
-* The restore accepts several sequences in one import session and only
-  proceeds when every sequence received is complete. The user can discard
-  an incomplete sequence explicitly.
+* The same MSC session accepts the independent identity sequences successively.
+  The host/test batch API can collect them together; the constrained device
+  processes one complete, authenticated envelope at a time, pausing decoder
+  memory and host writes during confirmation/restore. A missing frame prevents
+  that identity from changing. Earlier explicitly confirmed identities remain
+  restored; full-set sequence counts and conflicts are tracked. The v1 bytes
+  are unchanged. The device transport budget is 12 KiB per native identity,
+  distinct from the generic format/parser's 64 KiB bound. See
+  [the streaming procedure](../protocols/backup-format-v1.md#83-memory-bounded-device-restore-same-v1-bytes).
 * Readability of the dense profile at 1 px/module, and of the large
   profile with its reduced quiet zone, is not demonstrated on hardware.
   Acceptance test R13 decides. If R13 fails for the dense profile, only

@@ -420,6 +420,15 @@ bool fmsc_is_ejected(const fmsc_ctx_t *ctx) {
   return ctx != NULL && ctx->medium == FMSC_MEDIUM_EJECTED;
 }
 
+bool fmsc_set_write_paused(fmsc_ctx_t *ctx, bool paused) {
+  if (ctx == NULL || ctx->depth != 0u || ctx->state != BOT_IDLE ||
+      ctx->in_busy) {
+    return false;
+  }
+  ctx->write_paused = paused ? 1u : 0u;
+  return true;
+}
+
 void fmsc_get_stats(const fmsc_ctx_t *ctx, fmsc_stats_t *out) {
   if (ctx != NULL && out != NULL) {
     *out = ctx->stats;

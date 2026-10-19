@@ -26,6 +26,10 @@ _ui = DeviceInteraction()
 _fido = None  # (HidServer)
 _card = None  # Card
 _tasks_started = False
+_suspended = False
+_pollers = []
+_workers = []
+_ccid_result = []
 
 
 # -- application lifecycle ------------------------------------------------------
@@ -40,18 +44,22 @@ def _build_fido():
     return HidServer(CtapHid(wink=True), Fido2App(ctx))
 
 
-def _build_card():
+def _build_card(public_only=False):
     from ..apps.card.aes.applet import AesApplet
     from ..apps.card.aes.rng import RngApplet
     from ..apps.card.card import Card
     from ..apps.card.openpgp.applet import OpenPgpApplet
     from ..apps.card.piv.applet import PivApplet
 
-    applets = [
-        OpenPgpApplet(_ui, device.master_secret(), rsa_yield=_yield),
-        PivApplet(_ui, master_secret=device.master_secret, keepalive=_yield),
-        AesApplet(_ui, master_secret=device.master_secret),
-    ]
+    applets = (
+        []
+        if public_only
+        else [
+            OpenPgpApplet(_ui, device.master_secret(), rsa_yield=_yield),
+            PivApplet(_ui, master_secret=device.master_secret, keepalive=_yield),
+            AesApplet(_ui, master_secret=device.master_secret),
+        ]
+    )
     # With no application selected, only GET CHALLENGE is answered (spec F06);
     # AES operations always require selecting the AES application first.
     return Card(applets, fallback=RngApplet())
@@ -62,12 +70,57 @@ async def _yield() -> None:
 
 
 def on_lock() -> None:
-    """Forget every object holding derived key material."""
+    """Cancel in-flight operations before releasing their key material."""
     global _fido, _card
+    # MicroPython's closed generators retain their code-state slots until
+    # collected. Release the whole poller (and its local worker handles),
+    # rather than leaving a stopped authenticator in a long-lived frame.
+    for poller in list(_pollers):
+        poller.close()
+    del _pollers[:]
+    _ui.cancel()
+    for job in list(_workers):
+        job.close()
+    del _workers[:]
+    del _ccid_result[:]
     if _card is not None:
         _card.usb_reset()
     _fido = None
     _card = None
+    if _tasks_started and not _suspended:
+        _start_pollers()
+
+
+def suspend() -> None:
+    """Stop normal-mode processing before detach or import allocation."""
+    global _suspended
+    _suspended = True
+    on_lock()
+
+
+def resume() -> None:
+    global _suspended
+    _suspended = False
+    if _tasks_started:
+        _start_pollers()
+
+
+async def wait_suspended() -> None:
+    """A suspended transport owns no poller frames or in-flight writes."""
+    while _pollers:
+        await loop.sleep(1)
+
+
+def _worker_finished(job) -> None:
+    if job in _workers:
+        _workers.remove(job)
+
+
+def _spawn_worker(coro):
+    job = loop.spawn(coro)
+    _workers.append(job)
+    job.set_finalizer(_worker_finished)
+    return job
 
 
 async def _ensure_unlocked() -> bool:
@@ -100,8 +153,14 @@ def fido_server():
 
 def _card_obj():
     global _card
-    if _card is None and config.is_unlocked():
-        _card = _build_card()
+    if _card is None:
+        # GET CHALLENGE is public (F06) even while the device PIN is locked.
+        # The locked reader has no applet capable of loading protected keys.
+        _card = _build_card(public_only=not config.is_unlocked())
+    elif config.is_unlocked() and not _card.dispatcher.applets:
+        # A manual unlock may follow public RNG use. Preserve the powered
+        # reader, host sequence and pending APDU while enabling its applets.
+        _card.dispatcher = _build_card().dispatcher
     return _card
 
 
@@ -109,8 +168,13 @@ def _card_obj():
 
 
 async def _write_hid(iface, packet) -> None:
-    while True:
-        await loop.wait(iface.iface_num() | io.POLL_WRITE)
+    while not _suspended:
+        try:
+            await loop.wait(iface.iface_num() | io.POLL_WRITE, FIDO_POLL_MS)
+        except loop.Timeout:
+            continue
+        if _suspended:
+            return
         try:
             iface.write(packet)
             return
@@ -124,12 +188,17 @@ async def fido_task() -> None:
     req_job = None
     bg_job = None
     while True:
+        if _suspended:
+            await loop.sleep(FIDO_POLL_MS)
+            continue
         try:
             await loop.wait(iface.iface_num() | io.POLL_READ, FIDO_POLL_MS)
             iface.read(buf, 0)
             packet = bytes(buf)
         except loop.Timeout:
             packet = None
+        if _suspended:
+            continue
         now = utime.ticks_ms()
         server = fido_server()
         if server is None:
@@ -149,11 +218,11 @@ async def fido_task() -> None:
         if req_job is None or req_job.finished:
             txn = server.hid.take_request()
             if txn is not None:
-                req_job = loop.spawn(server._process(txn))
+                req_job = _spawn_worker(server._process(txn))
         if bg_job is None or bg_job.finished:
             job = server.app.background_job()
             if job is not None:
-                bg_job = loop.spawn(job)
+                bg_job = _spawn_worker(job)
         if server.take_wink():
             _ui.wink()
 
@@ -166,17 +235,20 @@ _EV_RESET = const(0x01)
 
 async def _write_frame(pipe, packet) -> None:
     frame = b"\x01" if not packet else b"\x00" + bytes(packet)
-    while True:
+    while not _suspended:
         if pipe.write(frame) > 0:
             return
-        await loop.wait(pipe.iface_num() | io.POLL_WRITE)
+        try:
+            await loop.wait(pipe.iface_num() | io.POLL_WRITE, CCID_POLL_MS)
+        except loop.Timeout:
+            pass
 
 
 async def ccid_task() -> None:
     pipe = io.USBPipe(io.USBIF_CCID)
     buf = bytearray(65)
     worker = None
-    result = []
+    result = _ccid_result
     last_wtx = 0
 
     async def work(card) -> None:
@@ -184,11 +256,16 @@ async def ccid_task() -> None:
         result.extend(out)
 
     while True:
+        if _suspended:
+            await loop.sleep(CCID_POLL_MS)
+            continue
         try:
             await loop.wait(pipe.iface_num() | io.POLL_READ, CCID_POLL_MS)
             n = pipe.read(buf)
         except loop.Timeout:
             n = 0
+        if _suspended:
+            continue
         card = _card_obj()
         if n > 0:
             workflow.idle_timer.touch()
@@ -212,7 +289,21 @@ async def ccid_task() -> None:
             for p in pkts:
                 await _write_frame(pipe, p)
         if worker is None and card.pending is not None:
-            worker = loop.spawn(work(card))
+            if not config.is_unlocked():
+                from ..apps.card import apdu
+
+                try:
+                    public = apdu.parse(card.pending.apdu).ins == 0x84
+                except Exception:
+                    public = True  # let the public dispatcher reject malformed APDUs
+                if not public:
+                    # Keep the pending CCID transport so the host's sequence
+                    # remains valid, then install private applets after unlock.
+                    if not await _ensure_unlocked():
+                        card.usb_reset()
+                        continue
+                    card.dispatcher = _build_card().dispatcher
+            worker = _spawn_worker(work(card))
             last_wtx = utime.ticks_ms()
         elif worker is not None and utime.ticks_diff(utime.ticks_ms(), last_wtx) >= WTX_INTERVAL_MS:
             last_wtx = utime.ticks_ms()
@@ -230,8 +321,13 @@ def start() -> None:
     if _tasks_started:
         return
     _tasks_started = True
-    loop.schedule(_guard("fido", fido_task))
-    loop.schedule(_guard("ccid", ccid_task))
+    if not _suspended:
+        _start_pollers()
+
+
+def _start_pollers() -> None:
+    if not _pollers:
+        _pollers.extend((loop.spawn(_guard("fido", fido_task)), loop.spawn(_guard("ccid", ccid_task))))
 
 
 async def _guard(name: str, task) -> None:

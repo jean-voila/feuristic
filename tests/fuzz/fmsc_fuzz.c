@@ -133,7 +133,7 @@ static void f_error(void *u, uint32_t id, fmsc_stream_error_t r) {
 static void f_event(void *u, fmsc_event_t ev) {
   (void)u;
   if (ev != FMSC_EVT_EJECTED && ev != FMSC_EVT_STOPPED &&
-      ev != FMSC_EVT_HOST_RESET)
+      ev != FMSC_EVT_HOST_RESET && ev != FMSC_EVT_WRITE_PAUSED)
     FAIL();
 }
 
@@ -336,7 +336,7 @@ static void run(const uint8_t *data, size_t size) {
 
   for (unsigned steps = 0; in.n > 0u && steps < 2000u; steps++) {
     const uint8_t op = take(&in);
-    switch (op % 12u) {
+    switch (op % 13u) {
       case 0: {  // raw OUT packet
         uint8_t pkt[64];
         const size_t n = take(&in) % 65u;
@@ -430,9 +430,16 @@ static void run(const uint8_t *data, size_t size) {
         }
         break;
       }
-      default: {  // diagnostic reads never fault
+      case 11: {  // diagnostic reads never fault
         uint8_t s[512];
         fmsc_volume_read(&f->ctx, pick_lba(&in), s);
+        break;
+      }
+      default: {  // application backpressure at arbitrary BOT boundaries
+        const bool before = f->ctx.write_paused != 0u;
+        const bool paused = (take(&in) & 1u) != 0u;
+        const bool changed = fmsc_set_write_paused(&f->ctx, paused);
+        if ((f->ctx.write_paused != 0u) != (changed ? paused : before)) FAIL();
         break;
       }
     }

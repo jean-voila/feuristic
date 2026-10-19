@@ -62,6 +62,22 @@ def test_get_challenge_without_selection(card):
     assert sw in (0x6C20, 0x6700)
 
 
+def test_public_rng_remains_available_while_device_locked(card, ready):
+    # Starting from a selected private applet exercises dispatcher cleanup,
+    # rather than merely a reader which has never loaded protected state.
+    card.power_on()
+    _, sw = card.transmit(apdu(0x00, 0xA4, 0x04, 0x00, OPENPGP_AID))
+    assert sw == 0x9000
+    ready.select("Lock")
+    locked = ready.wait_for(lambda s: s.component != "" and s.title != "feuristic")
+    card.power_on()
+    first, sw = card.transmit(apdu(0x00, 0x84, 0, 0, le=32))
+    assert sw == 0x9000 and len(first) == 32
+    second, sw = card.transmit(apdu(0x00, 0x84, 0, 0, le=32))
+    assert sw == 0x9000 and len(second) == 32 and second != first
+    assert ready.screen().component == locked.component
+
+
 def test_openpgp_select_and_get_data(card):
     card.power_on()
     _, sw = card.transmit(apdu(0x00, 0xA4, 0x04, 0x00, OPENPGP_AID))

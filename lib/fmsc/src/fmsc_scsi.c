@@ -260,6 +260,14 @@ static void cmd_rw10(fmsc_ctx_t *ctx, bool write) {
   if (!medium_ready(ctx)) {
     return;
   }
+  if (write && ctx->write_paused) {
+    check(ctx, SK_NOT_READY, ASC_LUN_NOT_READY,
+          0x07u);  // operation in progress
+    if (ctx->cb.event != NULL) {
+      ctx->cb.event(ctx->cb.user, FMSC_EVT_WRITE_PAUSED);
+    }
+    return;
+  }
   const uint32_t lba = fmsc_be32(cdb + 2);
   const uint32_t count = fmsc_be16(cdb + 7);
   if (!lba_range_ok(ctx, lba, count)) {
