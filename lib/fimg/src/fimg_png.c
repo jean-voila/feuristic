@@ -15,8 +15,8 @@
  * - The inflated size must be exactly height * (rowbytes + 1); one byte more
  *   is refused immediately (decompression bomb), fewer is refused at the end
  *   of the zlib stream. Data after the end of the zlib stream is refused.
- * - Unfiltering uses two scanline buffers; each row is converted to 8-bit
- *   luma (BT.601, Pillow's fixed point; 16-bit samples use their high byte;
+ * - Unfiltering updates one paged scanline in place; each row is converted to
+ * 8-bit luma (BT.601, Pillow's fixed point; 16-bit samples use their high byte;
  *   alpha and tRNS are composited over white; palette indices beyond PLTE
  *   are black) and pushed to the pixel pipeline.
  */
@@ -41,8 +41,7 @@ static uint32_t be32(const uint8_t *p) {
 static uint32_t be16(const uint8_t *p) { return ((uint32_t)p[0] << 8) | p[1]; }
 
 size_t fimg_png_heap_size(void) {
-  return FIMG_ALIGN8(FIMG_INF_WSIZE) +
-         2u * FIMG_ALIGN8(FIMG_PNG_MAX_ROWBYTES + 1u) +
+  return FIMG_ALIGN8(FIMG_INF_WSIZE) + FIMG_ALIGN8(FIMG_PNG_MAX_ROWBYTES) +
          FIMG_ALIGN8(FIMG_MAX_DIM);
 }
 
@@ -66,126 +65,91 @@ static uint32_t paeth(uint32_t a, uint32_t b, uint32_t c) {
   return pb <= pc ? b : c;
 }
 
-static int unfilter(fimg_png_t *g) {
-  uint8_t *c = g->cur + 1;
-  const uint8_t *u = g->prev + 1;
-  const uint32_t n = g->rowbytes, bpp = g->bpp;
-  uint32_t i;
+static uint8_t *row_ptr(const fimg_png_t *g, uint32_t at) {
+  return g->prev[at / g->page_size] + (at & (g->page_size - 1u));
+}
 
-  switch (g->cur[0]) {
-    case 0:
-      break;
+static uint32_t row_sample(const fimg_png_t *g, uint32_t at, uint32_t bytes) {
+  uint32_t value = *row_ptr(g, at);
+  return bytes == 1 ? value : (value << 8) | *row_ptr(g, at + 1u);
+}
+
+/* The old upper-left byte must be saved before its row cell is overwritten.
+ * bpp <= 8 for every accepted PNG; the ring is reset by the first bpp bytes. */
+static void unfilter_byte(fimg_png_t *g, uint32_t at, uint8_t byte) {
+  uint8_t *cell = row_ptr(g, at);
+  uint32_t up = *cell;
+  uint32_t left = at >= g->bpp ? *row_ptr(g, at - g->bpp) : 0;
+  uint32_t upper_left = at >= g->bpp ? g->prior_up[at % g->bpp] : 0;
+  g->prior_up[at % g->bpp] = (uint8_t)up;
+  switch (g->filter) {
     case 1:
-      for (i = bpp; i < n; i++) c[i] = (uint8_t)(c[i] + c[i - bpp]);
+      byte = (uint8_t)(byte + left);
       break;
     case 2:
-      for (i = 0; i < n; i++) c[i] = (uint8_t)(c[i] + u[i]);
+      byte = (uint8_t)(byte + up);
       break;
     case 3:
-      for (i = 0; i < bpp && i < n; i++) c[i] = (uint8_t)(c[i] + (u[i] >> 1));
-      for (; i < n; i++)
-        c[i] = (uint8_t)(c[i] + (((uint32_t)c[i - bpp] + u[i]) >> 1));
+      byte = (uint8_t)(byte + ((left + up) >> 1));
       break;
     case 4:
-      for (i = 0; i < bpp && i < n; i++) c[i] = (uint8_t)(c[i] + u[i]);
-      for (; i < n; i++)
-        c[i] = (uint8_t)(c[i] + paeth(c[i - bpp], u[i], u[i - bpp]));
+      byte = (uint8_t)(byte + paeth(left, up, upper_left));
       break;
     default:
-      return -1;
+      break;
   }
-  return 0;
+  *cell = byte;
 }
 
 static void to_luma(fimg_png_t *g) {
-  const uint8_t *s = g->cur + 1;
-  uint8_t *L = g->luma;
-  const uint32_t w = g->w, d = g->depth;
-  uint32_t x;
-
-  switch (g->ctype) {
-    case 0:
-      if (d == 8) {
-        for (x = 0; x < w; x++)
-          L[x] = (g->has_key && s[x] == g->key[0]) ? 255u : s[x];
-      } else if (d == 16) {
-        for (x = 0; x < w; x++)
-          L[x] =
-              (g->has_key && be16(s + 2u * x) == g->key[0]) ? 255u : s[2u * x];
-      } else {
-        const uint32_t mask = (1u << d) - 1u, scale = 255u / mask;
-        for (x = 0; x < w; x++) {
-          uint32_t bit = x * d;
-          uint32_t v = (uint32_t)(s[bit >> 3] >> (8u - d - (bit & 7u))) & mask;
-          L[x] = (uint8_t)((g->has_key && v == g->key[0]) ? 255u : v * scale);
-        }
+  uint32_t bytes = g->depth == 16u ? 2u : 1u;
+  for (uint32_t x = 0; x < g->w; x++) {
+    uint32_t value;
+    if (g->depth < 8u) {
+      uint32_t bit = x * g->depth, mask = (1u << g->depth) - 1u;
+      value = (*row_ptr(g, bit >> 3) >> (8u - g->depth - (bit & 7u))) & mask;
+      g->luma[x] = g->ctype == 3u ? g->pal_luma[value]
+                                  : (uint8_t)(g->has_key && value == g->key[0]
+                                                  ? 255u
+                                                  : value * (255u / mask));
+      continue;
+    }
+    uint32_t at = x * g->channels * bytes;
+    uint32_t a = row_sample(g, at, bytes), y = a >> (g->depth - 8u);
+    switch (g->ctype) {
+      case 0:
+        if (g->has_key && a == g->key[0]) y = 255u;
+        break;
+      case 2: {
+        uint32_t b = row_sample(g, at + bytes, bytes);
+        uint32_t c = row_sample(g, at + 2u * bytes, bytes);
+        y = g->has_key && a == g->key[0] && b == g->key[1] && c == g->key[2]
+                ? 255u
+                : fimg_rgb_luma(y, b >> (g->depth - 8u), c >> (g->depth - 8u));
+        break;
       }
-      break;
-    case 2:
-      if (d == 8) {
-        for (x = 0; x < w; x++, s += 3) {
-          if (g->has_key && s[0] == g->key[0] && s[1] == g->key[1] &&
-              s[2] == g->key[2])
-            L[x] = 255u;
-          else
-            L[x] = (uint8_t)fimg_rgb_luma(s[0], s[1], s[2]);
-        }
-      } else {
-        for (x = 0; x < w; x++, s += 6) {
-          if (g->has_key && be16(s) == g->key[0] && be16(s + 2) == g->key[1] &&
-              be16(s + 4) == g->key[2])
-            L[x] = 255u;
-          else
-            L[x] = (uint8_t)fimg_rgb_luma(s[0], s[2], s[4]);
-        }
-      }
-      break;
-    case 3:
-      if (d == 8) {
-        for (x = 0; x < w; x++) L[x] = g->pal_luma[s[x]];
-      } else {
-        const uint32_t mask = (1u << d) - 1u;
-        for (x = 0; x < w; x++) {
-          uint32_t bit = x * d;
-          L[x] = g->pal_luma[(s[bit >> 3] >> (8u - d - (bit & 7u))) & mask];
-        }
-      }
-      break;
-    case 4:
-      if (d == 8) {
-        for (x = 0; x < w; x++, s += 2)
-          L[x] = (uint8_t)fimg_over_white(s[0], s[1]);
-      } else {
-        for (x = 0; x < w; x++, s += 4)
-          L[x] = (uint8_t)fimg_over_white(s[0], s[2]);
-      }
-      break;
-    default: /* 6 */
-      if (d == 8) {
-        for (x = 0; x < w; x++, s += 4)
-          L[x] =
-              (uint8_t)fimg_over_white(fimg_rgb_luma(s[0], s[1], s[2]), s[3]);
-      } else {
-        for (x = 0; x < w; x++, s += 8)
-          L[x] =
-              (uint8_t)fimg_over_white(fimg_rgb_luma(s[0], s[2], s[4]), s[6]);
-      }
-      break;
+      case 3:
+        y = g->pal_luma[a];
+        break;
+      case 4:
+        y = fimg_over_white(y, *row_ptr(g, at + bytes));
+        break;
+      default:
+        y = fimg_over_white(fimg_rgb_luma(y, *row_ptr(g, at + bytes),
+                                          *row_ptr(g, at + 2u * bytes)),
+                            *row_ptr(g, at + 3u * bytes));
+        break;
+    }
+    g->luma[x] = (uint8_t)y;
   }
 }
 
 static fimg_status_t finish_row(fimg_ctx_t *ctx) {
   fimg_png_t *g = &ctx->u.png;
-  uint8_t *t;
-  fimg_status_t st;
-
-  if (unfilter(g) != 0) return FIMG_E_PNG_CORRUPT;
+  if (g->filter > 4u) return FIMG_E_PNG_CORRUPT;
   to_luma(g);
-  st = fimg_pix_push(ctx, g->luma);
+  fimg_status_t st = fimg_pix_push(ctx, g->luma);
   if (st != FIMG_OK) return st;
-  t = g->cur;
-  g->cur = g->prev;
-  g->prev = t;
   g->rows_done++;
   return FIMG_OK;
 }
@@ -205,14 +169,14 @@ static fimg_status_t consume(fimg_ctx_t *ctx, uint32_t pos, uint32_t n) {
   }
   g->inf_bytes += n;
   while (n > 0) {
-    uint32_t k = full - g->row_fill;
-    if (k > n) k = n;
-    if (k > FIMG_INF_PAGE_SIZE - (pos & FIMG_INF_PAGE_MASK))
-      k = FIMG_INF_PAGE_SIZE - (pos & FIMG_INF_PAGE_MASK);
-    memcpy(g->cur + g->row_fill, fimg_window_ptr(&g->inf, pos), k);
-    g->row_fill += k;
-    pos = (pos + k) & FIMG_INF_WMASK;
-    n -= k;
+    uint8_t byte = *fimg_window_ptr(&g->inf, pos);
+    if (g->row_fill == 0)
+      g->filter = byte;
+    else
+      unfilter_byte(g, g->row_fill - 1u, byte);
+    g->row_fill++;
+    pos = (pos + 1u) & FIMG_INF_WMASK;
+    n--;
     if (g->row_fill == full) {
       fimg_status_t st = finish_row(ctx);
       if (st != FIMG_OK) return st;
@@ -375,16 +339,25 @@ static fimg_status_t parse_ihdr(fimg_ctx_t *ctx) {
   g->seen_ihdr = 1;
   memset(g->pal_luma, 0, sizeof g->pal_luma);
 
-  g->win[0] = (uint8_t *)fimg_alloc(ctx, FIMG_INF_PAGE_SIZE);
-  g->win[1] = (uint8_t *)fimg_alloc(ctx, FIMG_INF_PAGE_SIZE);
-  g->cur = (uint8_t *)fimg_alloc(ctx, FIMG_PNG_MAX_ROWBYTES + 1u);
-  g->prev = (uint8_t *)fimg_alloc(ctx, FIMG_PNG_MAX_ROWBYTES + 1u);
+  g->page_size = (uint32_t)fimg_page_size(&ctx->cfg);
+  uint8_t *pages[16];
+  uint8_t *first = (uint8_t *)fimg_alloc(ctx, FIMG_QR_REUSE_BYTES);
+  if (first == NULL) return FIMG_E_INTERNAL;
+  size_t prefix = FIMG_QR_REUSE_BYTES / g->page_size;
+  size_t count = FIMG_INF_WSIZE / g->page_size;
+  for (size_t i = 0; i < count; i++) {
+    pages[i] = i < prefix ? first + i * g->page_size
+                          : (uint8_t *)fimg_alloc(ctx, g->page_size);
+    if (pages[i] == NULL) return FIMG_E_INTERNAL;
+  }
+  for (size_t i = 0; i < FIMG_PNG_MAX_ROWBYTES / g->page_size; i++) {
+    g->prev[i] = (uint8_t *)fimg_alloc(ctx, g->page_size);
+    if (g->prev[i] == NULL) return FIMG_E_INTERNAL;
+    memset(g->prev[i], 0, g->page_size);
+  }
   g->luma = (uint8_t *)fimg_alloc(ctx, FIMG_MAX_DIM);
-  if (g->win[0] == NULL || g->win[1] == NULL || g->cur == NULL ||
-      g->prev == NULL || g->luma == NULL)
-    return FIMG_E_INTERNAL;
-  memset(g->prev, 0, g->rowbytes + 1u);
-  fimg_inflate_init_paged(&g->inf, g->win[0], g->win[1]);
+  if (g->luma == NULL) return FIMG_E_INTERNAL;
+  fimg_inflate_init_pages(&g->inf, pages, g->page_size);
   return fimg_pix_setup(ctx, w, h);
 }
 

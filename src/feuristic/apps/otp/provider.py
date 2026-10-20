@@ -97,7 +97,16 @@ class OtpBackupProvider(_backup.BackupProvider):
 
     def list_identities(self) -> list:
         """``[(uid, label)]`` sorted by issuer, account."""
-        return [(acc.uid, acc.label()) for acc in self.accounts.accounts()]
+        result = [(acc.uid, acc.label()) for acc in self.accounts._iter_accounts()]
+        result.sort(key=lambda entry: _accounts._sort_key(self.accounts.get(entry[0])))
+        return result
+
+    def iter_uids(self):
+        for account in self.accounts._iter_accounts():
+            yield account.uid
+
+    def identity_label(self, uid):
+        return self.accounts.get(uid).label()
 
     def export_identity(self, uid) -> dict:
         """Canonical-CBOR-able map of ``uid`` (HOTP: current counter)."""

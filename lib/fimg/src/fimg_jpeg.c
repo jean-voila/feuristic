@@ -57,6 +57,11 @@ enum {
 #define M_APP14 0xeeu
 #define M_COM 0xfeu
 
+static uint8_t *band_row(fimg_jpeg_t *j, uint32_t row) {
+  return j->rowbuf[row / j->rowbuf_rows] +
+         (size_t)(row % j->rowbuf_rows) * j->rowbuf_w;
+}
+
 static const uint8_t k_zigzag[64] = {
     0,  1,  8,  16, 9,  2,  3,  10, 17, 24, 32, 25, 18, 11, 4,  5,
     12, 19, 26, 33, 40, 48, 41, 34, 27, 20, 13, 6,  7,  14, 21, 28,
@@ -340,9 +345,10 @@ static void idct_islow(const int32_t *in, int32_t *ws, uint8_t *out,
 /* entropy-coded segment                                                    */
 /* ---------------------------------------------------------------------- */
 
-/* Decode one block of component @p ci; luma blocks are reconstructed at @p out.
+/* Decode one block of component @p ci; scatter luma at band (x0, y0).
  */
-static fimg_status_t decode_block(fimg_jpeg_t *j, uint32_t ci, uint8_t *out) {
+static fimg_status_t decode_block(fimg_jpeg_t *j, uint32_t ci, uint32_t x0,
+                                  uint32_t y0) {
   fimg_jcomp_t *c = &j->comp[ci];
   const fimg_jhuff_t *dc = &j->dc[c->td], *ac = &j->ac[c->ta];
   const uint16_t *q = j->qt[c->tq];
@@ -395,7 +401,11 @@ static fimg_status_t decode_block(fimg_jpeg_t *j, uint32_t ci, uint8_t *out) {
       k += 15u;
     }
   }
-  idct_islow(j->coef, j->ws, out, j->rowbuf_w, &j->sat);
+  uint8_t block[64];
+  idct_islow(j->coef, j->ws, block, 8u, &j->sat);
+  for (uint32_t row = 0; row < 8u; row++) {
+    memcpy(band_row(j, y0 + row) + x0, block + row * 8u, 8u);
+  }
   return FIMG_OK;
 }
 
@@ -466,14 +476,13 @@ static fimg_status_t decode_scan(fimg_ctx_t *ctx, int *need) {
     }
     for (b = 0; b < j->nblocks; b++) {
       uint32_t ci = j->blk_comp[b];
-      uint8_t *out = NULL;
+      uint32_t x0 = 0;
       fimg_status_t st;
       if (ci == 0) {
-        uint32_t x0 = j->mcu_x * (j->nblocks == 1u ? 8u : 8u * j->hmax) +
-                      8u * j->blk_x[b];
-        out = j->rowbuf + (size_t)(8u * j->blk_y[b]) * j->rowbuf_w + x0;
+        x0 = j->mcu_x * (j->nblocks == 1u ? 8u : 8u * j->hmax) +
+             8u * j->blk_x[b];
       }
-      st = decode_block(j, ci, out);
+      st = decode_block(j, ci, x0, 8u * j->blk_y[b]);
       if (st != FIMG_OK) return st;
     }
     if (j->starved)
@@ -486,8 +495,7 @@ static fimg_status_t decode_scan(fimg_ctx_t *ctx, int *need) {
       uint32_t r, rows = j->h - j->mcu_y * j->band_h;
       if (rows > j->band_h) rows = j->band_h;
       for (r = 0; r < rows; r++) {
-        fimg_status_t st =
-            fimg_pix_push(ctx, j->rowbuf + (size_t)r * j->rowbuf_w);
+        fimg_status_t st = fimg_pix_push(ctx, band_row(j, r));
         if (st != FIMG_OK) return st;
       }
       j->mcu_x = 0;
@@ -560,8 +568,16 @@ static fimg_status_t parse_sof(fimg_ctx_t *ctx, uint32_t total) {
   }
   j->have_sof = 1;
   j->rowbuf_w = ((j->w + 8u * j->hmax - 1u) / (8u * j->hmax)) * 8u * j->hmax;
-  j->rowbuf = (uint8_t *)fimg_alloc(ctx, (size_t)j->rowbuf_w * 8u * j->vmax);
-  if (j->rowbuf == NULL || j->rowbuf_w > FIMG_MAX_DIM) return FIMG_E_INTERNAL;
+  if (j->rowbuf_w > FIMG_MAX_DIM) return FIMG_E_INTERNAL;
+  j->rowbuf_rows = (uint32_t)(fimg_page_size(&ctx->cfg) / j->rowbuf_w);
+  uint32_t remaining = 8u * j->vmax;
+  for (size_t page = 0; remaining != 0; page++) {
+    uint32_t rows = remaining < j->rowbuf_rows ? remaining : j->rowbuf_rows;
+    if (page >= sizeof j->rowbuf / sizeof j->rowbuf[0]) return FIMG_E_INTERNAL;
+    j->rowbuf[page] = (uint8_t *)fimg_alloc(ctx, (size_t)rows * j->rowbuf_w);
+    if (j->rowbuf[page] == NULL) return FIMG_E_INTERNAL;
+    remaining -= rows;
+  }
   return fimg_pix_setup(ctx, j->w, j->h);
 }
 

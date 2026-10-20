@@ -53,9 +53,12 @@ class Emulator:
                 "TREZOR_DISABLE_ANIMATION": "1",
             }
         )
+        arguments = ["-m", "main"]
+        if env.get("FEURISTIC_EMU_FROZEN") == "1":
+            arguments = ["-c", 'import sys; sys.path[:] = [".frozen"]; import main']
         log = open(self.log_path, "ab")  # noqa: SIM115 - kept open for the process lifetime
         self.proc = subprocess.Popen(
-            [str(binary_path()), "-O0", "-X", f"heapsize={self.heap}", "-m", "main"],
+            [str(binary_path()), "-O0", "-X", f"heapsize={self.heap}", *arguments],
             cwd=CORE / "src",
             env=env,
             stdout=log,
@@ -80,6 +83,11 @@ class Emulator:
 
     def cleanup(self) -> None:
         self.stop()
+        log_dir = os.environ.get("FEURISTIC_EMU_LOG_DIR")
+        if log_dir and self.log_path.exists():
+            destination = Path(log_dir)
+            destination.mkdir(parents=True, exist_ok=True)
+            shutil.copyfile(self.log_path, destination / f"emulator-{self.base_port}.log")
         if self._own_profile:
             shutil.rmtree(self.profile_dir, ignore_errors=True)
 

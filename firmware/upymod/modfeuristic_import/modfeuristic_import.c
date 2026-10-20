@@ -169,7 +169,8 @@ static void decoder_allocate(mp_obj_ImportSession_t *o) {
   // small context/README must not consume the only hole for a 16 KiB window.
   const size_t bitmap_slot = o->fimg_block_count;
   const size_t payload_slot = bitmap_slot + 1;
-  const size_t none = payload_slot + 1;
+  const size_t readme_slot = payload_slot + 1;
+  const size_t none = readme_slot + 1;
   for (;;) {
     size_t selected = none;
     size_t size = 0;
@@ -187,12 +188,18 @@ static void decoder_allocate(mp_obj_ImportSession_t *o) {
       selected = payload_slot;
       size = IMPORT_PAYLOAD_MAX;
     }
+    if (o->readme == NULL && o->readme_len > size) {
+      selected = readme_slot;
+      size = o->readme_len;
+    }
     if (selected == none) break;
     uint8_t *buffer = m_new(uint8_t, size);
     if (selected == bitmap_slot) {
       o->bitmap = buffer;
     } else if (selected == payload_slot) {
       o->payload = buffer;
+    } else if (selected == readme_slot) {
+      o->readme = buffer;
     } else {
       o->fimg_blocks[selected].ptr = buffer;
     }
@@ -388,10 +395,9 @@ static mp_obj_t mod_feuristic_import_Session_make_new(const mp_obj_type_t *type,
     }
     o->fimg_block_count = count;
     o->bitmap_len = fimg_bitmap_size(&o->fcfg);
-    decoder_allocate(o);
     o->readme_len = readme.len;
+    decoder_allocate(o);
     if (readme.len > 0) {
-      o->readme = m_new(uint8_t, readme.len);
       memcpy(o->readme, readme.buf, readme.len);
     }
 

@@ -175,6 +175,7 @@ def test_random_ops_with_power_loss_model(ops):
 def test_blob_ab_alternation_and_power_loss(kv):
     b = store.Blob(0x13, 2, 3, max_len=100)
     assert b.get() is None
+
     b.set(b"first")
     b.set(b"second")
     assert b.get() == b"second"
@@ -189,6 +190,68 @@ def test_blob_ab_alternation_and_power_loss(kv):
         b.set(bytes(101))
     b.clear()
     assert b.get() is None
+
+
+def test_blob_view_is_independent_and_get_still_returns_bytes():
+    blob = store.Blob(0x13, 2, 3, max_len=4096)
+    blob.set(b"x" * 4096)
+    view = blob.get_view()
+    assert isinstance(view, memoryview)
+    assert type(blob.get()) is bytes
+    blob.set(b"y" * 4096)
+    blob.clear()
+    assert bytes(view) == b"x" * 4096
+
+
+def test_blob_head_never_slices_out_a_payload(monkeypatch):
+    class Guarded(bytes):
+        def __getitem__(self, index):
+            if isinstance(index, slice) and index.start == 4:
+                raise AssertionError("metadata scan copied the payload")
+            return super().__getitem__(index)
+
+    blob = store.Blob(0x13, 2, 3, max_len=4096)
+    monkeypatch.setattr(
+        store.kv, "get", lambda app, key, public: Guarded(key.to_bytes(4, "big") + b"x" * 4096)
+    )
+    assert blob._head() == (3, 3)
+    assert bytes(blob.get_view()) == b"x" * 4096
+
+
+@pytest.mark.parametrize("crash_at", range(3))
+def test_blob_owned_buffer_power_loss_preserves_latest(kv, crash_at):
+    blob = store.Blob(0x13, 2, 3, max_len=4096)
+    blob.set(b"a" * 4096)
+    blob.set(b"b" * 4096)
+    pending = bytearray(4 + 4096)
+    pending[4:] = b"c" * 4096
+    kv.ops = 0
+    kv.crash_after_ops = crash_at
+    with contextlib.suppress(testing.PowerLoss):
+        blob.set_buffer(pending)
+    kv.crash_after_ops = None
+    current = store.Blob(0x13, 2, 3, max_len=4096).get()
+    assert current == (b"b" * 4096 if crash_at < 2 else b"c" * 4096)
+
+
+def test_blob_allocation_failure_does_not_change_flash(kv, monkeypatch):
+    blob = store.Blob(0x13, 2, 3, max_len=4096)
+    blob.set(b"old")
+    before = dict(kv.data)
+
+    def fail(size):
+        raise MemoryError
+
+    monkeypatch.setattr(store, "bytearray", fail, raising=False)
+    with pytest.raises(MemoryError):
+        blob.set(b"x" * 4096)
+    assert kv.data == before
+
+
+@pytest.mark.parametrize("value", [b"0000", bytearray(3), bytearray(4101)])
+def test_blob_owned_buffer_rejects_invalid_size_or_type(value):
+    with pytest.raises(InvalidInput):
+        store.Blob(0x13, 2, 3, max_len=4096).set_buffer(value)
 
 
 def test_key_offset_isolates_stores(kv):

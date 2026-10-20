@@ -237,7 +237,7 @@ fimg_status_t fimg_init(fimg_ctx_t **out, void *workspace,
 /** Largest individual scratch block in the scattered allocator. */
 #define FIMG_SCATTERED_BLOCK_MAX 16384u
 /** Maximum descriptors needed for any valid configuration. */
-#define FIMG_SCATTERED_MAX_BLOCKS 16u
+#define FIMG_SCATTERED_MAX_BLOCKS 32u
 
 /** Caller-owned, 8-byte-aligned, mutually disjoint scratch buffer. */
 typedef struct {

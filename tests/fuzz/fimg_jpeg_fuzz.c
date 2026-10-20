@@ -12,9 +12,10 @@
 #include "fimg_internal.h"
 
 #ifdef FIMG_FUZZ_LIBJPEG
-#include <jpeglib.h>
 #include <setjmp.h>
 #include <stdio.h>
+
+#include <jpeglib.h>
 
 typedef struct {
   struct jpeg_error_mgr pub;

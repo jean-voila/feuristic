@@ -91,14 +91,13 @@ def info_fields(auth, uid: bytes) -> list:
     ]
 
 
-def _purge_large_blobs(auth, cred) -> None:
+def _remaining_large_blobs(auth, cred):
     key = cred.large_blob_key()
     if key is None:
-        return
+        return None
     entries = auth.large_blobs.entries()
     kept = [e for e in entries if not entry_belongs_to(e, key)]
-    if len(kept) != len(entries):
-        auth.large_blobs.write_entries(kept)
+    return kept if len(kept) != len(entries) else None
 
 
 async def delete_credential(auth, ui, uid: bytes) -> bool:
@@ -119,8 +118,10 @@ async def delete_credential(auth, ui, uid: bytes) -> bool:
     )
     if not ok:
         return False
+    kept = _remaining_large_blobs(auth, cred)
     auth.store.delete(cred.uid)
-    _purge_large_blobs(auth, cred)
+    if kept is not None:
+        auth.large_blobs.write_entries(kept)
     return True
 
 

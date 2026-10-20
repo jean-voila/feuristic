@@ -94,6 +94,15 @@ class Fido2BackupProvider(bp.BackupProvider):
         self.auth = auth
 
     # -- export ----------------------------------------------------------------
+    def iter_uids(self):
+        return iter(self.auth.store.uids())
+
+    def identity_label(self, uid):
+        credential = self.auth.store.get(uid)
+        if credential is None:
+            raise NotFound("credential")
+        return _label(credential.rp_id, credential.label())
+
     def list_identities(self) -> list:
         out = []
         for rp_id, h, _n in self.auth.store.rps():

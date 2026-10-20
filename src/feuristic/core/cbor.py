@@ -104,11 +104,20 @@ def _encode_into(out: list, obj) -> None:
         raise CborError("unsupported type")
 
 
-def encode(obj) -> bytes:
-    """Encode ``obj`` in deterministic CBOR."""
+def encode_parts(obj) -> list:
+    """Return deterministic CBOR chunks without joining a second full copy.
+
+    Bytes-like input is snapshotted by the encoder, as with :func:`encode`.
+    The returned list can be hashed or copied directly into a bounded buffer.
+    """
     out = []
     _encode_into(out, obj)
-    return b"".join(out)
+    return out
+
+
+def encode(obj) -> bytes:
+    """Encode ``obj`` in deterministic CBOR."""
+    return b"".join(encode_parts(obj))
 
 
 # ---------------------------------------------------------------------------
@@ -226,7 +235,7 @@ def decode(
     and (unless ``allow_trailing``) when bytes remain after the item.
     With ``allow_trailing=True`` returns ``(item, consumed_length)``.
     """
-    r = _Reader(memoryview(bytes(data)), max_depth, max_items, canonical)
+    r = _Reader(memoryview(data), max_depth, max_items, canonical)
     obj = r.item(0)
     if allow_trailing:
         return obj, r.pos

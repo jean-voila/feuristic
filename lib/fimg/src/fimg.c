@@ -59,15 +59,20 @@ size_t fimg_scattered_sizes(const fimg_config_t *cfg, size_t *sizes,
   size_t plan[FIMG_SCATTERED_MAX_BLOCKS], n = 0;
   if (!config_valid(cfg)) return 0;
   plan[n++] = FIMG_ALIGN8(sizeof(fimg_ctx_t));
+  size_t page = fimg_page_size(cfg);
   if (!(cfg->flags & FIMG_FLAG_NO_PNG)) {
-    plan[n++] = FIMG_INF_PAGE_SIZE;
-    plan[n++] = FIMG_INF_PAGE_SIZE;
-    plan[n++] = FIMG_ALIGN8(FIMG_PNG_MAX_ROWBYTES + 1u);
-    plan[n++] = FIMG_ALIGN8(FIMG_PNG_MAX_ROWBYTES + 1u);
+    // The first 12 KiB are history while decoding, then QR scratch after
+    // finish.
+    plan[n++] = FIMG_QR_REUSE_BYTES;
+    for (size_t left = FIMG_INF_WSIZE - FIMG_QR_REUSE_BYTES; left; left -= page)
+      plan[n++] = page;
+    for (size_t left = FIMG_PNG_MAX_ROWBYTES; left; left -= page)
+      plan[n++] = page;
     plan[n++] = FIMG_ALIGN8(FIMG_MAX_DIM);
   } else {
     plan[n++] = FIMG_ALIGN8(FIMG_JPEG_STG_SIZE);
-    plan[n++] = FIMG_ALIGN8((size_t)FIMG_MAX_DIM * 16u);
+    for (size_t left = (size_t)FIMG_MAX_DIM * 16u; left; left -= page)
+      plan[n++] = page;
   }
   n += fimg_pix_block_sizes(cfg, plan + n);
   if (n > FIMG_SCATTERED_MAX_BLOCKS) return 0;

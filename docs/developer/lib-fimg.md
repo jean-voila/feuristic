@@ -18,7 +18,9 @@ The file is never stored. Every byte is consumed as it arrives.
   no 64-bit division, no global mutable state.
 * Code size: about 18 KiB of Thumb-2 code (`arm-none-eabi-gcc -O2
   -mcpu=cortex-m4`), no data, no BSS.
-* Deepest stack frame: 112 B. The whole call chain stays under 1 KiB.
+* Stack use depends on the scattered allocation plan. Measure with the ARM
+  compiler `-fstack-usage`; initialization includes bounded plan/descriptor
+  arrays. Do not infer a whole call-chain bound from one function frame.
 * Licence: GPL-3.0-only. All code is original. The inflater was written from
   RFC 1950/1951 and the IDCT follows the published LLM/islow algorithm
   (same constants as libjpeg). Nothing is vendored.
@@ -65,7 +67,7 @@ stride 90. A width of 724 would need stride 91 and 65 884 B.
 ## 2. Pipeline
 
 ```
-bytes ─► sniff ─┬─► PNG: chunk parser + CRC-32 ─► inflate (32 KiB window) ─► unfilter (2 scanlines) ─► luma row ─┐
+bytes ─► sniff ─┬─► PNG: chunk parser + CRC-32 ─► inflate (32 KiB window) ─► unfilter (1 scanline) ─► luma row ─┐
                 └─► JPEG: staging (4 KiB) ─► markers / DHT / DQT ─► Huffman ─► dequant ─► islow IDCT ─► MCU band ─┤
                                                                                                                   ▼
                        bitmap ◄─ adaptive binarizer (ring of K rows + column sums) ◄─ integer box downscaler (factor f)

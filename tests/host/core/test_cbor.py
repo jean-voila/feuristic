@@ -57,6 +57,23 @@ def test_map_key_ordering_is_bytewise():
     assert enc.hex() == "a5" + "0105" + "0a03" + "2004" + "616102" + "62626201"
 
 
+@pytest.mark.parametrize("buffer", [bytes, bytearray, memoryview])
+def test_encode_parts_matches_canonical_nested_encoding(buffer):
+    obj = {"long": [buffer(b"x" * 4096), {24: False, 1: None}], 2: "text", b"a": -7}
+    parts = cbor.encode_parts(obj)
+    encoded = b"".join(parts)
+    normalized = {"long": [b"x" * 4096, {24: False, 1: None}], 2: "text", b"a": -7}
+    assert encoded == cbor.encode(obj) == cbor2.dumps(normalized, canonical=True)
+    assert cbor.decode(memoryview(encoded), canonical=True) == cbor.decode(encoded)
+
+
+def test_encode_parts_snapshots_mutable_bytes():
+    source = bytearray(b"first")
+    parts = cbor.encode_parts([memoryview(source)])
+    source[:] = b"later"
+    assert b"".join(parts) == cbor.encode([b"first"])
+
+
 @pytest.mark.parametrize(
     "hexenc",
     [

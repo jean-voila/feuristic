@@ -44,9 +44,17 @@ _P_PIN_UV_AUTH_PROTOCOL = const(0x06)
 R_CONFIG = const(0x01)
 
 
+def _serialized_parts(entries):
+    parts = cbor.encode_parts(entries)
+    digest = crypto.Sha256()
+    for part in parts:
+        digest.update(part)
+    parts.append(digest.digest()[:16])
+    return parts
+
+
 def serialize(entries: list) -> bytes:
-    data = cbor.encode(entries)
-    return data + crypto.sha256(data)[:16]
+    return b"".join(_serialized_parts(entries))
 
 
 # h'80' || LEFT(SHA-256(h'80'), 16): the initial (empty) serialized array
@@ -56,7 +64,8 @@ EMPTY_ARRAY = b"\x80\x76\xbe\x8b\x52\x8d\x00\x75\xf7\xaa\xe9\x8d\x6f\xa5\x7a\x6d
 def check_integrity(serialized: bytes) -> bool:
     if len(serialized) < MIN_SERIALIZED:
         return False
-    return crypto.ct_equal(crypto.sha256(serialized[:-16])[:16], serialized[-16:])
+    view = memoryview(serialized)
+    return crypto.ct_equal(crypto.sha256(view[:-16])[:16], view[-16:])
 
 
 def entry_belongs_to(entry, key: bytes) -> bool:
@@ -80,6 +89,10 @@ def entry_belongs_to(entry, key: bytes) -> bool:
         return False
     try:
         crypto.aes256_gcm_decrypt(key, nonce, ct[:-16], ct[-16:], b"blob" + size.to_bytes(8, "little"))
+    except MemoryError:
+        # A failed ownership check must never silently omit backup data or
+        # allow credential deletion while leaving its blobs behind.
+        raise
     except Exception:
         return False
     return True
@@ -99,19 +112,23 @@ class LargeBlobs:
 
     def _abort_write(self) -> None:
         self._pending = None
+        self._write_head = None
         self._expected_len = 0
         self._next_offset = 0
 
+    def _read_view(self):
+        data = self.blob.get_view()
+        if data is None or not check_integrity(data):
+            return memoryview(EMPTY_ARRAY)
+        return data
+
     def read(self) -> bytes:
         """The current serialized array (initial empty array if none)."""
-        data = self.blob.get()
-        if data is None or not check_integrity(data):
-            return EMPTY_ARRAY
-        return data
+        return bytes(self._read_view())
 
     def entries(self) -> list:
         """Decoded array items (list of maps) — used by the backup provider."""
-        data = self.read()
+        data = self._read_view()
         try:
             items = cbor.decode(data[:-16], max_depth=3, max_items=1024)
         except cbor.CborError:
@@ -121,10 +138,20 @@ class LargeBlobs:
     def write_entries(self, entries: list) -> None:
         """Atomically replace the array (local use: backup restore).
         Raises ``StorageFull`` if the serialized array exceeds the cap."""
-        data = serialize(entries)
-        if len(data) > MAX_SERIALIZED:
+        # This operation is synchronous: read metadata before allocating the
+        # new full array, rather than keeping both A/B payloads beside it.
+        generation, key = self.blob._head()
+        parts = _serialized_parts(entries)
+        length = sum(len(part) for part in parts)
+        if length > MAX_SERIALIZED:
             raise StorageFull("largeBlob array full")
-        self.blob.set(data)
+        data = bytearray(4 + length)
+        offset = 4
+        for part in parts:
+            data[offset : offset + len(part)] = part
+            offset += len(part)
+        parts = None
+        self.blob._commit(data, generation, key)
         self._abort_write()
 
     def reset(self) -> None:
@@ -147,10 +174,10 @@ class LargeBlobs:
                 raise CtapError(CTAP1_ERR_INVALID_PARAMETER)
             if get > self.max_fragment:
                 raise CtapError(CTAP1_ERR_INVALID_LENGTH)
-            current = self.read()
+            current = self._read_view()
             if offset > len(current):
                 raise CtapError(CTAP1_ERR_INVALID_PARAMETER)
-            return {R_CONFIG: current[offset : offset + get]}
+            return {R_CONFIG: bytes(current[offset : offset + get])}
         return self._set(data, offset, length, param, proto)
 
     def _set(self, data: bytes, offset: int, length, param, proto) -> dict:
@@ -182,16 +209,21 @@ class LargeBlobs:
         if offset + len(data) > self._expected_len:
             raise CtapError(CTAP1_ERR_INVALID_PARAMETER)
         if offset == 0:
-            self._pending = bytearray()
-        self._pending += data
+            # All local array replacements/reset invalidate this pending
+            # write. Capture its A/B head before allocating the receive buffer;
+            # no other writer to these keys exists in a live NORMAL session.
+            self._write_head = self.blob._head()
+            self._pending = bytearray(4 + self._expected_len)
+        self._pending[4 + offset : 4 + offset + len(data)] = data
         self._next_offset = offset + len(data)
         if self._next_offset == self._expected_len:
-            buf = bytes(self._pending)
+            buf = self._pending
+            generation, key = self._write_head
             self._abort_write()
-            if not check_integrity(buf):
+            if not check_integrity(memoryview(buf)[4:]):
                 raise CtapError(CTAP2_ERR_INTEGRITY_FAILURE)
             try:
-                self.blob.set(buf)
+                self.blob._commit(buf, generation, key)
             except StorageFull:
                 raise CtapError(CTAP2_ERR_LARGE_BLOB_STORAGE_FULL)
         return {}

@@ -252,30 +252,60 @@ class Blob:
         self.max_len = max_len
         self.public = public
 
-    def _read(self):
-        best = None
+    def _head(self):
+        """Find the newest copy without retaining either large payload."""
+        best_gen = 0
         best_key = None
         for k in self.keys:
             raw = kv.get(self.app, k, self.public)
             if raw is None or len(raw) < 4:
                 continue
             gen = int.from_bytes(raw[:4], "big")
-            if best is None or gen > best[0]:
-                best = (gen, bytes(raw[4:]))
+            if best_key is None or gen > best_gen:
+                best_gen = gen
                 best_key = k
-        return best, best_key
+            raw = None
+        return best_gen, best_key
+
+    def get_view(self):
+        """Read a view of the newest payload, without a full-size slice copy.
+
+        The backing bytes are an independent storage snapshot, kept alive by
+        the view; later writes and clears cannot mutate it.
+        """
+        _, key = self._head()
+        if key is None:
+            return None
+        raw = kv.get(self.app, key, self.public)
+        return memoryview(raw)[4:]
 
     def get(self):
-        best, _ = self._read()
-        return None if best is None else best[1]
+        data = self.get_view()
+        return None if data is None else bytes(data)
 
     def set(self, payload: bytes) -> None:  # noqa: A003
         if len(payload) > self.max_len:
             raise InvalidInput("blob too large")
-        best, best_key = self._read()
-        gen = 1 if best is None else best[0] + 1
+        gen, best_key = self._head()
+        data = bytearray(4 + len(payload))
+        data[4:] = payload
+        self._commit(data, gen, best_key)
+
+    def set_buffer(self, data: bytearray) -> None:
+        """Commit an owned buffer with four reserved generation-prefix bytes.
+
+        No full payload copy is made. The caller must validate its payload
+        before invoking this method, and must not reuse the prefix contents.
+        """
+        if not isinstance(data, bytearray) or not 4 <= len(data) <= self.max_len + 4:
+            raise InvalidInput("blob buffer size/type")
+        gen, best_key = self._head()
+        self._commit(data, gen, best_key)
+
+    def _commit(self, data, gen, best_key):
+        data[:4] = (gen + 1).to_bytes(4, "big")
         target = self.keys[1] if best_key == self.keys[0] else self.keys[0]
-        kv.set(self.app, target, gen.to_bytes(4, "big") + bytes(payload), self.public)
+        kv.set(self.app, target, data, self.public)
         # the older copy is left in place as a fallback; it is overwritten by
         # the next update (A/B alternation).
 

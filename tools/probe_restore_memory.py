@@ -19,6 +19,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+from memory_probe_source import checked_script
+
 ROOT = Path(__file__).resolve().parent.parent
 SCRIPT = r"""
 import gc
@@ -205,6 +207,9 @@ native.close()
 print("RESTORE_MEMORY_PROBE_OK", IDENTITIES)
 """
 
+# Frozen production builds remove assert statements; retain every probe action.
+SCRIPT = checked_script(SCRIPT)
+
 
 def fixtures(directory: Path, identities: int, profile: str, fido_blobs: int) -> None:
     import segno
@@ -317,7 +322,11 @@ def main() -> int:
             "-X",
             "heapsize=" + args.heap,
             "-c",
-            ("import feuristic.fw.memory_probe" if args.frozen_probe else constants + SCRIPT),
+            (
+                'import sys; sys.path[:] = [".frozen"]; import feuristic.fw.memory_probe'
+                if args.frozen_probe
+                else constants + SCRIPT
+            ),
         ],
         cwd=ROOT / "upstream/trezor-firmware/core/src",
         env=env,

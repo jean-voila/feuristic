@@ -214,7 +214,8 @@ class OtpAccounts:
     def load(self) -> None:
         """Scan storage (run at unlock): resolves interrupted updates."""
         self.store.load()
-        self.accounts()
+        for _account in self._iter_accounts():
+            pass
 
     def __len__(self) -> int:
         return len(self.store)
@@ -228,28 +229,34 @@ class OtpAccounts:
         rec = self.store.get_record(uid)
         return _decode(uid, rec.payload)
 
+    def _iter_accounts(self):
+        """Scan records without retaining every decoded OTP secret."""
+        corrupt = []
+        for uid in self.store.uids():
+            try:
+                account = self.get(uid)
+            except StorageCorrupted:
+                corrupt.append(uid)
+                continue
+            yield account
+        self.corrupt_uids = corrupt
+
     def accounts(self) -> list:
         """All readable accounts sorted by issuer, then account (case-insensitive).
 
         Undecodable records are skipped and listed in :attr:`corrupt_uids`.
         """
-        out = []
-        corrupt = []
-        for uid in self.store.uids():
-            try:
-                out.append(self.get(uid))
-            except StorageCorrupted:
-                corrupt.append(uid)
-        self.corrupt_uids = corrupt
+        out = list(self._iter_accounts())
         out.sort(key=_sort_key)
         return out
 
     def find(self, issuer: str, account: str):
         """Account with exactly this issuer and account name, or ``None``."""
-        for acc in self.accounts():
-            if acc.issuer == issuer and acc.account == account:
-                return acc
-        return None
+        found = None
+        for acc in self._iter_accounts():
+            if acc.issuer == issuer and acc.account == account and (found is None or acc.uid < found.uid):
+                found = acc
+        return found
 
     def classify_import(self, params):
         """Return ``(IMPORT_NEW | IMPORT_DUPLICATE | IMPORT_CONFLICT, existing_or_None)``."""
@@ -269,7 +276,7 @@ class OtpAccounts:
 
     def _used_indices(self) -> set:
         used = set()
-        for acc in self.accounts():
+        for acc in self._iter_accounts():
             if acc.counter_index is not None:
                 used.add(acc.counter_index)
         return used

@@ -17,6 +17,8 @@ import subprocess
 import tempfile
 from pathlib import Path
 
+from memory_probe_source import checked_script
+
 ROOT = Path(__file__).resolve().parent.parent
 SCRIPT = r"""
 import gc
@@ -26,13 +28,14 @@ from trezor import config, loop
 from feuristic.fw import device, session, transports
 from feuristic.apps.fido2 import credentials as cr
 from feuristic.apps.fido2.context import NULL_CHANNEL
-from feuristic.apps.fido2.largeblobs import serialize
+from feuristic.core import cbor
 from feuristic.platform import crypto
 
 PHASE = os.getenv("FEURISTIC_NORMAL_PHASE") or "populate"
 DISTINCT = os.getenv("FEURISTIC_NORMAL_DISTINCT") == "1"
 WARM_CARD = os.getenv("FEURISTIC_NORMAL_WARM_CARD") == "1"
 RESERVE = int(os.getenv("FEURISTIC_NORMAL_RESERVE") or "0")
+EXPORT = os.getenv("FEURISTIC_NORMAL_EXPORT") == "1"
 
 
 def checkpoint(label):
@@ -110,11 +113,57 @@ if PHASE == "populate":
     otp = None
     checkpoint("before-largeblobs")
     for value in (b"x", b"y", b"z"):
-        entries = [{1: value * 4074}]
-        assert len(serialize(entries)) == 4096
-        auth.large_blobs.write_entries(entries)
-        checkpoint("largeblobs-" + value.decode())
-    entries = None
+        auth.large_blobs.write_entries([{1: value * 4074}])
+        checkpoint("largeblobs-local-" + value.decode())
+
+    def ctap(command, request):
+        reply = run(auth.dispatch(bytes((command,)) + cbor.encode(request), NULL_CHANNEL))
+        assert reply[0] == 0, (command, reply[0])
+        return cbor.decode(memoryview(reply)[1:]) if len(reply) > 1 else {}
+
+    def lbw_token():
+        peer = ctap(6, {1: 1, 2: 2})[1]
+        secret = crypto.p256_generate()
+        public = crypto.p256_public(secret)
+        client = {1: 2, 3: -25, -1: 1, -2: public[1:33], -3: public[33:]}
+        shared = crypto.sha256(crypto.p256_ecdh(secret, b"\x04" + peer[-2] + peer[-3]))
+        encrypted = crypto.aes256_cbc_encrypt(shared, bytes(16), crypto.sha256(b"123456")[:16])
+        answer = ctap(6, {1: 1, 2: 9, 3: client, 6: encrypted, 9: 16})
+        return crypto.aes256_cbc_decrypt(shared, bytes(16), answer[2])
+
+    def trailer(value):
+        digest = crypto.Sha256(b"\x81\xa1\x01\x59\x0f\xea")
+        for offset in range(0, 4074, 256):
+            digest.update(value * min(256, 4074 - offset))
+        return digest.digest()[:16]
+
+    def blob_fragment(value, tag, offset):
+        # The external client never lives on the MCU. Generate just its
+        # current fragment here instead of retaining another 4KiB array.
+        end = min(offset + 256, 4096)
+        parts = []
+        if offset < 6:
+            parts.append(b"\x81\xa1\x01\x59\x0f\xea"[offset:min(end, 6)])
+        if offset < 4080 and end > 6:
+            parts.append(value * (min(end, 4080) - max(offset, 6)))
+        if end > 4080:
+            parts.append(tag[max(0, offset - 4080):end - 4080])
+        return b"".join(parts)
+
+    token = lbw_token()
+    for value in (b"x", b"y", b"z"):
+        tag = trailer(value)
+        for offset in range(0, 4096, 256):
+            fragment = blob_fragment(value, tag, offset)
+            msg = b"\xff" * 32 + b"\x0c\x00" + offset.to_bytes(4, "little") + crypto.sha256(fragment)
+            request = {2: fragment, 3: offset, 5: crypto.hmac_sha256(token, msg)[:16], 6: 1}
+            if offset == 0:
+                request[4] = 4096
+            assert ctap(12, request) == {}
+        for offset in range(0, 4096, 256):
+            assert ctap(12, {1: 256, 3: offset})[1] == blob_fragment(value, tag, offset)
+        checkpoint("largeblobs-ctap-" + value.decode())
+    token = tag = fragment = msg = request = None
     checkpoint("capacity")
 else:
     assert PHASE == "reload"
@@ -144,8 +193,34 @@ if not DISTINCT:
         result = None
     assert len(auth.store.for_rp(crypto.sha256(rp(0).encode()))) == 100
 checkpoint("done")
+if EXPORT:
+    from feuristic.apps.backup.export import begin_full_export
+
+    async def passphrase(request):
+        return bytearray(b"FeuristicProbePassphrase2026")
+
+    for profile in ("dense", "large"):
+        checkpoint("export-before-" + profile)
+        export = run(begin_full_export(ui, passphrase, profile=profile))
+        try:
+            assert len(export) == 132
+            checkpoint("export-snapshot-" + profile)
+            for index in range(len(export)):
+                built = export.build(index)
+                assert built.seq == index + 1 and built.count == 132 and built.frames
+                built.frames.clear()
+                built = None
+                if index % 25 == 24 or index == 131:
+                    checkpoint("export-" + profile + "-" + str(index + 1))
+        finally:
+            export.close()
+            export = None
+        checkpoint("export-after-" + profile)
 print("NORMAL_MEMORY_PROBE_OK", PHASE)
 """
+
+# Frozen production builds remove assert statements; retain every probe action.
+SCRIPT = checked_script(SCRIPT)
 
 
 def main() -> int:
@@ -154,6 +229,7 @@ def main() -> int:
     parser.add_argument("--container", help="run inside an existing Docker container")
     parser.add_argument("--heap", default="171492")
     parser.add_argument("--distinct-rps", action="store_true")
+    parser.add_argument("--export", action="store_true", help="export all 132 identities in both QR profiles")
     parser.add_argument("--warm-card", action="store_true", help="select every real CCID application first")
     parser.add_argument(
         "--reserve", default=0, type=int, help="additional held bytes for headroom experiments"
@@ -173,6 +249,7 @@ def main() -> int:
                 "FEURISTIC_NORMAL_DISTINCT": str(int(args.distinct_rps)),
                 "FEURISTIC_NORMAL_WARM_CARD": str(int(args.warm_card)),
                 "FEURISTIC_NORMAL_RESERVE": str(args.reserve),
+                "FEURISTIC_NORMAL_EXPORT": str(int(args.export)),
             }
             command = [
                 str(args.emulator.resolve()),
@@ -180,7 +257,9 @@ def main() -> int:
                 "-X",
                 "heapsize=" + args.heap,
                 "-c",
-                SCRIPT if args.live_script else "import feuristic.fw.normal_memory_probe",
+                SCRIPT
+                if args.live_script
+                else ('import sys; sys.path[:] = [".frozen"]; import feuristic.fw.normal_memory_probe'),
             ]
             cwd = ROOT / "build/emu32-tree/core/src"
             if args.container:

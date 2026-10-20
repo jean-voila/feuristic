@@ -57,12 +57,13 @@ static size_t pix_block_sizes(const fimg_config_t *cfg, size_t *sizes,
                               int pad_pages) {
   uint32_t mw = cfg->max_out_width, mh = cfg->max_out_height;
   uint32_t k = 2u * bin_radius(mw > mh ? mw : mh) + 1u;
-  uint32_t rows = FIMG_SCATTERED_BLOCK_MAX / mw;
+  size_t page = fimg_page_size(cfg);
+  uint32_t rows = (uint32_t)(page / mw);
   size_t count = 0;
   while (k != 0) {
     uint32_t take = k < rows ? k : rows;
-    sizes[count++] = pad_pages && k > rows ? FIMG_SCATTERED_BLOCK_MAX
-                                           : FIMG_ALIGN8((size_t)take * mw);
+    sizes[count++] =
+        pad_pages && k > rows ? page : FIMG_ALIGN8((size_t)take * mw);
     k -= take;
   }
   sizes[count++] = FIMG_ALIGN8((size_t)mw * sizeof(uint16_t));
@@ -113,7 +114,7 @@ fimg_status_t fimg_pix_setup(fimg_ctx_t *ctx, uint32_t w, uint32_t h) {
   if ((size_t)p->stride * oh > ctx->bitmap_size) return FIMG_E_INTERNAL;
   p->r = bin_radius(ow > oh ? ow : oh);
   p->k = 2u * p->r + 1u;
-  p->ring_rows = FIMG_SCATTERED_BLOCK_MAX / ow;
+  p->ring_rows = (uint32_t)(fimg_page_size(&ctx->cfg) / ow);
   uint32_t remaining = p->k;
   for (size_t i = 0; remaining != 0; i++) {
     uint32_t take = remaining < p->ring_rows ? remaining : p->ring_rows;

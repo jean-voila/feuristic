@@ -74,18 +74,19 @@ CCM. The value stack is explicitly zeroed before initialization and is never a
 DMA buffer. The MicroPython heap is `0x2000621c..0x20030000`, **171492 bytes**.
 These are build results, not runtime free-heap measurements.
 
-The image and QR decoders share scratch memory: a 16384-byte image scratch
+The image and QR decoders share scratch memory: a 12288-byte image scratch
 block is reused for the 12288-byte QR workspace after image decoding. There
 is no additional simultaneous QR allocation.
 ARM ABI sizes from the real C implementations are:
 
 | T2B1 internal bitmap side | Image workspace | Bitmap | QR payload | Total scratch/bitmap/payload |
 |---|---:|---:|---:|---:|
-| 512 | 77392 | 32768 | 3072 | 113232 |
-| 384 | 69072 | 18432 | 3072 | 90576 |
+| 256 | 54656 | 8192 | 3072 | 65920 |
+| 320 | 57920 | 12800 | 3072 | 73792 |
+| 384 | 61440 | 18432 | 3072 | 82944 |
 
 The native session object, README, Python objects and allocator rounding must
-be added. T2B1 uses side **384**, saving 22656 bytes of these buffers; T3B1 uses
+be added. T2B1 still uses side **384**; the software RAM gate remains open. T3B1 uses
 720. Both still accept input PNG or baseline JPEG up to 1024×1024 and 256 KiB.
 This is an internal memory adjustment, with no change to QR framing or input
 file limits.
@@ -184,8 +185,12 @@ eight-byte-aligned, disjoint blocks of at most 16384 bytes. The native Session
 preallocates them before accepting writes, records every successful allocation
 for immediate cleanup on failure, and wipes/frees them on pause and close.
 
-The full 32768-byte DEFLATE history is preserved as two 16384-byte pages;
-back-references, output draining and Adler-32 span both page boundaries. The
+The full 32768-byte DEFLATE history uses logical pages of 2048 or 4096 bytes.
+Its first 12288 bytes share one allocation reused by QR after decoding.
+Back-references, output draining and Adler-32 cross every page boundary.
+PNG unfiltering retains one previous scanline and eight previous channel
+bytes, preserving all supported filters and depths while saving 8192 bytes.
+JPEG IDCT output is scattered into bounded band pages. The
 adaptive binarizer ring is split only at complete row boundaries. Neither PNG
 bit depth, input dimensions, JPEG support nor file limits are reduced. The
 original contiguous `fimg_init()` API remains available.
@@ -205,3 +210,36 @@ session fits: the measured 384 bitmap and subsequent scratch allocations
 still encounter allocation pressure in the current runtime probe. The
 software RAM gate remains open until the frozen 32-bit, off-heap MSC test
 completes with the final source snapshot and all maximum provider fixtures.
+
+
+## Probe validity under optimized freezing
+
+`tools/memory_probe_source.py` turns probe assertions into explicit checks
+before freezing, so `mpy-cross -O3` cannot remove either verification or an
+operation inside a check (unlock, SCSI synchronization, collection, pause,
+resume or CTAP writes). Host regressions execute the transformed source with
+optimization levels 0, 1 and 2. Earlier frozen probe logs made before this
+correction are **not complete behavioral evidence**. Allocation failures
+observed before their first check still expose real allocation constraints.
+
+The isolated preparation also invalidates generated Feuristic `.i`/`.mpy`
+cache files and uses fresh source mtimes. Restoring a snapshot must not reuse
+bytecode from a later diagnostic variant. Only the isolated `build/emu32-arm`
+Python cache is affected. Frozen drivers restrict `sys.path` to `.frozen` so
+mounting the fixture filesystem cannot silently load application source.
+
+Experiments with sub-kilobyte image segments and module presizing did not
+resolve the full budget. They are not shipped. Keep the bounded, corpus-tested
+2/4 KiB implementation while resolving the complete allocation lifecycle.
+
+Frozen import identifiers and printable ASCII characters are enumerated by
+`tools/generate_frozen_qstr.py`. MicroPython interns absolute module paths and
+single-character string indexing (including Base45 `$`). Keeping those QSTRs
+in ROM avoids persistent runtime allocations and the upstream frozen-debug
+assertion that otherwise interrupted import/export. The catalog function is
+never executed; it contributes identifiers to the compiled frozen pool only.
+
+NORMAL qualification now includes an independent cold process. The temporary
+FIDO owner-recovery map uses fixed SHA-256 identifiers instead of retaining
+all long user IDs/RP hashes. A digest hit is checked against the actual record
+before duplicate recovery can delete anything; a collision fails closed.

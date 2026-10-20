@@ -63,3 +63,23 @@ def test_memory_exhaustion_cannot_hide_an_existing_credential(device, monkeypatc
     device.auth.store.invalidate()
     with pytest.raises(MemoryError):
         device.auth.store.count()
+
+
+def test_owner_digest_collision_cannot_delete_either_credential(device, monkeypatch, kv):
+    from feuristic.core.errors import StorageCorrupted
+
+    for user in (b"alice", b"bob"):
+        device.auth.store.create_resident(
+            "example.com", user, "Name", "Display", cr.ALG_ES256, b"\x01" * 32, 1, False, False
+        )
+    before = dict(kv.data)
+    digest = crypto.sha256
+
+    def colliding_owner(data):
+        return b"c" * 32 if len(data) in (35, 37) else digest(data)
+
+    monkeypatch.setattr(crypto, "sha256", colliding_owner)
+    device.auth.store.invalidate()
+    with pytest.raises(StorageCorrupted):
+        device.auth.store.count()
+    assert kv.data == before

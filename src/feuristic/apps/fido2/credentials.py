@@ -390,7 +390,7 @@ class CredentialStore:
         if self._index is not None:
             return self._index
         index = CredentialIndex(CAPACITY)
-        owners = {}  # (rpIdHash, user.id) -> (position, generation)
+        owners = {}  # SHA-256(rpIdHash || user.id) -> (position, generation)
         max_seq = 0
         for uid in self.records.uids():
             try:
@@ -401,9 +401,19 @@ class CredentialStore:
             except Exception as e:  # corrupt record: never fatal
                 log.warning(__name__, "skipping corrupt credential record: %s", repr(e))
                 continue
-            owner = (cred.rp_id_hash, cred.user_id)
+            # The temporary rebuild index must not retain every maximum-length
+            # user ID alongside its RP hash. The fixed 32-byte prefix makes
+            # this encoding unambiguous; verify any hit before deleting data.
+            owner = crypto.sha256(cred.rp_id_hash + cred.user_id)
             prev = owners.get(owner)
             if prev is not None:
+                previous = self._load(index[prev[0]][0])
+                if (
+                    previous is None
+                    or previous.rp_id_hash != cred.rp_id_hash
+                    or previous.user_id != cred.user_id
+                ):
+                    raise StorageCorrupted("credential owner digest collision")
                 # interrupted overwrite (restore): keep the newest version
                 if rec.generation > prev[1]:
                     self.records.delete(index[prev[0]][0])

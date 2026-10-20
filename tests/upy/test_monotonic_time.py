@@ -61,7 +61,7 @@ def wall_clock_and_security_expiry_survive_long_idle_and_repeated_wraps():
         u2f = ctap1.U2f(auth)
         prompt = Prompt("presence", "presence")
         u2f._presence(b"request", prompt)
-        u2f._state = ctap1._CONFIRMED
+        drive(u2f.dialog_job())
         for _ in range(40 * 24):
             # Coarsen the simulation to hourly samples (still far below the
             # MCU half-period); the actual heartbeat samples every minute.
@@ -76,7 +76,8 @@ def wall_clock_and_security_expiry_survive_long_idle_and_repeated_wraps():
         not_allowed(auth.get_next_assertion)
         assert auth._ga is None
         not_allowed(drive, auth.reset(NULL_CHANNEL))
-        assert u2f._presence(b"request", prompt) == ctap1._PENDING
+        u2f._presence(b"request", prompt)
+        assert u2f.dialog_pending()
         assert clock.classify(clock.now() - 60) == ACCEPT
         assert clock.classify(clock.now() - 61) == CONFIRM_BACKWARD
         clock.set(clock.now() - 61)

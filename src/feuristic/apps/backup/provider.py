@@ -32,7 +32,8 @@ envelope schema validation):
 
 from micropython import const
 
-from ...core.errors import InvalidInput
+from ...core.errors import InvalidInput, NotFound
+from ...platform._backend import FIRMWARE
 from .errors import UnsupportedItem
 
 TYPE_MAX_LEN = const(16)
@@ -74,6 +75,17 @@ class BackupProvider:
         device of either hardware revision (spec §8.3): no device-bound key
         material, no wrapped blobs. Raises ``NotFound`` if ``uid`` vanished."""
         raise NotImplementedError
+
+    def iter_uids(self):
+        """Snapshot identifiers without retaining all display labels."""
+        for uid, _label in self.list_identities():
+            yield uid
+
+    def identity_label(self, uid):
+        for candidate, label in self.list_identities():
+            if bytes(candidate) == uid:
+                return label
+        raise NotFound("identity not found")
 
     def validate(self, obj: dict) -> None:
         """Strictly validate an authenticated item (types, lengths, ranges).
@@ -137,26 +149,54 @@ class LazyProvider(BackupProvider):
         self.LABEL_KEY = label_key
         self._factory = factory
 
+    def _call(self, name, *args):
+        if not FIRMWARE:
+            return getattr(self._factory(self.TYPE), name)(*args)
+        from trezor import utils
+
+        modules = utils.unimport_begin()
+        try:
+            return getattr(self._factory(self.TYPE), name)(*args)
+        finally:
+            # Only modules newly loaded by this operation are removed. Live
+            # NORMAL transport modules and their session policies survive.
+            utils.unimport_end(modules)
+
     def list_identities(self):
-        return self._factory(self.TYPE).list_identities()
+        return self._call("list_identities")
+
+    def iter_uids(self):
+        if not FIRMWARE:
+            yield from self._factory(self.TYPE).iter_uids()
+            return
+        from trezor import utils
+
+        modules = utils.unimport_begin()
+        try:
+            yield from self._factory(self.TYPE).iter_uids()
+        finally:
+            utils.unimport_end(modules)
+
+    def identity_label(self, uid):
+        return self._call("identity_label", uid)
 
     def export_identity(self, uid):
-        return self._factory(self.TYPE).export_identity(uid)
+        return self._call("export_identity", uid)
 
     def validate(self, obj) -> None:
-        self._factory(self.TYPE).validate(obj)
+        self._call("validate", obj)
 
     def exists(self, obj):
-        return self._factory(self.TYPE).exists(obj)
+        return self._call("exists", obj)
 
     def describe(self, obj):
-        return self._factory(self.TYPE).describe(obj)
+        return self._call("describe", obj)
 
     def restore_identity(self, obj, overwrite):
-        return self._factory(self.TYPE).restore_identity(obj, overwrite)
+        return self._call("restore_identity", obj, overwrite)
 
     def on_exported(self, uid) -> None:
-        self._factory(self.TYPE).on_exported(uid)
+        self._call("on_exported", uid)
 
 
 def is_valid_type(t) -> bool:

@@ -73,7 +73,16 @@ def main() -> int:
             target.unlink()
         elif target.exists():
             shutil.rmtree(target)
-        shutil.copytree(original, target)
+        shutil.copytree(original, target, copy_function=shutil.copy)
+    # The freezer's dependency checks use mtimes. Restoring an older source
+    # snapshot must never reuse .mpy files from a later diagnostic variant.
+    outputs = ROOT / "build/emu32-arm/i686-unknown-linux-gnu/debug/build"
+    for output in outputs.glob("upymod-*/out"):
+        for artifact in output.rglob("*"):
+            if artifact.suffix in (".i", ".mpy") and "feuristic" in artifact.parts:
+                artifact.unlink()
+        for name in ("frozen_mpy.c", "frozen_mpy.c.dep"):
+            (output / name).unlink(missing_ok=True)
     prefix = (
         'import os\nFIXTURES=os.getenv("FEURISTIC_MEMORY_FIXTURES")\n'
         'IDENTITIES=int(os.getenv("FEURISTIC_MEMORY_IDENTITIES"))\n'

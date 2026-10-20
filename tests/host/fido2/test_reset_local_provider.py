@@ -193,6 +193,40 @@ def test_export_restore_roundtrip_to_other_device(ctap2, device, provider):
     assert len(other.auth.large_blobs.entries()) == 1
 
 
+@pytest.mark.parametrize("operation", ["export", "purge"])
+def test_large_blob_ownership_oom_aborts_before_any_mutation(
+    ctap2, device, provider, ui, kv, monkeypatch, operation
+):
+    from feuristic.apps.backup.export import begin_identity_export
+    from feuristic.apps.fido2 import largeblobs
+
+    att = make(ctap2, rk=True, extensions={"largeBlobKey": True})
+    LargeBlobs(ctap2).put_blob(att.large_blob_key, b"must survive")
+    uid = descriptor(att)["id"][1:9]
+
+    async def passphrase(request):
+        return bytearray(b"FeuristicPassphrase2026")
+
+    export = aio_run(begin_identity_export(ui, "fido2", uid, passphrase))
+    before = dict(kv.data)
+
+    def no_memory(*args):
+        raise MemoryError
+
+    monkeypatch.setattr(largeblobs.crypto, "aes256_gcm_decrypt", no_memory)
+    try:
+        with pytest.raises(MemoryError):
+            if operation == "export":
+                export.build(0)
+            else:
+                aio_run(localmgmt.delete_credential(device.auth, ui, uid))
+        assert kv.data == before
+        assert device.auth.store.count() == 1
+        assert not device.auth.store.get(uid).backup_state
+    finally:
+        export.close()
+
+
 def test_restore_replaces_same_rp_user(ctap2, device, provider):
     att = make(ctap2, rk=True)
     obj = provider.export_identity(descriptor(att)["id"][1:9])

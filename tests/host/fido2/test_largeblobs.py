@@ -173,3 +173,153 @@ def test_local_entries_api(device):
 
     with pytest.raises(StorageFull):
         lbs.write_entries([{1: b"x" * 5000}])
+
+
+def test_integrity_and_local_write_avoid_full_size_temporaries(device, monkeypatch):
+    items = [{1: b"x" * 4074}]
+    serialized = serialize(items)
+    original_hash = lb.crypto.sha256
+    original_encode = lb.cbor.encode
+
+    def hash_view(data):
+        assert isinstance(data, memoryview)
+        return original_hash(data)
+
+    def no_joined_body(obj):
+        if isinstance(obj, list):
+            raise AssertionError("encoded an unnecessary full CBOR body")
+        return original_encode(obj)
+
+    monkeypatch.setattr(lb.crypto, "sha256", hash_view)
+    monkeypatch.setattr(lb.cbor, "encode", no_joined_body)
+    assert lb.serialize(items) == serialized
+    assert lb.check_integrity(serialized)
+    device.auth.large_blobs.write_entries(items)
+    assert device.auth.large_blobs.entries() == items
+
+
+def test_fragment_commit_reuses_reserved_pending_buffer(device, monkeypatch):
+    blobs = device.auth.large_blobs
+    data = serialize([{1: b"x" * 4074}])
+    blobs.handle({2: data[:100], 3: 0, 4: 4096})
+    pending = blobs._pending
+    assert len(pending) == 4100
+    original_commit = blobs.blob._commit
+    original_head = blobs.blob._head
+    committed = []
+
+    def commit_same(buffer, generation, key):
+        assert buffer is pending
+        committed.append(True)
+        original_commit(buffer, generation, key)
+
+    def no_second_payload_read():
+        raise MemoryError("no room beside the pending array")
+
+    monkeypatch.setattr(blobs.blob, "_commit", commit_same)
+    monkeypatch.setattr(blobs.blob, "_head", no_second_payload_read)
+    blobs.handle({2: data[100:], 3: 100})
+    assert blobs._pending is None
+    assert committed == [True]
+    monkeypatch.setattr(blobs.blob, "_head", original_head)
+    assert blobs.read() == data
+
+
+def test_normal_memory_probe_client_uses_real_pin_token_and_ctap_fragments(device, monkeypatch):
+    import ast
+    import runpy
+    from pathlib import Path
+
+    from feuristic.apps.fido2.context import NULL_CHANNEL
+    from feuristic.core import cbor as codec
+
+    path = Path(__file__).resolve().parents[3] / "tools" / "probe_normal_memory32.py"
+    monkeypatch.syspath_prepend(str(path.parent))
+    script = ast.parse(runpy.run_path(str(path))["SCRIPT"])
+    functions = [
+        node
+        for node in ast.walk(script)
+        if isinstance(node, ast.FunctionDef)
+        and node.name in ("run", "ctap", "lbw_token", "trailer", "blob_fragment")
+    ]
+    scope = {"auth": device.auth, "crypto": lb.crypto, "cbor": codec, "NULL_CHANNEL": NULL_CHANNEL}
+    exec(compile(ast.Module(body=functions, type_ignores=[]), str(path), "exec"), scope)
+    device.auth.pin.local_set_pin("123456")
+    token = scope["lbw_token"]()
+    assert token == device.auth.pin._token
+    for value in (b"x", b"y", b"z"):
+        tag = scope["trailer"](value)
+        full = serialize([{1: value * 4074}])
+        for offset in range(0, 4096, 256):
+            fragment = scope["blob_fragment"](value, tag, offset)
+            assert fragment == full[offset : offset + 256]
+            message = (
+                b"\xff" * 32 + b"\x0c\x00" + offset.to_bytes(4, "little") + hashlib.sha256(fragment).digest()
+            )
+            request = {2: fragment, 3: offset, 5: lb.crypto.hmac_sha256(token, message)[:16], 6: 1}
+            if offset == 0:
+                request[4] = 4096
+            assert scope["ctap"](12, request) == {}
+        for offset in range(0, 4096, 256):
+            assert scope["ctap"](12, {1: 256, 3: offset})[1] == full[offset : offset + 256]
+
+
+@pytest.mark.parametrize("proto_cls", [PinProtocolV1, PinProtocolV2])
+def test_authenticated_4k_fragments_at_100_passkeys_and_32_otp(ctap2, device, proto_cls):
+    from feuristic.apps.fido2 import credentials as cr
+    from feuristic.apps.otp.accounts import OtpAccounts
+    from feuristic.apps.otp.uri import OtpParams
+
+    for index in range(100):
+        device.auth.store.create_resident(
+            "a" * 63 + "." + "b" * 56 + ".example",
+            index.to_bytes(64, "big"),
+            "n" * 64,
+            "d" * 64,
+            cr.ALG_ES256,
+            (index + 1).to_bytes(32, "big"),
+            1,
+            True,
+            True,
+        )
+    otp = OtpAccounts()
+    for index in range(32):
+        name = str(index).ljust(64, "x")
+        otp.add(OtpParams("hotp", "i" * 32, name, b"s" * 64, "SHA512", 8, counter=1001))
+    proto = proto_cls()
+    client = ClientPin(ctap2, proto)
+    client.set_pin("123456")
+    token = client.get_pin_token("123456", PERM.LARGE_BLOB_WRITE)
+    for byte in (b"x", b"y", b"z"):
+        data = serialize([{1: byte * 4074}])
+        for offset in range(0, 4096, 256):
+            fragment = data[offset : offset + 256]
+            message = (
+                b"\xff" * 32 + b"\x0c\x00" + offset.to_bytes(4, "little") + hashlib.sha256(fragment).digest()
+            )
+            assert (
+                ctap2.large_blobs(
+                    offset,
+                    set=fragment,
+                    length=4096 if offset == 0 else None,
+                    pin_uv_param=proto.authenticate(token, message),
+                    pin_uv_protocol=proto.VERSION,
+                )
+                == {}
+            )
+        assert b"".join(ctap2.large_blobs(offset, get=256)[1] for offset in range(0, 4096, 256)) == data
+    device.power_cycle()
+    assert device.auth.store.count() == 100
+    assert len(OtpAccounts()) == 32
+    assert device.auth.large_blobs.entries() == [{1: b"z" * 4074}]
+
+
+def test_local_array_replacement_invalidates_fragment_generation(device):
+    blobs = device.auth.large_blobs
+    data = serialize([{1: b"pending"}])
+    blobs.handle({2: data[:5], 3: 0, 4: len(data)})
+    blobs.write_entries([{1: b"local replacement"}])
+    with pytest.raises(lb.CtapError) as caught:
+        blobs.handle({2: data[5:], 3: 5})
+    assert caught.value.code == ERR.INVALID_SEQ
+    assert blobs.entries() == [{1: b"local replacement"}]

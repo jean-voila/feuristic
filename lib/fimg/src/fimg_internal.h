@@ -30,7 +30,14 @@ FIMG_STATIC_ASSERT(arithmetic_shift, ((-8) >> 1) == -4);
 #define FIMG_INF_WSIZE 32768u /**< LZ77 window (also the output ring). */
 #define FIMG_INF_WMASK (FIMG_INF_WSIZE - 1u)
 #define FIMG_INF_PAGE_SIZE (FIMG_INF_WSIZE / 2u)
+#define FIMG_INF_SLICE_SIZE 4096u
 #define FIMG_INF_PAGE_MASK (FIMG_INF_PAGE_SIZE - 1u)
+#define FIMG_QR_REUSE_BYTES 12288u
+
+static inline size_t fimg_page_size(const fimg_config_t *cfg) {
+  return cfg->max_out_width <= 384u && cfg->max_out_height <= 384u ? 2048u
+                                                                   : 4096u;
+}
 #define FIMG_INF_FAST_BITS 9u /**< First-level Huffman lookup bits. */
 #define FIMG_INF_MAXBITS 15u
 
@@ -59,7 +66,8 @@ typedef enum {
 
 /** Resumable zlib stream inflater state. */
 typedef struct {
-  uint8_t *win[2]; /**< Two separately allocated 16 KiB window pages. */
+  uint8_t *win[16]; /**< Full 32 KiB history in 2 or 4 KiB logical pages. */
+  uint32_t page_size;
   uint32_t wpos;   /**< Next write position in @ref win. */
   uint32_t total;  /**< Total bytes produced. */
   uint32_t bitbuf; /**< LSB-first bit accumulator. */
@@ -85,8 +93,14 @@ void fimg_inflate_init(fimg_inflate_t *s, uint8_t *window);
 void fimg_inflate_init_paged(fimg_inflate_t *s, uint8_t *first,
                              uint8_t *second);
 
+/** Full 32 KiB history; page_size is 2048 or 4096, pages has
+ * 32768/page_size disjoint buffers. The descriptor array is read during
+ * initialization only. */
+void fimg_inflate_init_pages(fimg_inflate_t *s, uint8_t *const *pages,
+                             uint32_t page_size);
+
 static inline uint8_t *fimg_window_ptr(const fimg_inflate_t *s, uint32_t at) {
-  return s->win[at / FIMG_INF_PAGE_SIZE] + (at & FIMG_INF_PAGE_MASK);
+  return s->win[at / s->page_size] + (at & (s->page_size - 1u));
 }
 
 /**
@@ -123,18 +137,18 @@ typedef struct {
   uint32_t src_rows;     /**< Source rows received. */
   uint32_t band_rows;    /**< Source rows accumulated in the current band. */
   uint32_t *acc;         /**< out_w column accumulators (f > 1). */
-  uint8_t *ring[8]; /**< K rows, split at row boundaries into <=16 KiB pages. */
-  uint32_t ring_rows; /**< Rows per complete ring page. */
-  uint16_t *colsum;   /**< Column sums over rows [lo, rows_in). */
-  uint16_t *colsq;    /**< Column sums of round(v^2 / 256). */
-  uint32_t r, k;      /**< Window radius and ring height (2r+1). */
-  uint32_t rows_in;   /**< Output rows pushed into the ring. */
-  uint32_t lo;        /**< First row included in colsum. */
-  uint32_t rows_out;  /**< Output rows binarized. */
-  uint32_t hist[256]; /**< Histogram of output luma seen so far. */
-  uint32_t gthresh;   /**< Global threshold (intermeans). */
-  uint32_t gcontrast; /**< Global contrast (mean_hi - mean_lo). */
-  uint32_t gmlo;      /**< Global mean of the dark class. */
+  uint8_t *ring[18];     /**< K rows, split at complete-row boundaries. */
+  uint32_t ring_rows;    /**< Rows per complete ring page. */
+  uint16_t *colsum;      /**< Column sums over rows [lo, rows_in). */
+  uint16_t *colsq;       /**< Column sums of round(v^2 / 256). */
+  uint32_t r, k;         /**< Window radius and ring height (2r+1). */
+  uint32_t rows_in;      /**< Output rows pushed into the ring. */
+  uint32_t lo;           /**< First row included in colsum. */
+  uint32_t rows_out;     /**< Output rows binarized. */
+  uint32_t hist[256];    /**< Histogram of output luma seen so far. */
+  uint32_t gthresh;      /**< Global threshold (intermeans). */
+  uint32_t gcontrast;    /**< Global contrast (mean_hi - mean_lo). */
+  uint32_t gmlo;         /**< Global mean of the dark class. */
   uint8_t *bitmap;
   int ready; /**< Set up (dimensions known). */
 } fimg_pix_t;
@@ -164,8 +178,10 @@ typedef struct {
   uint8_t has_key;       /**< tRNS colour key for types 0 / 2. */
   uint16_t key[3];
   /* scanlines */
-  uint8_t *win[2], *cur, *prev, *luma;
-  uint32_t row_fill; /**< Bytes in @ref cur (filter byte included). */
+  uint8_t *prev[4], *luma;
+  uint32_t page_size;
+  uint8_t filter, prior_up[8];
+  uint32_t row_fill; /**< Scanline position, including its filter byte. */
   uint32_t rows_done;
   uint32_t expected;  /**< h * (rowbytes + 1). */
   uint32_t inf_bytes; /**< Inflated bytes so far. */
@@ -238,7 +254,8 @@ typedef struct {
   uint32_t mfound;  /**< 1 if a marker lies in [stg_pos, mscan). */
   uint32_t done_at; /**< stg index just after EOI. */
   /* output */
-  uint8_t *rowbuf; /**< band_h x rowbuf_w luma. */
+  uint8_t *rowbuf[8]; /**< Luma band split only at row boundaries. */
+  uint32_t rowbuf_rows;
   uint32_t rowbuf_w;
   int32_t coef[64];
   int32_t ws[64];

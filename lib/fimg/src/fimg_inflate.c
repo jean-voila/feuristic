@@ -224,22 +224,32 @@ static void load_fixed(fimg_inflate_t *s) {
   s->tables = 1;
 }
 
-void fimg_inflate_init_paged(fimg_inflate_t *s, uint8_t *first,
-                             uint8_t *second) {
+void fimg_inflate_init_pages(fimg_inflate_t *s, uint8_t *const *pages,
+                             uint32_t page_size) {
   memset(s, 0, sizeof *s);
-  s->win[0] = first;
-  s->win[1] = second;
+  s->page_size = page_size;
+  for (size_t i = 0; i < FIMG_INF_WSIZE / page_size; i++) s->win[i] = pages[i];
   s->adler_a = 1;
   s->state = S_ZHDR;
 }
 
+void fimg_inflate_init_paged(fimg_inflate_t *s, uint8_t *first,
+                             uint8_t *second) {
+  uint8_t *pages[8];
+  for (size_t i = 0; i < 4; i++) {
+    pages[i] = first + i * FIMG_INF_SLICE_SIZE;
+    pages[i + 4] = second + i * FIMG_INF_SLICE_SIZE;
+  }
+  fimg_inflate_init_pages(s, pages, FIMG_INF_SLICE_SIZE);
+}
+
 void fimg_inflate_init(fimg_inflate_t *s, uint8_t *window) {
-  fimg_inflate_init_paged(s, window, window + FIMG_INF_PAGE_SIZE);
+  fimg_inflate_init_paged(s, window, window + FIMG_INF_WSIZE / 2u);
 }
 
 static void window_adler(fimg_inflate_t *s, uint32_t at, uint32_t n) {
   while (n != 0) {
-    uint32_t k = FIMG_INF_PAGE_SIZE - (at & FIMG_INF_PAGE_MASK);
+    uint32_t k = s->page_size - (at & (s->page_size - 1u));
     if (k > n) k = n;
     fimg_adler32(&s->adler_a, &s->adler_b, fimg_window_ptr(s, at), k);
     at = (at + k) & FIMG_INF_WMASK;
@@ -335,8 +345,8 @@ fimg_inf_result_t fimg_inflate(fimg_inflate_t *s, const uint8_t *in,
             }
             if (k > in_len - pos) k = in_len - pos;
             if (k > out_max - out) k = out_max - out;
-            if (k > FIMG_INF_PAGE_SIZE - (s->wpos & FIMG_INF_PAGE_MASK))
-              k = FIMG_INF_PAGE_SIZE - (s->wpos & FIMG_INF_PAGE_MASK);
+            if (k > s->page_size - (s->wpos & (s->page_size - 1u)))
+              k = s->page_size - (s->wpos & (s->page_size - 1u));
             memcpy(fimg_window_ptr(s, s->wpos), in + pos, k);
             pos += k;
             s->wpos = (s->wpos + (uint32_t)k) & FIMG_INF_WMASK;

@@ -248,21 +248,33 @@ static void run_zlib(const char *dir, const char *file, const char *kind,
   uint8_t *data;
   static uint8_t win[FIMG_INF_WSIZE];
   static uint8_t paged[2][FIMG_INF_PAGE_SIZE + 32];
+  static uint8_t small[16][4096 + 32];
   static fimg_inflate_t inf;
   snprintf(path, sizeof path, "%s/%s", dir, file);
   data = read_file(path, &len);
   CHECK_MSG(data != NULL, "%s", path);
   if (data == NULL) return;
-  for (int mode = 0; mode < 2; mode++) {
+  for (int mode = 0; mode < 4; mode++) {
     for (int p = 0; p < NPATTERNS; p++) {
       size_t off = 0, idx = 0;
       uint32_t rs = 99, crc = 0xffffffffu, total = 0;
       fimg_inf_result_t r = FIMG_INF_NEED_INPUT;
       if (mode == 0) {
         fimg_inflate_init(&inf, win);
-      } else {
+      } else if (mode == 1) {
         memset(paged, 0xd3, sizeof paged);
         fimg_inflate_init_paged(&inf, paged[0] + 16, paged[1] + 16);
+      } else {
+        uint8_t *pages[16];
+        uint32_t page_size =
+            mode == 2
+                ? 2048u
+                : (mode == 3 ? 4096u
+                             : (mode == 4 ? 1024u : (mode == 5 ? 512u : 256u)));
+        memset(small, 0xd3, sizeof small);
+        for (size_t i = 0; i < FIMG_INF_WSIZE / page_size; i++)
+          pages[i] = small[i] + 16;
+        fimg_inflate_init_pages(&inf, pages, page_size);
       }
       for (;;) {
         size_t n = next_chunk(p, &rs, idx++), used = 0;
@@ -300,11 +312,24 @@ static void run_zlib(const char *dir, const char *file, const char *kind,
         CHECK_MSG(want != 0 && r == want, "%s p%d: got %d want %s", file, p, r,
                   a1);
       }
-      if (mode != 0) {
+      if (mode == 1) {
         for (size_t page = 0; page < 2; page++) {
           for (size_t i = 0; i < 16; i++) {
             CHECK(paged[page][i] == 0xd3);
             CHECK(paged[page][16 + FIMG_INF_PAGE_SIZE + i] == 0xd3);
+          }
+        }
+      }
+      if (mode >= 2) {
+        uint32_t page_size =
+            mode == 2
+                ? 2048u
+                : (mode == 3 ? 4096u
+                             : (mode == 4 ? 1024u : (mode == 5 ? 512u : 256u)));
+        for (size_t page = 0; page < FIMG_INF_WSIZE / page_size; page++) {
+          for (size_t i = 0; i < 16; i++) {
+            CHECK(small[page][i] == 0xd3);
+            CHECK(small[page][16 + page_size + i] == 0xd3);
           }
         }
       }

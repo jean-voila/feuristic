@@ -33,7 +33,9 @@ def packed_native_identity_pauses_without_retaining_decoder_workspaces():
     assert native.pause_decode()
     gc.collect()
     paused = gc.mem_alloc()
-    assert active - paused >= 110_000
+    # The single-row PNG filter reduced scratch by 8 KiB; all image/QR
+    # buffers must still disappear together at the pause boundary.
+    assert active - paused >= 100_000
     raw = collector.take_complete()
     assert len(raw) == size and raw == b"x" * size
     assert collector.bytes_used() == 0 and collector.counts() == (0, 0)

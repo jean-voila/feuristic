@@ -103,6 +103,11 @@ class ExportedBackup:
         self.count = count  # identities in the export session
 
 
+def _identity_label(p, uid):
+    lookup = getattr(p, "identity_label", None)
+    return lookup(uid) if lookup is not None else registry.BackupProvider.identity_label(p, uid)
+
+
 class ExportSession:
     """Holds the derived key of one export session (one salt).
 
@@ -124,12 +129,16 @@ class ExportSession:
 
     def label(self, i: int) -> tuple:
         p, uid, label = self.entries[i]
+        if label is None:
+            label = registry.check_label(_identity_label(p, uid))
         return p.TYPE, label
 
     def build(self, i: int) -> ExportedBackup:
         if self._key is None:
             raise PolicyDenied("export session closed")
         p, uid, label = self.entries[i]
+        if label is None:
+            label = registry.check_label(_identity_label(p, uid))
         obj = p.export_identity(uid)
         registry.check_item_common(obj, p.TYPE)
         # the item must stay decodable by the restore-side bounds
@@ -161,8 +170,12 @@ class ExportSession:
 def _snapshot(providers) -> list:
     entries = []
     for p in providers:
-        for uid, label in p.list_identities():
-            entries.append((p, registry.check_uid(uid), registry.check_label(label)))
+        iterate = getattr(p, "iter_uids", None)
+        uids = iterate() if iterate is not None else registry.BackupProvider.iter_uids(p)
+        for candidate in uids:
+            uid = registry.check_uid(candidate)
+            registry.check_label(_identity_label(p, uid))
+            entries.append((p, uid, None))
             if len(entries) > envelope.MAX_SET_COUNT:
                 raise PolicyDenied("too many identities for one export")
     return entries
@@ -204,13 +217,7 @@ async def begin_identity_export(
     export of a single identity. Returns a one-entry :class:`ExportSession`."""
     p = registry.get(item_type)
     uid = registry.check_uid(uid)
-    label = None
-    for u, lab in p.list_identities():
-        if bytes(u) == uid:
-            label = registry.check_label(lab)
-            break
-    if label is None:
-        raise NotFound("identity not found")
+    label = registry.check_label(_identity_label(p, uid))
     prompt = Prompt(
         "backup.export",
         "backup.export.title",
