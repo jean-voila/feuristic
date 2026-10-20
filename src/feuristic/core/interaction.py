@@ -65,7 +65,7 @@ class Interaction:
         raise NotImplementedError
 
     async def select(self, title: str, options, timeout_ms: int = DEFAULT_TIMEOUT_MS):
-        """Let the user pick one of ``options`` (list of str). Return the
+        """Let the user pick one of ``options`` (indexable strings). Return the
         index, or None if cancelled/timed out."""
         raise NotImplementedError
 

@@ -67,7 +67,7 @@ def native_constructor_failures_release_owner_and_partial_buffers_immediately():
     # Each failure occurs after the object and context allocation, with
     # different scratch/bitmap allocation pressure. A delayed finalizer of
     # either failed object must never invalidate the next live session.
-    for reserve in (65536, 131072):
+    for reserve in (65536, 131072, 196608):
         gc.collect()
         blocks = []
         while gc.mem_free() > reserve + 16384:
@@ -122,6 +122,72 @@ def exact_readme_allocation_preserves_the_4096_byte_public_contract():
 
 
 @test
+def scattered_decoder_works_without_a_64k_heap_run_and_resume_oom_is_atomic():
+    # Model a live fragmented MCU heap, rather than only reducing total free
+    # bytes. Alternating 24 KiB holes can hold the 18 KiB bitmap and <=16 KiB
+    # decoder blocks, but never the former contiguous ~69 KiB workspace.
+    fragments, tail = [], []
+    # Fixed-size references avoid needing a growing contiguous Python list
+    # while deliberately testing a fragmented heap.
+    pressure = [None] * (gc.mem_free() // (24 * 1024) + 16)
+    session = None
+    try:
+        try:
+            while True:
+                fragments.append(bytearray(24 * 1024))
+        except MemoryError:
+            pass
+        try:
+            while True:
+                tail.append(bytearray(1024))
+        except MemoryError:
+            pass
+        for index in range(0, len(fragments), 2):
+            fragments[index] = None
+        gc.collect()
+        assert gc.mem_free() > 200000
+        raises(MemoryError, bytearray, 64 * 1024)
+        session = feuristic_import.Session(b"fragmented heap", 384, 1)
+        inquiry(session)
+        assert session.pause_decode()
+        used = 0
+        try:
+            while True:
+                pressure[used] = bytearray(24 * 1024)
+                used += 1
+        except MemoryError:
+            pass
+        assert used >= 1
+        # Leave one large hole: enough for the bitmap, but not the complete
+        # workspace. This forces failure after at least one allocation.
+        pressure[used - 1] = None
+        gc.collect()
+        baseline = gc.mem_free()
+        raises(MemoryError, session.resume_decode)
+        gc.collect()
+        # Failed resume frees its bitmap and every already-allocated block
+        # immediately; the existing MSC context/owner stays usable and paused.
+        assert gc.mem_free() >= baseline - 4096
+        inquiry(session)
+        assert session.pause_decode()
+        for index in range(used):
+            pressure[index] = None
+        gc.collect()
+        assert session.resume_decode()
+        inquiry(session)
+        assert session.pause_decode()
+        session.close()
+        session = feuristic_import.Session(b"fragmented retry", 384, 2)
+        gc.collect()  # old finalizers must not wipe the replacement owner
+        inquiry(session)
+    finally:
+        if session is not None:
+            session.close()
+        fragments = tail = pressure = None
+        gc.collect()
+
+
+@test
 def cancelling_real_import_closes_native_owner_and_restores_normal():
     from trezor import loop
 
@@ -166,6 +232,7 @@ def cancelling_real_import_closes_native_owner_and_restores_normal():
             for _ in range(2):
                 job = loop.spawn(import_mode.run("backup"))
                 while bus.mode != usbmodes.IMPORT:
+                    assert not job.finished, "import failed before MSC enumeration"
                     await loop.sleep(1)
                 job.close()
                 assert job.finished
@@ -186,6 +253,7 @@ def cancelling_real_import_closes_native_owner_and_restores_normal():
         patch(usbmodes, "_started", False)
         patch(device, "usb_serial", lambda: "TEST")
         patch(session, "release_import_stores", lambda: None)
+        patch(session, "release_import_modules", lambda: None)
         patch(session, "reload_stores", lambda: None)
         patch(transports, "suspend", bus.suspend)
         patch(transports, "wait_suspended", bus.wait_suspended)

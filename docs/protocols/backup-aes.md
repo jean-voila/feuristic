@@ -41,11 +41,14 @@ aes-identity = {
   to at least this value **before** storing the key, and restarts its
   allocation from the persisted counter, so the restored key never encrypts
   with a counter value used before the backup on the source device. Nonces
-  also contain a 4-byte prefix derived from the destination device's master
-  secret and key record, which separates devices; the residual collision
-  probability when one key is used on two devices is that of two 32-bit
-  prefixes (2⁻³²), see the annex §7.
-* The record uid (which feeds the nonce prefix) is *not* exported: a new
+  contain a 64-bit HKDF namespace derived from the destination master
+  secret, key record and high 32 bits of that counter, followed by its low
+  32-bit index. The index never wraps in one namespace. Residual namespace
+  collision risk is 2⁻⁶⁴ per pair of contexts, with the birthday bound across
+  many contexts; this is not absolute uniqueness across clones. See annex §7.
+  Legacy development ciphertexts using a 4-byte prefix and 8-byte counter
+  remain decryptable without any backup schema change.
+* The record uid (which feeds the nonce namespace) is *not* exported: a new
   key gets a fresh random uid, an overwritten key keeps the uid of the
   record it replaces.
 

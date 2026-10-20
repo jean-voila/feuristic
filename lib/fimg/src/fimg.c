@@ -54,9 +54,50 @@ size_t fimg_bitmap_size(const fimg_config_t *cfg) {
   return (size_t)cfg->max_out_height * ((cfg->max_out_width + 7u) / 8u);
 }
 
+size_t fimg_scattered_sizes(const fimg_config_t *cfg, size_t *sizes,
+                            size_t capacity) {
+  size_t plan[FIMG_SCATTERED_MAX_BLOCKS], n = 0;
+  if (!config_valid(cfg)) return 0;
+  plan[n++] = FIMG_ALIGN8(sizeof(fimg_ctx_t));
+  if (!(cfg->flags & FIMG_FLAG_NO_PNG)) {
+    plan[n++] = FIMG_INF_PAGE_SIZE;
+    plan[n++] = FIMG_INF_PAGE_SIZE;
+    plan[n++] = FIMG_ALIGN8(FIMG_PNG_MAX_ROWBYTES + 1u);
+    plan[n++] = FIMG_ALIGN8(FIMG_PNG_MAX_ROWBYTES + 1u);
+    plan[n++] = FIMG_ALIGN8(FIMG_MAX_DIM);
+  } else {
+    plan[n++] = FIMG_ALIGN8(FIMG_JPEG_STG_SIZE);
+    plan[n++] = FIMG_ALIGN8((size_t)FIMG_MAX_DIM * 16u);
+  }
+  n += fimg_pix_block_sizes(cfg, plan + n);
+  if (n > FIMG_SCATTERED_MAX_BLOCKS) return 0;
+  for (size_t i = 0; i < n; i++)
+    if (plan[i] > FIMG_SCATTERED_BLOCK_MAX) return 0;
+  if (sizes != NULL && capacity >= n) memcpy(sizes, plan, n * sizeof(*sizes));
+  return n;
+}
+
+static size_t best_block(const fimg_block_t *blocks, size_t count,
+                         uint32_t used, size_t n) {
+  size_t best = count;
+  for (size_t i = 1; i < count; i++) {
+    if ((used & ((uint32_t)1u << i)) == 0 && blocks[i].size >= n &&
+        (best == count || blocks[i].size < blocks[best].size))
+      best = i;
+  }
+  return best;
+}
+
 void *fimg_alloc(fimg_ctx_t *ctx, size_t n) {
   void *p;
   n = FIMG_ALIGN8(n);
+  if (ctx->blocks != NULL) {
+    size_t index =
+        best_block(ctx->blocks, ctx->block_count, ctx->blocks_used, n);
+    if (index == ctx->block_count) return NULL;
+    ctx->blocks_used |= (uint32_t)1u << index;
+    return ctx->blocks[index].ptr;
+  }
   if (n > ctx->heap_size - ctx->heap_used) return NULL;
   p = ctx->heap + ctx->heap_used;
   ctx->heap_used += n;
@@ -96,6 +137,72 @@ fimg_status_t fimg_init(fimg_ctx_t **out, void *workspace,
   ctx->heap = (uint8_t *)ctx + FIMG_ALIGN8(sizeof *ctx);
   ctx->heap_size = workspace_size - skip - FIMG_ALIGN8(sizeof *ctx);
   ctx->heap_used = 0;
+  *out = ctx;
+  return FIMG_OK;
+}
+
+static int ranges_overlap(const void *a, size_t an, const void *b, size_t bn) {
+  uintptr_t x = (uintptr_t)a, y = (uintptr_t)b;
+  /* Invalid wrapped regions are handled before this helper is called. */
+  return x < y + bn && y < x + an;
+}
+
+fimg_status_t fimg_init_scattered(fimg_ctx_t **out, fimg_block_t *blocks,
+                                  size_t count, const fimg_config_t *cfg,
+                                  uint8_t *bitmap, size_t bitmap_size) {
+  size_t plan[FIMG_SCATTERED_MAX_BLOCKS];
+  fimg_config_t copy;
+  uint32_t used = 1;
+  fimg_ctx_t *ctx;
+  if (out == NULL) return FIMG_E_PARAM;
+  *out = NULL;
+  if (!config_valid(cfg) || blocks == NULL || bitmap == NULL)
+    return FIMG_E_PARAM;
+  if (count == 0 || count > FIMG_SCATTERED_MAX_BLOCKS) return FIMG_E_WORKSPACE;
+  if (bitmap_size < fimg_bitmap_size(cfg)) return FIMG_E_WORKSPACE;
+  if (bitmap_size > UINTPTR_MAX - (uintptr_t)bitmap ||
+      count * sizeof(*blocks) > UINTPTR_MAX - (uintptr_t)blocks)
+    return FIMG_E_PARAM;
+  if (ranges_overlap(bitmap, bitmap_size, blocks, count * sizeof(*blocks)))
+    return FIMG_E_PARAM;
+  for (size_t i = 0; i < count; i++) {
+    if (blocks[i].ptr == NULL || ((uintptr_t)blocks[i].ptr & 7u) != 0 ||
+        blocks[i].size > UINTPTR_MAX - (uintptr_t)blocks[i].ptr)
+      return FIMG_E_PARAM;
+    if (blocks[i].size == 0) return FIMG_E_WORKSPACE;
+    if (ranges_overlap(blocks[i].ptr, blocks[i].size, bitmap, bitmap_size) ||
+        ranges_overlap(blocks[i].ptr, blocks[i].size, blocks,
+                       count * sizeof(*blocks)))
+      return FIMG_E_PARAM;
+    for (size_t j = 0; j < i; j++)
+      if (ranges_overlap(blocks[i].ptr, blocks[i].size, blocks[j].ptr,
+                         blocks[j].size))
+        return FIMG_E_PARAM;
+  }
+  size_t required = fimg_scattered_sizes(cfg, plan, FIMG_SCATTERED_MAX_BLOCKS);
+  if (required == 0 || blocks[0].size < plan[0]) return FIMG_E_WORKSPACE;
+  for (size_t i = 1; i < required; i++) {
+    size_t index = best_block(blocks, count, used, plan[i]);
+    if (index == count) return FIMG_E_WORKSPACE;
+    used |= (uint32_t)1u << index;
+  }
+  copy = *cfg;
+  ctx = (fimg_ctx_t *)blocks[0].ptr;
+  memset(ctx, 0, sizeof(*ctx));
+  ctx->magic = FIMG_MAGIC;
+  ctx->cfg = copy;
+  ctx->max_pixels = copy.max_out_pixels
+                        ? copy.max_out_pixels
+                        : (uint32_t)copy.max_out_width * copy.max_out_height;
+  ctx->max_file =
+      copy.max_file_bytes ? copy.max_file_bytes : FIMG_DEFAULT_MAX_FILE_BYTES;
+  ctx->status = FIMG_OK;
+  ctx->phase = FIMG_PH_SNIFF;
+  ctx->bitmap = bitmap;
+  ctx->bitmap_size = bitmap_size;
+  ctx->blocks = blocks;
+  ctx->block_count = count;
+  ctx->blocks_used = 1;
   *out = ctx;
   return FIMG_OK;
 }

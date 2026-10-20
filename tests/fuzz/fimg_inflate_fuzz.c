@@ -18,7 +18,7 @@
 int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size);
 
 int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size) {
-  static uint8_t win[FIMG_INF_WSIZE];
+  static uint8_t first[FIMG_INF_PAGE_SIZE], second[FIMG_INF_PAGE_SIZE];
   static uint8_t ours[CAP], theirs[CAP];
   static fimg_inflate_t s;
   size_t off = 0, chunk;
@@ -34,7 +34,7 @@ int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size) {
   data++;
   size--;
 
-  fimg_inflate_init(&s, win);
+  fimg_inflate_init_paged(&s, first, second);
   for (;;) {
     size_t n = size - off < chunk ? size - off : chunk, used = 0;
     uint32_t prod = 0, start = s.wpos;
@@ -42,7 +42,8 @@ int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size) {
     if (used > n || prod > outmax) abort();
     off += used;
     for (uint32_t i = 0; i < prod; i++) {
-      if (total < CAP) ours[total] = win[(start + i) & FIMG_INF_WMASK];
+      if (total < CAP)
+        ours[total] = *fimg_window_ptr(&s, (start + i) & FIMG_INF_WMASK);
       total++;
     }
     if (total >= CAP) {

@@ -43,6 +43,20 @@ def _wait_msc(emu, timeout=20):
 def test_volume_appears_only_in_import_mode_and_is_fat12(ready, emu):
     import socket
 
+    from fido2.ctap2 import Ctap2
+    from harness.ccid import CcidClient
+    from harness.fido import open_device
+
+    # Warm both complete protocol stacks before IMPORT purges their modules.
+    dev = open_device(emu.port(PORT_FIDO))
+    card = CcidClient(emu.port(PORT_CCID))
+    try:
+        assert "FIDO_2_1" in Ctap2(dev).info.versions
+        card.power_on()
+        assert card.transmit(bytes.fromhex("00A4040006D27600012401"))[1] == 0x9000
+    finally:
+        dev.close()
+        card.close()
     # not present in normal mode
     with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
         s.settimeout(0.5)
@@ -75,10 +89,6 @@ def test_volume_appears_only_in_import_mode_and_is_fat12(ready, emu):
         msc.close()
     ready.wait_title("One-time passwords", timeout=20)  # back to the menu after eject
     # Both long-lived polling tasks must resume, not merely the USB sockets.
-    from fido2.ctap2 import Ctap2
-    from harness.ccid import CcidClient
-    from harness.fido import open_device
-
     dev = open_device(emu.port(PORT_FIDO))
     card = CcidClient(emu.port(PORT_CCID))
     try:
@@ -110,6 +120,11 @@ def _import_otp(ready, emu, image: bytes, name: str):
 def test_import_otp_png(ready, emu):
     _import_otp(ready, emu, qr_png(URI), "QR.PNG")
     assert "Example" in ready.screen().text()
+    ready.both()  # the freshly imported account
+    ready.select("View code")
+    # app_otp is a suspended caller during import: it must catch the new
+    # TimeNotSynchronised class after the old OTP modules were unloaded.
+    ready.wait_for(lambda screen: "Sync over USB" in screen.text())
 
 
 def test_import_otp_jpeg(ready, emu):

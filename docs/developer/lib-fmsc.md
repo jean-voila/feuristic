@@ -421,9 +421,17 @@ as soon as they are used.
   leave it incomplete (`MISSING_DATA` at settle/eject).
 * **Root directory: 64 entries.** One image with an LFN and its macOS
   AppleDouble twin take about 6 entries, so a long fragmented-backup restore
-  may fill the root. The user can delete already-imported files (each
-  deletion frees the entries), or the application can ask for an
-  eject/re-enter cycle.
+  may fill the root. Use short filenames such as `QR000001.PNG` and batches
+  of at most 32 images (smaller when host metadata uses additional entries).
+  After the device's received-frame count confirms a batch, delete those
+  copies from the import drive, keeping the original images. Deletion frees
+  directory entries and clusters without discarding collected frame bytes.
+  Continue on the same mounted volume until the identity is complete:
+  ejecting/re-entering would discard its incomplete collector. The native
+  MSC functional test delivers a maximal OpenPGP envelope in 234 QR images,
+  reusing the directory and clusters across eight batches on both emulator
+  models, then verifies the stored certificate and RSA public key over CCID.
+  Finder/Explorer metadata behavior still needs physical host acceptance.
 * **Subdirectories** are seen only while their first cluster stays cached.
   Entries in their second and later clusters are not searched.
 * **Non-image files** written right after an image, contiguously and before

@@ -19,6 +19,17 @@ AID_PREFIX = RID + PIX_APP + VERSION + MANUFACTURER  # 10 bytes, then serial(4) 
 AID_RFU = b"\x00\x00"
 SERIAL_CONTEXT = b"openpgp"
 
+
+def card_serial(ms: bytes) -> bytes:
+    """Stable four-byte card serial, shared by AID matching and the applet."""
+    from ....core import kdf
+
+    serial = kdf.derive(ms, b"card/serial", 4, SERIAL_CONTEXT)
+    if serial in (b"\x00\x00\x00\x00", b"\xff\xff\xff\xff"):
+        serial = bytes((serial[0] ^ 0x01,)) + serial[1:]
+    return serial
+
+
 # --- key roles ------------------------------------------------------------------
 SIG = const(0)
 DEC = const(1)

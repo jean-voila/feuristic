@@ -53,10 +53,10 @@ from ..applet import Applet
 from . import keys as _keys
 from . import rng as _rng
 from . import strings
+from .const import AID
 
 strings.register()
 
-AID = bytes.fromhex("F066657572697374696301")
 PROFILE_VERSION = const(1)
 ALG_AES256_GCM = const(0x47)
 

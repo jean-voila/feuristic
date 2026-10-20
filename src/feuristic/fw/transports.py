@@ -14,6 +14,7 @@ from micropython import const
 from trezor import config, io, log, loop, workflow
 
 from ..platform import log as plog
+from ..platform import time as ptime
 from ..ui.interaction import DeviceInteraction
 from . import device
 
@@ -45,24 +46,44 @@ def _build_fido():
 
 
 def _build_card(public_only=False):
-    from ..apps.card.aes.applet import AesApplet
     from ..apps.card.aes.rng import RngApplet
     from ..apps.card.card import Card
-    from ..apps.card.openpgp.applet import OpenPgpApplet
-    from ..apps.card.piv.applet import PivApplet
 
-    applets = (
-        []
-        if public_only
-        else [
-            OpenPgpApplet(_ui, device.master_secret(), rsa_yield=_yield),
-            PivApplet(_ui, master_secret=device.master_secret, keepalive=_yield),
-            AesApplet(_ui, master_secret=device.master_secret),
+    applets = []
+    if not public_only:
+        from ..apps.card.aes.const import AID as AES_AID
+        from ..apps.card.lazy import LazyApplet
+        from ..apps.card.openpgp import const as pgp
+        from ..apps.card.piv.consts import AID as PIV_AID
+
+        applets = [
+            LazyApplet(
+                "openpgp",
+                pgp.AID_PREFIX + pgp.card_serial(device.master_secret()) + pgp.AID_RFU,
+                _create_card_applet,
+            ),
+            LazyApplet("piv", PIV_AID, _create_card_applet),
+            LazyApplet("aes", AES_AID, _create_card_applet),
         ]
-    )
     # With no application selected, only GET CHALLENGE is answered (spec F06);
     # AES operations always require selecting the AES application first.
     return Card(applets, fallback=RngApplet())
+
+
+def _create_card_applet(kind):
+    if kind == "openpgp":
+        from ..apps.card.openpgp.applet import OpenPgpApplet
+
+        return OpenPgpApplet(_ui, device.master_secret(), rsa_yield=_yield)
+    if kind == "piv":
+        from ..apps.card.piv.applet import PivApplet
+
+        return PivApplet(_ui, master_secret=device.master_secret, keepalive=_yield)
+    if kind == "aes":
+        from ..apps.card.aes.applet import AesApplet
+
+        return AesApplet(_ui, master_secret=device.master_secret)
+    raise ValueError("unknown card applet")
 
 
 async def _yield() -> None:
@@ -199,7 +220,7 @@ async def fido_task() -> None:
             packet = None
         if _suspended:
             continue
-        now = utime.ticks_ms()
+        now = ptime.ticks_ms()
         server = fido_server()
         if server is None:
             # locked: unlock first (the host retries / keeps polling)
@@ -208,7 +229,6 @@ async def fido_task() -> None:
             if server is None:
                 continue
         if packet is not None:
-            workflow.idle_timer.touch()
             server.feed(packet, now)
         server.poll(now)
         if server.cancel_requested():
@@ -268,7 +288,6 @@ async def ccid_task() -> None:
             continue
         card = _card_obj()
         if n > 0:
-            workflow.idle_timer.touch()
             if card is None:
                 if await _ensure_unlocked():
                     card = _card_obj()
@@ -313,7 +332,7 @@ async def ccid_task() -> None:
 
 # -- start -------------------------------------------------------------------------
 
-_POWER_UP_MS = utime.ticks_ms()
+_POWER_UP_MS = ptime.ticks_ms()
 
 
 def start() -> None:

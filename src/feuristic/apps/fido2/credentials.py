@@ -57,6 +57,7 @@ from micropython import const
 
 from ...core import cbor, kdf, namespaces
 from ...core.errors import InvalidInput, StorageCorrupted, StorageFull
+from ...core.packed_index import CredentialIndex
 from ...core.store import RecordStore
 from ...platform import crypto, log
 
@@ -146,6 +147,49 @@ def cose_key(alg: int, pub: bytes) -> dict:
     if alg == ALG_ES256:
         return {1: 2, 3: ALG_ES256, -1: 1, -2: pub[1:33], -3: pub[33:65]}
     return {1: 1, 3: ALG_EDDSA, -1: 6, -2: pub}
+
+
+class CredentialSelection:
+    """Small credential IDs with a single key decoded only when requested."""
+
+    def __init__(self, store, rp_id_hash, ids=None):
+        self.store = store
+        self.rp_id_hash = rp_id_hash
+        self.ids = [] if ids is None else ids
+
+    def append(self, credential):
+        self.ids.append(credential.cred_id)
+
+    def __len__(self):
+        return len(self.ids)
+
+    def __getitem__(self, index):
+        if isinstance(index, slice):
+            return CredentialSelection(self.store, self.rp_id_hash, self.ids[index])
+        return self.store.lookup(self.ids[index], self.rp_id_hash)
+
+    def __iter__(self):
+        for cid in self.ids:
+            credential = self.store.lookup(cid, self.rp_id_hash)
+            if credential is not None:
+                yield credential
+
+    def labels(self):
+        return _CredentialLabels(self)
+
+
+class _CredentialLabels:
+    def __init__(self, credentials):
+        self.credentials = credentials
+
+    def __len__(self):
+        return len(self.credentials)
+
+    def __getitem__(self, index):
+        if isinstance(index, slice):
+            return [credential.label() for credential in self.credentials[index]]
+        credential = self.credentials[index]
+        return "-" if credential is None else credential.label()
 
 
 class Credential:
@@ -312,8 +356,8 @@ def decode_record(uid: bytes, payload: bytes, flags: int) -> Credential:
 class CredentialStore:
     """Discoverable credential storage plus credential ID (un)wrapping.
 
-    An in-RAM index ``[(uid, rpIdHash, seq)]`` (≤ 100 entries, ~5 KiB) is
-    built lazily from the records and kept in sync by every write.
+    A packed 4,400-byte RAM index of ``(uid, rpIdHash, seq)`` is built lazily
+    from the records and kept in sync by every write.
     """
 
     def __init__(self, state, ms: bytes) -> None:
@@ -342,16 +386,18 @@ class CredentialStore:
         self._u2f_key = None
 
     # -- index -------------------------------------------------------------
-    def _build_index(self) -> list:
+    def _build_index(self) -> CredentialIndex:
         if self._index is not None:
             return self._index
-        index = []
+        index = CredentialIndex(CAPACITY)
         owners = {}  # (rpIdHash, user.id) -> (position, generation)
         max_seq = 0
         for uid in self.records.uids():
             try:
                 rec = self.records.get_record(uid)
                 cred = decode_record(uid, rec.payload, rec.flags)
+            except MemoryError:
+                raise
             except Exception as e:  # corrupt record: never fatal
                 log.warning(__name__, "skipping corrupt credential record: %s", repr(e))
                 continue
@@ -401,24 +447,28 @@ class CredentialStore:
         try:
             rec = self.records.get_record(uid)
             return decode_record(uid, rec.payload, rec.flags)
+        except MemoryError:
+            raise
         except Exception:
             return None
 
-    def for_rp(self, rp_id_hash: bytes) -> list:
-        """Discoverable credentials of an RP, most recent first."""
-        out = []
-        for uid, h, _seq in self._build_index():
-            if h == rp_id_hash:
-                c = self._load(uid)
-                if c is not None:
-                    out.append(c)
-        out.sort(key=lambda c: c.seq, reverse=True)
+    def for_rp(self, rp_id_hash: bytes) -> CredentialSelection:
+        """Discoverable credentials, newest first, without retaining every key."""
+        out = CredentialSelection(self, rp_id_hash)
+        for uid, _h, _seq in self._build_index().matching(rp_id_hash):
+            credential = self._load(uid)
+            if credential is not None:
+                out.append(credential)
         return out
 
     def find_user(self, rp_id_hash: bytes, user_id: bytes):
-        for c in self.for_rp(rp_id_hash):
-            if crypto.ct_equal(c.user_id, user_id):
-                return c
+        # Registration needs only an equality search, without sorting or
+        # allocating an ID list for every existing account of the service.
+        for uid, h, _seq in self._build_index():
+            if h == rp_id_hash:
+                credential = self._load(uid)
+                if credential is not None and crypto.ct_equal(credential.user_id, user_id):
+                    return credential
         return None
 
     def rps(self) -> list:
@@ -532,12 +582,13 @@ class CredentialStore:
         uid = bytes(uid)
         ok = self.records.delete(uid)
         if self._index is not None:
-            self._index = [e for e in self._index if e[0] != uid]
+            self._index.remove_uid(uid)
         return ok
 
     def wipe(self) -> None:
         self.records.wipe()
-        self._index = []
+        if self._index is not None:
+            self._index.clear()
         self._next_seq = 1
         self.forget_keys()
 

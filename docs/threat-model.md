@@ -51,6 +51,14 @@ key (PBKDF2 + Optiga PIN stretching), with a global authentication tag.
   constant-time i31 code with blinding and result verification for RSA).
   "Computed in the Trezor" does not mean "inside the secure element"
   (spec §1.1).
+* **RAM cleanup.** Locking closes private workers and pollers, drops provider
+  caches and the master-secret reference, and runs collection. Temporary native
+  image buffers and explicitly mutable backup keys/passphrases are wiped before
+  release. MicroPython immutable `bytes`/`str`, decrypted object copies and Rust
+  text-input buffers do not currently have a complete zeroization guarantee;
+  upstream GC does not clear every freed block. A locked device therefore does
+  not establish forensic absence of prior secrets from SRAM. R15 requires
+  instrumented inspection and a recorded decision before stable qualification.
 * **Emulator.** The emulator and debug builds (debuglink, insecure storage
   testing mode) are for development only.
 

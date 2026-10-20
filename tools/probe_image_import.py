@@ -112,7 +112,10 @@ def cases():
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--output", type=Path, default=ROOT / "build/image-import-probe.json")
+    parser.add_argument("--sides", type=int, nargs="+", default=[512, 384, 320])
     args = parser.parse_args()
+    if 512 not in args.sides or any(side < 128 or side > 1024 for side in args.sides):
+        parser.error("sides must include baseline512 and lie in128..1024")
     results = []
     with tempfile.TemporaryDirectory(prefix="feuristic-image-probe-") as directory:
         temp = Path(directory)
@@ -143,7 +146,7 @@ def main() -> int:
                 "within_file_limit": len(data) <= 256 * 1024,
                 "results": {},
             }
-            for side in (512, 384, 320):
+            for side in args.sides:
                 output = ctypes.create_string_buffer(3072)
                 length = ctypes.c_size_t()
                 status = native(data, len(data), side, output, len(output), ctypes.byref(length))
@@ -155,7 +158,7 @@ def main() -> int:
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(json.dumps(results, indent=2) + "\n")
     regressions = []
-    for side in (512, 384, 320):
+    for side in args.sides:
         eligible = sum(row["within_file_limit"] for row in results)
         success = sum(row["results"][str(side)]["correct"] for row in results if row["within_file_limit"])
         oversized_rejected = sum(

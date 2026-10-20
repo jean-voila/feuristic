@@ -5,8 +5,6 @@
 import trezorui_api
 from trezor import loop
 
-from ..apps.otp import accounts as otp_accounts
-from ..apps.otp.totp import TimeNotSynchronised
 from ..core.errors import FeuristicError, UserCancelled
 from ..core.i18n import t
 from . import screens
@@ -14,11 +12,15 @@ from .interaction import InlineInteraction
 
 
 def _store():
+    from ..apps.otp import accounts as otp_accounts
+
     return otp_accounts.default()
 
 
 async def _show_totp(uid) -> None:
     """Show the TOTP code, refreshed every second, until a button is pressed."""
+    from ..apps.otp.totp import TimeNotSynchronised
+
     store = _store()
     acc = store.get(uid)
     while True:
@@ -68,7 +70,9 @@ async def _export(uid) -> None:
     if not await InlineInteraction().confirm(store.export_prompt(acc)):
         return
     try:
-        await screens.show_qr(acc.label(), uri, otp_accounts.EXPORT_DISPLAY_TIMEOUT_MS)
+        from ..apps.otp.accounts import EXPORT_DISPLAY_TIMEOUT_MS
+
+        await screens.show_qr(acc.label(), uri, EXPORT_DISPLAY_TIMEOUT_MS)
     finally:
         uri = None
         screens.show_busy(t("ui.qr_autohide"))
@@ -122,6 +126,9 @@ async def menu() -> None:
         if cur is None:
             return
         if cur == len(labels):
+            # The suspended caller must not retain decrypted accounts while
+            # the image decoder and a freshly imported provider use the heap.
+            accounts = labels = items = None
             await add_from_usb()
         else:
             await _account_menu(accounts[cur].uid)

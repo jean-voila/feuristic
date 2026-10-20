@@ -322,13 +322,13 @@ def test_session_confirmation_voided_by_key_change(aes, store, key1, ui):
 
 def test_nonce_structure(aes, key1, store):
     setup_both(aes, key1.kid)
-    prefix = kdf.derive(MS, b"card/aes-nonce-prefix", 4, key1.uid)
+    namespace = kdf.derive(MS, b"card/aes-nonce-namespace", 8, key1.uid + bytes(4))
     n1 = split(encipher(aes, b"a"))[0]
     n2 = split(encipher(aes, b"b"))[0]
-    assert n1[:4] == n2[:4] == prefix
-    assert int.from_bytes(n2[4:], "big") == int.from_bytes(n1[4:], "big") + 1
+    assert n1[:8] == n2[:8] == namespace
+    assert int.from_bytes(n2[8:], "big") == int.from_bytes(n1[8:], "big") + 1
     # reserved in flash before use
-    assert store.counter.get() > int.from_bytes(n2[4:], "big")
+    assert store.counter.get() > int.from_bytes(n2[8:], "big")
 
 
 def test_nonce_counter_is_global_across_keys(aes, store, key1):
@@ -337,7 +337,7 @@ def test_nonce_counter_is_global_across_keys(aes, store, key1):
     for i in range(20):
         mse(aes, key1.kid if i % 2 else k2.kid, 0x81)
         nonce = split(encipher(aes, b"x"))[0]
-        seen.add(nonce[4:])
+        seen.add(nonce[8:])
     assert len(seen) == 20
 
 
@@ -394,7 +394,7 @@ def test_flash_writes_amortised(aes, key1):
 def test_annex_worked_example_is_exact(ui, store, service, monkeypatch):
     """docs/protocols/aes-gcm-iso7816-v1.md §11: byte-exact APDUs."""
     store.put_restored(1, bytes(range(32)), "example", True, keys.POLICY_EVERY)
-    monkeypatch.setattr(store, "nonce_prefix", lambda ms, uid: bytes.fromhex("A1B2C3D4"))
+    monkeypatch.setattr(store, "nonce_namespace", lambda ms, uid, epoch: bytes.fromhex("A1B2C3D400000000"))
     a = aes_mod.AesApplet(ui, store=store, master_secret=MS, rng=service)
     assert tx(a, 0x22, 0x81, 0xB8, bytes.fromhex("800147830101")).sw == 0x9000
     r = tx(a, 0x2A, 0x84, 0x80, bytes.fromhex("8103686472800568656C6C6F"), 256)

@@ -25,6 +25,7 @@ from micropython import const
 
 from ..platform import kv
 from .errors import InvalidInput, NotFound, StorageCorrupted, StorageFull
+from .packed_index import RecordIndex
 
 MAGIC = const(0xFE)
 HEADER_LEN = const(16)
@@ -89,14 +90,14 @@ class RecordStore:
         self.max_payload = max_payload
         self.rtype = rtype
         self.public = public
-        self._index = None  # uid -> (slot, generation, flags)
+        self._index = None  # packed uid -> (slot, generation, flags)
         self._next_gen = 1
         self.corrupt_slots = []
 
     # -- loading / recovery ------------------------------------------------
     def load(self) -> None:
         """Scan all slots, resolve interrupted updates and build the index."""
-        index = {}
+        index = RecordIndex(self.slots)
         stale = []
         self.corrupt_slots = []
         max_gen = 0
@@ -127,7 +128,7 @@ class RecordStore:
         self._index = index
         self._next_gen = max_gen + 1
 
-    def _idx(self) -> dict:
+    def _idx(self) -> RecordIndex:
         if self._index is None:
             self.load()
         return self._index
@@ -217,9 +218,10 @@ class RecordStore:
         """Delete every slot of the namespace (including corrupt ones)."""
         for slot in range(self.slots):
             kv.delete(self.app, self.key_offset + slot, self.public)
-        self._index = {}
+        if self._index is not None:
+            self._index.clear()
         self._next_gen = 1
-        self.corrupt_slots = []
+        self.corrupt_slots.clear()
 
     def replace_all(self, items) -> None:
         """Atomically (per record) make the store contain exactly ``items``.

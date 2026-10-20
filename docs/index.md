@@ -28,6 +28,7 @@ Decisions: [pinned upstream](adr/0001-upstream-integration.md),
 
 Implementation notes: [MicroPython](developer/micropython-compat.md),
 [shared storage](developer/storage-budget.md), [QR decoder](developer/lib-fqr.md),
-[image decoder](developer/lib-fimg.md), [FAT12/SCSI](developer/lib-fmsc.md),
+[image decoder](developer/lib-fimg.md), [import RAM](developer/import-memory.md),
+[backup readiness](developer/backup-readiness.md), [FAT12/SCSI](developer/lib-fmsc.md),
 [RSA](developer/rsa.md). Project policy: [security](../SECURITY.md),
 [contributing](../CONTRIBUTING.md), [license](../LICENSE), [notices](../NOTICE).

@@ -63,10 +63,14 @@ static size_t next_chunk(int pattern, uint32_t *rs, size_t idx) {
 }
 
 static void decode(const uint8_t *data, size_t len, int pattern,
-                   const fimg_config_t *cfg_in, result_t *r) {
+                   const fimg_config_t *cfg_in, result_t *r, int scattered) {
   fimg_config_t cfg = *cfg_in;
   size_t wsz = fimg_workspace_size(&cfg), off = 0, idx = 0;
-  uint8_t *ws = (uint8_t *)malloc(wsz + 16);
+  uint8_t *ws = NULL;
+  uint8_t *allocations[FIMG_SCATTERED_MAX_BLOCKS] = {0};
+  size_t sizes[FIMG_SCATTERED_MAX_BLOCKS];
+  fimg_block_t blocks[FIMG_SCATTERED_MAX_BLOCKS];
+  size_t count = 0;
   fimg_ctx_t *ctx = NULL;
   uint32_t rs = 0x12345u + (uint32_t)len;
   fimg_status_t st;
@@ -78,13 +82,31 @@ static void decode(const uint8_t *data, size_t len, int pattern,
   memset(r->bitmap, 0xa5, r->bitmap_size);
   cfg.luma_cb = luma_cb;
   cfg.luma_cb_user = r;
-  /* deliberately misaligned workspace */
-  st = fimg_init(&ctx, ws + 3, wsz, &cfg, r->bitmap, r->bitmap_size);
+  if (scattered) {
+    count = fimg_scattered_sizes(&cfg, sizes, FIMG_SCATTERED_MAX_BLOCKS);
+    CHECK(count > 0 && count <= FIMG_SCATTERED_MAX_BLOCKS);
+    for (size_t i = 0; i < count; i++) {
+      CHECK(sizes[i] > 0 && sizes[i] <= FIMG_SCATTERED_BLOCK_MAX);
+      allocations[i] = (uint8_t *)malloc(sizes[i] + 32);
+      CHECK(allocations[i] != NULL);
+      if (allocations[i] == NULL) exit(2);
+      memset(allocations[i], 0xd3, sizes[i] + 32);
+      blocks[i].ptr = allocations[i] + 16;
+      blocks[i].size = sizes[i];
+    }
+    st = fimg_init_scattered(&ctx, blocks, count, &cfg, r->bitmap,
+                             r->bitmap_size);
+  } else {
+    ws = (uint8_t *)malloc(wsz + 16);
+    CHECK(ws != NULL);
+    if (ws == NULL) exit(2);
+    /* deliberately misaligned contiguous workspace */
+    st = fimg_init(&ctx, ws + 3, wsz, &cfg, r->bitmap, r->bitmap_size);
+  }
   CHECK(st == FIMG_OK);
   if (st != FIMG_OK) {
-    free(ws);
     r->st = st;
-    return;
+    goto done;
   }
   while (off < len) {
     size_t n = next_chunk(pattern, &rs, idx++);
@@ -110,8 +132,19 @@ static void decode(const uint8_t *data, size_t len, int pattern,
         CHECK(!(r->bitmap[y * r->info.stride + r->info.stride - 1] & mask));
     }
   }
-  fimg_secure_zero(ws, wsz + 16);
-  free(ws);
+done:
+  if (ws != NULL) {
+    fimg_secure_zero(ws, wsz + 16);
+    free(ws);
+  }
+  for (size_t i = 0; i < count; i++) {
+    for (size_t j = 0; j < 16; j++) {
+      CHECK(allocations[i][j] == 0xd3);
+      CHECK(allocations[i][16 + sizes[i] + j] == 0xd3);
+    }
+    fimg_secure_zero(allocations[i], sizes[i] + 32);
+    free(allocations[i]);
+  }
 }
 
 static void free_result(result_t *r) {
@@ -159,7 +192,34 @@ static int decode_all(const char *name, const uint8_t *data, size_t len,
   int ok = 1;
   for (int p = 0; p < NPATTERNS; p++) {
     clock_t t0 = clock();
-    decode(data, len, p, cfg, p == 0 ? out : &r);
+    result_t segmented;
+    result_t *contiguous = p == 0 ? out : &r;
+    decode(data, len, p, cfg, contiguous, 0);
+    decode(data, len, p, cfg, &segmented, 1);
+    /* Same input and chunking must agree, including partially decoded
+       images and bytes produced before an input error. */
+    CHECK_MSG(
+        segmented.st == contiguous->st &&
+            memcmp(&segmented.info, &contiguous->info, sizeof segmented.info) ==
+                0 &&
+            segmented.rows_seen == contiguous->rows_seen &&
+            segmented.luma_w == contiguous->luma_w &&
+            segmented.luma_order_bad == contiguous->luma_order_bad &&
+            memcmp(segmented.luma, contiguous->luma,
+                   (size_t)FIMG_MAX_DIM * FIMG_MAX_DIM) == 0 &&
+            segmented.bitmap_size == contiguous->bitmap_size &&
+            memcmp(segmented.bitmap, contiguous->bitmap,
+                   segmented.bitmap_size) == 0,
+        "%s: scattered differs for chunking %d cfg%ux%u: st%d/%d "
+        "info%d luma%d bitmap%d rows%u/%u",
+        name, p, cfg->max_out_width, cfg->max_out_height, segmented.st,
+        contiguous->st,
+        memcmp(&segmented.info, &contiguous->info, sizeof segmented.info),
+        memcmp(segmented.luma, contiguous->luma,
+               (size_t)FIMG_MAX_DIM * FIMG_MAX_DIM),
+        memcmp(segmented.bitmap, contiguous->bitmap, segmented.bitmap_size),
+        segmented.rows_seen, contiguous->rows_seen);
+    free_result(&segmented);
     if (p == 0) {
       double dt = (double)(clock() - t0) / CLOCKS_PER_SEC;
       if (strcmp(name, "qr_backup_1024_q70.jpg") == 0) g_time_jpeg_1024 = dt;
@@ -187,50 +247,67 @@ static void run_zlib(const char *dir, const char *file, const char *kind,
   size_t len;
   uint8_t *data;
   static uint8_t win[FIMG_INF_WSIZE];
+  static uint8_t paged[2][FIMG_INF_PAGE_SIZE + 32];
   static fimg_inflate_t inf;
   snprintf(path, sizeof path, "%s/%s", dir, file);
   data = read_file(path, &len);
   CHECK_MSG(data != NULL, "%s", path);
   if (data == NULL) return;
-  for (int p = 0; p < NPATTERNS; p++) {
-    size_t off = 0, idx = 0;
-    uint32_t rs = 99, crc = 0xffffffffu, total = 0;
-    fimg_inf_result_t r = FIMG_INF_NEED_INPUT;
-    fimg_inflate_init(&inf, win);
-    for (;;) {
-      size_t n = next_chunk(p, &rs, idx++), used = 0;
-      uint32_t prod = 0, start = inf.wpos;
-      if (n > len - off) n = len - off;
-      /* small output limits exercise suspension inside matches */
-      r = fimg_inflate(&inf, data + off, n, &used,
-                       p == 1 ? 100u : FIMG_INF_WSIZE, &prod);
-      CHECK(used <= n);
-      off += used;
-      for (uint32_t i = 0; i < prod; i++) {
-        crc ^= win[(start + i) & FIMG_INF_WMASK];
-        for (int k = 0; k < 8; k++)
-          crc = (crc >> 1) ^ (0xedb88320u & (0u - (crc & 1u)));
+  for (int mode = 0; mode < 2; mode++) {
+    for (int p = 0; p < NPATTERNS; p++) {
+      size_t off = 0, idx = 0;
+      uint32_t rs = 99, crc = 0xffffffffu, total = 0;
+      fimg_inf_result_t r = FIMG_INF_NEED_INPUT;
+      if (mode == 0) {
+        fimg_inflate_init(&inf, win);
+      } else {
+        memset(paged, 0xd3, sizeof paged);
+        fimg_inflate_init_paged(&inf, paged[0] + 16, paged[1] + 16);
       }
-      total += prod;
-      if (r < 0 || r == FIMG_INF_DONE) break;
-      if (r == FIMG_INF_NEED_INPUT && off == len) break;
-    }
-    crc = ~crc;
-    if (strcmp(kind, "ok") == 0) {
-      unsigned long el = strtoul(a1, NULL, 10), ec = strtoul(a2, NULL, 16);
-      CHECK_MSG(r == FIMG_INF_DONE && total == el && crc == ec,
-                "%s p%d r=%d total=%u", file, p, r, total);
-      CHECK_MSG(off == len, "%s: %zu trailing bytes", file, len - off);
-    } else if (strcmp(kind, "trunc") == 0) {
-      CHECK_MSG(r == FIMG_INF_NEED_INPUT, "%s r=%d", file, r);
-    } else {
-      static const char *names[] = {"",     "header", "dict", "block", "stored",
-                                    "tree", "code",   "dist", "adler"};
-      int want = 0;
-      for (int i = 1; i < 9; i++)
-        if (strcmp(a1, names[i]) == 0) want = -i;
-      CHECK_MSG(want != 0 && r == want, "%s p%d: got %d want %s", file, p, r,
-                a1);
+      for (;;) {
+        size_t n = next_chunk(p, &rs, idx++), used = 0;
+        uint32_t prod = 0, start = inf.wpos;
+        if (n > len - off) n = len - off;
+        /* small output limits exercise suspension inside matches */
+        r = fimg_inflate(&inf, data + off, n, &used,
+                         p == 1 ? 100u : FIMG_INF_WSIZE, &prod);
+        CHECK(used <= n);
+        off += used;
+        for (uint32_t i = 0; i < prod; i++) {
+          crc ^= *fimg_window_ptr(&inf, (start + i) & FIMG_INF_WMASK);
+          for (int k = 0; k < 8; k++)
+            crc = (crc >> 1) ^ (0xedb88320u & (0u - (crc & 1u)));
+        }
+        total += prod;
+        if (r < 0 || r == FIMG_INF_DONE) break;
+        if (r == FIMG_INF_NEED_INPUT && off == len) break;
+      }
+      crc = ~crc;
+      if (strcmp(kind, "ok") == 0) {
+        unsigned long el = strtoul(a1, NULL, 10), ec = strtoul(a2, NULL, 16);
+        CHECK_MSG(r == FIMG_INF_DONE && total == el && crc == ec,
+                  "%s p%d r=%d total=%u", file, p, r, total);
+        CHECK_MSG(off == len, "%s: %zu trailing bytes", file, len - off);
+      } else if (strcmp(kind, "trunc") == 0) {
+        CHECK_MSG(r == FIMG_INF_NEED_INPUT, "%s r=%d", file, r);
+      } else {
+        static const char *names[] = {"",      "header", "dict",
+                                      "block", "stored", "tree",
+                                      "code",  "dist",   "adler"};
+        int want = 0;
+        for (int i = 1; i < 9; i++)
+          if (strcmp(a1, names[i]) == 0) want = -i;
+        CHECK_MSG(want != 0 && r == want, "%s p%d: got %d want %s", file, p, r,
+                  a1);
+      }
+      if (mode != 0) {
+        for (size_t page = 0; page < 2; page++) {
+          for (size_t i = 0; i < 16; i++) {
+            CHECK(paged[page][i] == 0xd3);
+            CHECK(paged[page][16 + FIMG_INF_PAGE_SIZE + i] == 0xd3);
+          }
+        }
+      }
     }
   }
   free(data);
@@ -383,7 +460,18 @@ int main(int argc, char **argv) {
       result_t s;
       c = small;
       if (strict) c.flags |= FIMG_FLAG_STRICT_TRAILER;
-      decode(data, len, 4, &c, &s);
+      decode(data, len, 4, &c, &s, 0);
+      {
+        result_t segmented;
+        decode(data, len, 4, &c, &segmented, 1);
+        CHECK_MSG(segmented.st == s.st &&
+                      memcmp(&segmented.info, &s.info, sizeof s.info) == 0 &&
+                      memcmp(segmented.luma, s.luma,
+                             (size_t)FIMG_MAX_DIM * FIMG_MAX_DIM) == 0 &&
+                      memcmp(segmented.bitmap, s.bitmap, s.bitmap_size) == 0,
+                  "%s: small scattered differs", file);
+        free_result(&segmented);
+      }
       CHECK_MSG(s.st == r.st, "%s: small config status %s", file,
                 fimg_status_name(s.st));
       if (s.st == FIMG_OK) {
@@ -394,6 +482,27 @@ int main(int argc, char **argv) {
               (s.info.src_width + s.info.scale - 1) / s.info.scale);
       }
       free_result(&s);
+    }
+    /* Large PNGs inflate through both 16 KiB pages and wrap the full 32 KiB
+       history many times. Native device limits and full-width output also
+       exercise the binarizer ring across its scattered page boundaries. */
+    if (strcmp(file, "qr_backup_1024.png") == 0 ||
+        strcmp(file, "qr_backup_1024_q70.jpg") == 0 ||
+        strcmp(file, "png_1024_gray1.png") == 0) {
+      static const uint16_t dimensions[] = {320, 384, 1024};
+      for (size_t i = 0; i < sizeof dimensions / sizeof dimensions[0]; i++) {
+        result_t limited;
+        c = cfg;
+        c.max_out_width = c.max_out_height = dimensions[i];
+        decode_all(file, data, len, &c, &limited);
+        CHECK(limited.st == r.st);
+        if (limited.st == FIMG_OK) {
+          CHECK(limited.luma_crc == r.luma_crc);
+          CHECK(limited.info.out_width <= dimensions[i] &&
+                limited.info.out_height <= dimensions[i]);
+        }
+        free_result(&limited);
+      }
     }
     free_result(&r);
     free(data);

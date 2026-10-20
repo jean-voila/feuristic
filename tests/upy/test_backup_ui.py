@@ -7,8 +7,8 @@ test_menus_backup.py. Cryptographic envelope/frame construction is real.
 
 from upytest import raises, run, test
 
-from feuristic.apps.backup import envelope, export, frames, provider
-from feuristic.apps.backup.errors import WeakPassphrase
+from feuristic.apps.backup import envelope, export, frames, provider, restore
+from feuristic.apps.backup.errors import RestoreLimitExceeded, WeakPassphrase
 from feuristic.core.errors import PolicyDenied, UserCancelled
 from feuristic.fw import import_mode, pin
 from feuristic.ui import app_backup, app_otp, screens
@@ -295,6 +295,71 @@ def restore_controller_requires_local_ready_and_respects_cancel():
         imp = Import()
         drive(import_mode._controller(None, imp, state))
         assert not actions and imp.finished
+
+
+@test
+def restore_controller_bounds_sessions_and_explains_restart():
+    class Import:
+        finished = False
+
+        def has_otp(self):
+            return False
+
+        def counts(self):
+            return 1, 0
+
+        def take_complete(self):
+            return b"authenticated envelope handled by core"
+
+        def finish(self):
+            self.finished = True
+
+    class State:
+        purpose = "backup"
+        message = "Sequence complete"
+        ejected = False
+        decoder_paused = True
+        finishing = False
+
+    class Progress:
+        stopped = False
+
+        def report(self, *args):
+            pass
+
+        def stop(self):
+            self.stopped = True
+
+    class Streaming:
+        closed = False
+
+        def __init__(self, ui, phrase, **kwargs):
+            assert kwargs["max_envelopes"] == 192
+            assert kwargs["max_sets"] == 4
+            streams.append(self)
+
+        async def restore_envelope(self, raw):
+            raise RestoreLimitExceeded("quota")
+
+        def close(self):
+            self.closed = True
+
+    streams, messages = [], []
+    state, imp = State(), Import()
+
+    async def error(message, **kwargs):
+        assert kwargs["close_others"] is False
+        messages.append(message)
+        state.ejected = True
+
+    with Patch() as patch:
+        patch.set(import_mode, "_wait_screen", approve)
+        patch.set(app_backup, "_Derivation", Progress)
+        patch.set(restore, "StreamingRestore", Streaming)
+        patch.set(screens, "show_error", error)
+        drive(import_mode._controller(None, imp, state))
+        assert imp.finished and state.finishing and streams[0].closed
+        assert messages == [import_mode.t("import.ui.session_limit")]
 
 
 @test

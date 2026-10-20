@@ -53,12 +53,38 @@ static uint32_t bin_radius(uint32_t dim) {
 
 static uint32_t sq8(uint32_t v) { return (v * v + 128u) >> 8; /* 0 .. 254 */ }
 
-size_t fimg_pix_heap_size(const fimg_config_t *cfg) {
+static size_t pix_block_sizes(const fimg_config_t *cfg, size_t *sizes,
+                              int pad_pages) {
   uint32_t mw = cfg->max_out_width, mh = cfg->max_out_height;
   uint32_t k = 2u * bin_radius(mw > mh ? mw : mh) + 1u;
-  return FIMG_ALIGN8((size_t)k * mw) +
-         2u * FIMG_ALIGN8((size_t)mw * sizeof(uint16_t)) +
-         FIMG_ALIGN8((size_t)mw * sizeof(uint32_t));
+  uint32_t rows = FIMG_SCATTERED_BLOCK_MAX / mw;
+  size_t count = 0;
+  while (k != 0) {
+    uint32_t take = k < rows ? k : rows;
+    sizes[count++] = pad_pages && k > rows ? FIMG_SCATTERED_BLOCK_MAX
+                                           : FIMG_ALIGN8((size_t)take * mw);
+    k -= take;
+  }
+  sizes[count++] = FIMG_ALIGN8((size_t)mw * sizeof(uint16_t));
+  sizes[count++] = FIMG_ALIGN8((size_t)mw * sizeof(uint16_t));
+  sizes[count++] = FIMG_ALIGN8((size_t)mw * sizeof(uint32_t));
+  return count;
+}
+
+size_t fimg_pix_block_sizes(const fimg_config_t *cfg, size_t *sizes) {
+  return pix_block_sizes(cfg, sizes, 1);
+}
+
+size_t fimg_pix_heap_size(const fimg_config_t *cfg) {
+  size_t sizes[FIMG_SCATTERED_MAX_BLOCKS], total = 0;
+  size_t count = pix_block_sizes(cfg, sizes, 0);
+  for (size_t i = 0; i < count; i++) total += sizes[i];
+  return total;
+}
+
+static uint8_t *ring_row(const fimg_pix_t *p, uint32_t row) {
+  row %= p->k;
+  return p->ring[row / p->ring_rows] + (size_t)(row % p->ring_rows) * p->out_w;
 }
 
 fimg_status_t fimg_pix_setup(fimg_ctx_t *ctx, uint32_t w, uint32_t h) {
@@ -87,12 +113,19 @@ fimg_status_t fimg_pix_setup(fimg_ctx_t *ctx, uint32_t w, uint32_t h) {
   if ((size_t)p->stride * oh > ctx->bitmap_size) return FIMG_E_INTERNAL;
   p->r = bin_radius(ow > oh ? ow : oh);
   p->k = 2u * p->r + 1u;
-  p->ring = (uint8_t *)fimg_alloc(ctx, (size_t)p->k * ow);
+  p->ring_rows = FIMG_SCATTERED_BLOCK_MAX / ow;
+  uint32_t remaining = p->k;
+  for (size_t i = 0; remaining != 0; i++) {
+    uint32_t take = remaining < p->ring_rows ? remaining : p->ring_rows;
+    if (i >= sizeof p->ring / sizeof p->ring[0]) return FIMG_E_INTERNAL;
+    p->ring[i] = (uint8_t *)fimg_alloc(ctx, (size_t)take * ow);
+    if (p->ring[i] == NULL) return FIMG_E_INTERNAL;
+    remaining -= take;
+  }
   p->colsum = (uint16_t *)fimg_alloc(ctx, (size_t)ow * sizeof(uint16_t));
   p->colsq = (uint16_t *)fimg_alloc(ctx, (size_t)ow * sizeof(uint16_t));
   p->acc = (uint32_t *)fimg_alloc(ctx, (size_t)ow * sizeof(uint32_t));
-  if (p->ring == NULL || p->colsum == NULL || p->colsq == NULL ||
-      p->acc == NULL)
+  if (p->colsum == NULL || p->colsq == NULL || p->acc == NULL)
     return FIMG_E_INTERNAL;
   memset(p->colsum, 0, (size_t)ow * sizeof(uint16_t));
   memset(p->colsq, 0, (size_t)ow * sizeof(uint16_t));
@@ -104,7 +137,7 @@ fimg_status_t fimg_pix_setup(fimg_ctx_t *ctx, uint32_t w, uint32_t h) {
 }
 
 static void ring_remove_oldest(fimg_pix_t *p) {
-  const uint8_t *q = p->ring + (size_t)(p->lo % p->k) * p->out_w;
+  const uint8_t *q = ring_row(p, p->lo);
   uint16_t *cs = p->colsum, *cq = p->colsq;
   for (uint32_t x = 0; x < p->out_w; x++) {
     cs[x] = (uint16_t)(cs[x] - q[x]);
@@ -152,7 +185,7 @@ static void decide_row(fimg_pix_t *p) {
 
   while (p->lo < lo_t) ring_remove_oldest(p);
   nrows = p->rows_in - p->lo;
-  px = p->ring + (size_t)(y % p->k) * w;
+  px = ring_row(p, y);
   dst = p->bitmap + (size_t)y * p->stride;
   memset(dst, 0, p->stride);
 
@@ -204,11 +237,11 @@ static void decide_row(fimg_pix_t *p) {
 /* Make room for output row rows_in and return its ring slot. */
 static uint8_t *ring_slot(fimg_pix_t *p) {
   while (p->lo + p->k <= p->rows_in) ring_remove_oldest(p);
-  return p->ring + (size_t)(p->rows_in % p->k) * p->out_w;
+  return ring_row(p, p->rows_in);
 }
 
 static void ring_commit(fimg_pix_t *p) {
-  const uint8_t *q = p->ring + (size_t)(p->rows_in % p->k) * p->out_w;
+  const uint8_t *q = ring_row(p, p->rows_in);
   uint16_t *cs = p->colsum, *cq = p->colsq;
   for (uint32_t x = 0; x < p->out_w; x++) {
     cs[x] = (uint16_t)(cs[x] + q[x]);

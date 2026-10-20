@@ -9,7 +9,7 @@ for logs; the UI maps error *classes* to i18n keys (``ERROR_KEYS`` in
 material (passphrase, key, plaintext).
 """
 
-from ...core.errors import FeuristicError, InvalidInput
+from ...core.errors import FeuristicError, InvalidInput, PolicyDenied
 
 
 class BackupFormatError(InvalidInput):
@@ -81,3 +81,7 @@ class FrameIncomplete(FrameError):
     def __init__(self, missing) -> None:
         super().__init__("frames missing")
         self.missing = list(missing)
+
+
+class RestoreLimitExceeded(PolicyDenied):
+    """Device import session is full; finish and reopen before continuing."""

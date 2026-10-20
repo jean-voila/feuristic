@@ -14,8 +14,10 @@ STRINGS = {
         "Copies suspendues. Confirmez cette identité sur l'appareil avant de copier la suivante.",
     ),
     "import.ui.instructions": (
-        "Copy all QR images of ONE identity to FEURISTIC-IMPORT, then confirm on the device.",
-        "Copiez tous les QR d'UNE identité sur FEURISTIC-IMPORT, puis confirmez sur l'appareil.",
+        "Copy all QR images of ONE identity to FEURISTIC-IMPORT, then confirm on the device. "
+        "Large sets: follow README.TXT to copy in batches.",
+        "Copiez tous les QR d'UNE identité sur FEURISTIC-IMPORT, puis confirmez sur l'appareil. "
+        "Grands ensembles : suivez README.TXT pour copier par lots.",
     ),
     "import.ui.copy_paused": (
         "Copy refused while waiting for the device. Retry failed copies after resuming.",
@@ -32,6 +34,13 @@ STRINGS = {
     "import.ui.incomplete": (
         "Some QR or identities are missing. Earlier restored identities remain restored. Leave now?",
         "Des QR ou identités manquent. Les identités déjà restaurées restent restaurées. Quitter ?",
+    ),
+    "import.ui.session_limit": (
+        "This import has reached its limit (192 backups or 4 export sessions). "
+        "Earlier restores are saved. Finish, eject, reopen Restore, then copy the remaining identities.",
+        "Cet import atteint sa limite (192 sauvegardes ou 4 sessions d'export). "
+        "Les restaurations précédentes sont conservées. Terminez, éjectez, rouvrez Restaurer, "
+        "puis copiez les identités restantes.",
     ),
     "backup.ui.choose_type": ("Choose identity type", "Choisir le type d'identité"),
     "backup.ui.profile": ("QR readability", "Lisibilité QR"),

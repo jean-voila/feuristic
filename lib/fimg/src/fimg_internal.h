@@ -29,6 +29,8 @@ FIMG_STATIC_ASSERT(arithmetic_shift, ((-8) >> 1) == -4);
 
 #define FIMG_INF_WSIZE 32768u /**< LZ77 window (also the output ring). */
 #define FIMG_INF_WMASK (FIMG_INF_WSIZE - 1u)
+#define FIMG_INF_PAGE_SIZE (FIMG_INF_WSIZE / 2u)
+#define FIMG_INF_PAGE_MASK (FIMG_INF_PAGE_SIZE - 1u)
 #define FIMG_INF_FAST_BITS 9u /**< First-level Huffman lookup bits. */
 #define FIMG_INF_MAXBITS 15u
 
@@ -57,7 +59,7 @@ typedef enum {
 
 /** Resumable zlib stream inflater state. */
 typedef struct {
-  uint8_t *win;    /**< FIMG_INF_WSIZE bytes; output is written here. */
+  uint8_t *win[2]; /**< Two separately allocated 16 KiB window pages. */
   uint32_t wpos;   /**< Next write position in @ref win. */
   uint32_t total;  /**< Total bytes produced. */
   uint32_t bitbuf; /**< LSB-first bit accumulator. */
@@ -80,6 +82,12 @@ typedef struct {
 
 /** Initialise @p s with a caller-owned FIMG_INF_WSIZE-byte window. */
 void fimg_inflate_init(fimg_inflate_t *s, uint8_t *window);
+void fimg_inflate_init_paged(fimg_inflate_t *s, uint8_t *first,
+                             uint8_t *second);
+
+static inline uint8_t *fimg_window_ptr(const fimg_inflate_t *s, uint32_t at) {
+  return s->win[at / FIMG_INF_PAGE_SIZE] + (at & FIMG_INF_PAGE_MASK);
+}
 
 /**
  * Inflate from @p in. Produces at most @p out_max (<= FIMG_INF_WSIZE) bytes,
@@ -115,17 +123,18 @@ typedef struct {
   uint32_t src_rows;     /**< Source rows received. */
   uint32_t band_rows;    /**< Source rows accumulated in the current band. */
   uint32_t *acc;         /**< out_w column accumulators (f > 1). */
-  uint8_t *ring;         /**< K rows of out_w luma. */
-  uint16_t *colsum;      /**< Column sums over rows [lo, rows_in). */
-  uint16_t *colsq;       /**< Column sums of round(v^2 / 256). */
-  uint32_t r, k;         /**< Window radius and ring height (2r+1). */
-  uint32_t rows_in;      /**< Output rows pushed into the ring. */
-  uint32_t lo;           /**< First row included in colsum. */
-  uint32_t rows_out;     /**< Output rows binarized. */
-  uint32_t hist[256];    /**< Histogram of output luma seen so far. */
-  uint32_t gthresh;      /**< Global threshold (intermeans). */
-  uint32_t gcontrast;    /**< Global contrast (mean_hi - mean_lo). */
-  uint32_t gmlo;         /**< Global mean of the dark class. */
+  uint8_t *ring[8]; /**< K rows, split at row boundaries into <=16 KiB pages. */
+  uint32_t ring_rows; /**< Rows per complete ring page. */
+  uint16_t *colsum;   /**< Column sums over rows [lo, rows_in). */
+  uint16_t *colsq;    /**< Column sums of round(v^2 / 256). */
+  uint32_t r, k;      /**< Window radius and ring height (2r+1). */
+  uint32_t rows_in;   /**< Output rows pushed into the ring. */
+  uint32_t lo;        /**< First row included in colsum. */
+  uint32_t rows_out;  /**< Output rows binarized. */
+  uint32_t hist[256]; /**< Histogram of output luma seen so far. */
+  uint32_t gthresh;   /**< Global threshold (intermeans). */
+  uint32_t gcontrast; /**< Global contrast (mean_hi - mean_lo). */
+  uint32_t gmlo;      /**< Global mean of the dark class. */
   uint8_t *bitmap;
   int ready; /**< Set up (dimensions known). */
 } fimg_pix_t;
@@ -155,7 +164,7 @@ typedef struct {
   uint8_t has_key;       /**< tRNS colour key for types 0 / 2. */
   uint16_t key[3];
   /* scanlines */
-  uint8_t *win, *cur, *prev, *luma;
+  uint8_t *win[2], *cur, *prev, *luma;
   uint32_t row_fill; /**< Bytes in @ref cur (filter byte included). */
   uint32_t rows_done;
   uint32_t expected;  /**< h * (rowbytes + 1). */
@@ -265,6 +274,9 @@ struct fimg_ctx {
   size_t bitmap_size;
   uint8_t *heap; /**< Bump allocator over the rest of the workspace. */
   size_t heap_size, heap_used;
+  fimg_block_t *blocks; /**< Caller descriptors, NULL for contiguous mode. */
+  size_t block_count;
+  uint32_t blocks_used;
   fimg_pix_t pix;
   union {
     fimg_png_t png;
@@ -277,6 +289,7 @@ struct fimg_ctx {
 /** Bump-allocate @p n bytes (8-aligned) from the workspace; NULL if exhausted.
  */
 void *fimg_alloc(fimg_ctx_t *ctx, size_t n);
+size_t fimg_pix_block_sizes(const fimg_config_t *cfg, size_t *sizes);
 
 /** Heap bytes needed by the pixel pipeline for @p cfg (validated). */
 size_t fimg_pix_heap_size(const fimg_config_t *cfg);

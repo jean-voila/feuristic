@@ -36,7 +36,7 @@ public bounds is rejected with ``6A80`` without consuming a try.
 
 from micropython import const
 
-from ....core import i18n, kdf, tlv
+from ....core import i18n, tlv
 from ....core.errors import InvalidInput
 from ....core.interaction import DANGER, SENSITIVE, Prompt
 from ....platform import crypto
@@ -61,10 +61,7 @@ MAX_RSA_DIGEST_INFO = const(102)
 
 def card_serial(ms: bytes) -> bytes:
     """4-byte card serial derived from the master secret (``card/serial``)."""
-    serial = kdf.derive(ms, b"card/serial", 4, pgp.SERIAL_CONTEXT)
-    if serial in (b"\x00\x00\x00\x00", b"\xff\xff\xff\xff"):
-        serial = bytes((serial[0] ^ 0x01,)) + serial[1:]
-    return serial
+    return pgp.card_serial(ms)
 
 
 def _err(sw: int):

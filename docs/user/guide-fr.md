@@ -257,14 +257,21 @@ suspendu : une copie refusée par l'ordinateur doit être **recommencée après 
 l'appareil invite à copier l'identité suivante**. Ne pas interpréter un échec
 « périphérique pas prêt » comme une importation réussie.
 
+Si une identité contient beaucoup d’images, la racine FAT12 possède seulement
+64 entrées. Utiliser des noms courts comme `QR000001.PNG` et des lots de
+32 images au plus. Attendre que le compteur de l’appareil indique leur
+réception, puis supprimer **uniquement ces copies du volume d’import** ;
+conserver les images originales de la sauvegarde ailleurs. Copier le lot
+suivant sur le même volume monté, sans éjection ni redémarrage avant réception
+de toutes les trames de cette identité.
+
 Répéter pour chaque identité en gardant le volume monté. La même phrase n'est
 pas redemandée pour les identités du même ensemble tant que sa clé de session
 est en cache. Choisir Terminé pour finir, lire le bilan et l'avertissement si
 l'ensemble reste incomplet, puis éjecter quand demandé. Les identités déjà
 confirmées restent restaurées si la suivante échoue ou manque. Une mauvaise
-phrase/tag ne modifie jamais l'identité en cours. Le bilan conserve les comptes
-exacts et les quatre derniers exemples ; les identités complètes sont consultables
-dans leurs menus.
+phrase/tag ne modifie jamais l'identité en cours. L'appareil affiche le nombre
+d'identités restaurées ; retrouver celles-ci dans leurs menus.
 
 Une restauration est atomique **par identité**, pas une transaction globale :
 un export complet est une succession d'identités indépendantes. Le PIN de

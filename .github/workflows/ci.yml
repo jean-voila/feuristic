@@ -149,6 +149,7 @@ jobs:
     if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-24.04
     strategy:
+      fail-fast: false
       matrix:
         model: [T2B1, T3B1]
     steps:

@@ -81,7 +81,7 @@ class DeviceInteraction(ia.Interaction):
 
     async def select(self, title: str, options, timeout_ms: int = ia.DEFAULT_TIMEOUT_MS):
         async def dialog():
-            return await screens.menu(t(title), list(options), back=True, timeout_ms=timeout_ms)
+            return await screens.menu(t(title), options, back=True, timeout_ms=timeout_ms)
 
         try:
             res = await self._spawn(dialog())
@@ -120,9 +120,7 @@ class InlineInteraction(ia.Interaction):
         )
 
     async def select(self, title: str, options, timeout_ms: int = ia.DEFAULT_TIMEOUT_MS):
-        res = await screens.menu(
-            t(title), list(options), back=True, timeout_ms=timeout_ms, close_others=False
-        )
+        res = await screens.menu(t(title), options, back=True, timeout_ms=timeout_ms, close_others=False)
         if isinstance(res, int) and 0 <= res < len(options):
             return res
         return None

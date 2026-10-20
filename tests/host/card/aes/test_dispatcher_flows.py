@@ -113,4 +113,4 @@ def test_documented_worked_example_shapes(client, key1, monkeypatch, store):
     assert sw == 0x9000
     assert out[:2] == b"\x82\x0c" and out[14:16] == b"\x80\x05" and out[21:23] == b"\x83\x10"
     assert len(out) == 39
-    assert out[6:14] == bytes(8)  # first counter value of a fresh device
+    assert out[10:14] == bytes(4)  # first index in the fresh namespace

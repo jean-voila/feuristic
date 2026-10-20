@@ -5,7 +5,7 @@
 
 This probes allocation lifetimes, not physical Safe 3 RAM. A unix emulator uses
 64-bit objects and allocates the fmsc state on its heap; T2B1 instead puts the
-20,080-byte fmsc/cache/reorder state in CCM. Use --frozen binary build inputs
+20,084-byte fmsc/cache/reorder state in CCM. Use --frozen binary build inputs
 recorded alongside the output; a source-based emulator loads bytecode in RAM.
 The probe never opens real USB or reads a hardware device.
 """
@@ -26,6 +26,7 @@ import gc
 import feuristic_import
 from trezor import config
 from feuristic.fw import device, session
+from feuristic.fw.import_mode import _readme
 from feuristic.apps.backup import frames
 from feuristic.apps.importer.session import DEVICE_MAX_BYTES, MAX_SESSION_BYTES, ImportSession
 
@@ -41,7 +42,7 @@ session.register_strings()
 device.initialize()
 session._load_stores()
 checkpoint("bootstrap")
-native = feuristic_import.Session(b"Memory probe: disposable data", OUTPUT_SIDE, 1)
+native = feuristic_import.Session(_readme(), OUTPUT_SIDE, 1)
 checkpoint("native")
 collector = ImportSession(max_bytes=DEVICE_MAX_BYTES if PER_IDENTITY else MAX_SESSION_BYTES, compact=COMPACT)
 size = ENVELOPE_BYTES

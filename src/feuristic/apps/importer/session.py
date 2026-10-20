@@ -75,6 +75,8 @@ MAX_SESSION_BYTES = const(96 * 1024)
 # The public v1 envelope/parser bounds remain unchanged for host decoders.
 DEVICE_MAX_BYTES = const(12 * 1024)
 DEVICE_MAX_BACKUPS = const(1)
+DEVICE_MAX_ENVELOPES = const(192)
+DEVICE_MAX_SETS = const(4)
 #: missing indices reported per sequence in progress snapshots
 MISSING_REPORT_LIMIT = const(16)
 

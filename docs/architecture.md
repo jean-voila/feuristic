@@ -213,7 +213,10 @@ then B (see `feuristic.core.counters`).
 * Derived keys: `HKDF-SHA256(IKM=MS, salt="feuristic/v1", info=<label>)`.
   Labels are listed in `feuristic.core.kdf.LABELS` and are unique per
   application and purpose (`fido2/cred-wrap`, `fido2/largeblob-key`,
-  `fido2/pin-token`, `card/aes-nonce-prefix`, ...).
+  `card/aes-nonce-namespace`, ...). AES uses an 8-byte namespace derived with
+  the key-record uid and counter epoch, followed by a 4-byte index; the global
+  persisted counter and backup `nonce_floor` remain 64-bit. The legacy
+  `card/aes-nonce-prefix` label remains available for migration vectors.
 * Asymmetric identity keys (OpenPGP, PIV, discoverable passkeys) and AES keys
   are **random**, stored explicitly in their record and never shared across
   applications. Non-discoverable FIDO credentials are wrapped into the

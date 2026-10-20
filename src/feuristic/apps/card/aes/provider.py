@@ -17,8 +17,8 @@ One identity per key. Normative schema: ``docs/protocols/backup-aes.md``::
 ``nonce_floor`` lets the restoring device move its global nonce counter past
 every value the source device had reserved when the backup was made, so a
 restored key never reuses a counter value of its past on either device's
-counter range; the device-specific nonce prefix separates the two devices
-(see the backup-aes document for the residual 2⁻³² prefix-collision case).
+counter range; the 64-bit device/key/epoch namespace separates the two devices
+(see backup-aes for the residual 2⁻⁶⁴ per-pair namespace collision bound).
 """
 
 from micropython import const

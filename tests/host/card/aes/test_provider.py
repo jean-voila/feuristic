@@ -66,7 +66,7 @@ def test_export_restore_roundtrip(aes, store, prov, key1):
     assert decipher(a2, nonce, ct, tag).data == b"keep me"
     # new encryptions continue above the source device's counter
     n2 = split(encipher(a2, b"x"))[0]
-    assert int.from_bytes(n2[4:], "big") >= o["nonce_floor"]
+    assert int.from_bytes(n2[8:], "big") >= o["nonce_floor"]
 
 
 def test_restore_overwrite_keeps_record_uid(store, prov):
@@ -92,15 +92,15 @@ def test_restore_never_lowers_counter(store, prov, aes, key1):
     mse(aes, key1.kid, 0x81)
     # the allocator restarts from the persisted value: no reuse
     n = split(encipher(aes, b"y"))[0]
-    assert int.from_bytes(n[4:], "big") >= floor
+    assert int.from_bytes(n[8:], "big") >= floor
 
 
 def test_restore_raises_counter_and_resets_reservation(store, prov, aes, key1):
     mse(aes, key1.kid, 0x81)
-    first = int.from_bytes(split(encipher(aes, b"x"))[0][4:], "big")
+    first = int.from_bytes(split(encipher(aes, b"x"))[0][8:], "big")
     prov.restore_identity(obj(nonce_floor=first + 10_000), overwrite=False)
     mse(aes, key1.kid, 0x81)
-    n = int.from_bytes(split(encipher(aes, b"x"))[0][4:], "big")
+    n = int.from_bytes(split(encipher(aes, b"x"))[0][8:], "big")
     assert n >= first + 10_000
 
 

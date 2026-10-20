@@ -17,22 +17,68 @@ translation is visible but never crashes).
 
 from micropython import const
 
+from ..platform._backend import FIRMWARE
+
+if FIRMWARE:
+    from ._i18n_rom import TABLE as _ROM
+else:
+    _ROM = ()
+
 EN = const(0)
 FR = const(1)
 LANGUAGES = ("en", "fr")
 
-_tables = {}
+_tables = []
 _lang = EN
 
 
+def _entry(key):
+    if FIRMWARE:
+        low = 0
+        high = len(_ROM)
+        while low < high:
+            middle = (low + high) // 2
+            candidate = _ROM[middle]
+            if candidate[0] < key:
+                low = middle + 1
+            elif candidate[0] > key:
+                high = middle
+            else:
+                return candidate[1]
+        return None
+    for table in _tables:
+        value = table.get(key)
+        if value is not None:
+            return value
+    return None
+
+
 def register(strings: dict) -> None:
-    """Merge ``strings`` into the global table. Duplicate keys are a bug."""
+    """Register a read-only application table without copying every entry.
+
+    Tables remain owned by their strings modules. Re-registering identical
+    translations is harmless; conflicting keys are rejected before mutation.
+    """
+    if FIRMWARE:
+        # Application modules can still register their host-compatible table
+        # after lazy loading. Verify it against ROM, then release the temporary
+        # dictionary rather than retaining a second copy on the device heap.
+        for key, value in strings.items():
+            if _entry(key) != value:
+                raise ValueError("firmware i18n table differs from ROM: " + key)
+        strings.clear()
+        return
+    new_keys = False
     for k, v in strings.items():
-        if k in _tables and _tables[k] != v:
+        previous = _entry(k)
+        if previous is not None and previous != v:
             raise ValueError("duplicate i18n key: " + k)
         if not isinstance(v, tuple) or len(v) != 2:
             raise ValueError("i18n value must be (en, fr): " + k)
-        _tables[k] = v
+        if previous is None:
+            new_keys = True
+    if new_keys:
+        _tables.append(strings)
 
 
 def set_language(lang: int) -> None:
@@ -48,7 +94,7 @@ def language() -> int:
 
 def t(key: str, *args) -> str:
     """Translate ``key`` and apply ``str.format(*args)`` if args are given."""
-    entry = _tables.get(key)
+    entry = _entry(key)
     if entry is None:
         s = key
     else:
@@ -59,9 +105,11 @@ def t(key: str, *args) -> str:
 
 
 def keys() -> list:
-    return sorted(_tables)
+    if FIRMWARE:
+        return [entry[0] for entry in _ROM]
+    return sorted({key for table in _tables for key in table})
 
 
 def missing_translations() -> list:
     """Keys whose French text is empty (used by tests to enforce coverage)."""
-    return [k for k, v in _tables.items() if not v[FR]]
+    return [key for key in keys() if not _entry(key)[FR]]

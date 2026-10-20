@@ -224,11 +224,27 @@ static void load_fixed(fimg_inflate_t *s) {
   s->tables = 1;
 }
 
-void fimg_inflate_init(fimg_inflate_t *s, uint8_t *window) {
+void fimg_inflate_init_paged(fimg_inflate_t *s, uint8_t *first,
+                             uint8_t *second) {
   memset(s, 0, sizeof *s);
-  s->win = window;
+  s->win[0] = first;
+  s->win[1] = second;
   s->adler_a = 1;
   s->state = S_ZHDR;
+}
+
+void fimg_inflate_init(fimg_inflate_t *s, uint8_t *window) {
+  fimg_inflate_init_paged(s, window, window + FIMG_INF_PAGE_SIZE);
+}
+
+static void window_adler(fimg_inflate_t *s, uint32_t at, uint32_t n) {
+  while (n != 0) {
+    uint32_t k = FIMG_INF_PAGE_SIZE - (at & FIMG_INF_PAGE_MASK);
+    if (k > n) k = n;
+    fimg_adler32(&s->adler_a, &s->adler_b, fimg_window_ptr(s, at), k);
+    at = (at + k) & FIMG_INF_WMASK;
+    n -= k;
+  }
 }
 
 fimg_inf_result_t fimg_inflate(fimg_inflate_t *s, const uint8_t *in,
@@ -306,7 +322,7 @@ fimg_inf_result_t fimg_inflate(fimg_inflate_t *s, const uint8_t *in,
             goto leave;
           }
           if (s->bitcnt >= 8u) {
-            s->win[s->wpos] = (uint8_t)take_bits(s, 8);
+            *fimg_window_ptr(s, s->wpos) = (uint8_t)take_bits(s, 8);
             s->wpos = (s->wpos + 1u) & FIMG_INF_WMASK;
             out++;
             s->total++;
@@ -319,8 +335,9 @@ fimg_inf_result_t fimg_inflate(fimg_inflate_t *s, const uint8_t *in,
             }
             if (k > in_len - pos) k = in_len - pos;
             if (k > out_max - out) k = out_max - out;
-            if (k > FIMG_INF_WSIZE - s->wpos) k = FIMG_INF_WSIZE - s->wpos;
-            memcpy(s->win + s->wpos, in + pos, k);
+            if (k > FIMG_INF_PAGE_SIZE - (s->wpos & FIMG_INF_PAGE_MASK))
+              k = FIMG_INF_PAGE_SIZE - (s->wpos & FIMG_INF_PAGE_MASK);
+            memcpy(fimg_window_ptr(s, s->wpos), in + pos, k);
             pos += k;
             s->wpos = (s->wpos + (uint32_t)k) & FIMG_INF_WMASK;
             out += (uint32_t)k;
@@ -408,7 +425,7 @@ fimg_inf_result_t fimg_inflate(fimg_inflate_t *s, const uint8_t *in,
               goto leave;
             }
             if (sym < 0) FAIL(FIMG_INF_ERR_CODE);
-            s->win[s->wpos] = (uint8_t)sym;
+            *fimg_window_ptr(s, s->wpos) = (uint8_t)sym;
             s->wpos = (s->wpos + 1u) & FIMG_INF_WMASK;
             out++;
             s->total++;
@@ -452,14 +469,13 @@ fimg_inf_result_t fimg_inflate(fimg_inflate_t *s, const uint8_t *in,
       }
       case S_COPY: {
         uint32_t k = s->len, from;
-        uint8_t *w = s->win;
         if (k > out_max - out) k = out_max - out;
         from = (s->wpos - s->dist) & FIMG_INF_WMASK;
         out += k;
         s->total += k;
         s->len -= k;
         while (k--) {
-          w[s->wpos] = w[from];
+          *fimg_window_ptr(s, s->wpos) = *fimg_window_ptr(s, from);
           s->wpos = (s->wpos + 1u) & FIMG_INF_WMASK;
           from = (from + 1u) & FIMG_INF_WMASK;
         }
@@ -480,9 +496,7 @@ fimg_inf_result_t fimg_inflate(fimg_inflate_t *s, const uint8_t *in,
         /* bring the checksum up to date with this call's output */
         {
           uint32_t p0 = (start + flushed) & FIMG_INF_WMASK, n = out - flushed;
-          uint32_t k1 = n < FIMG_INF_WSIZE - p0 ? n : FIMG_INF_WSIZE - p0;
-          fimg_adler32(&s->adler_a, &s->adler_b, s->win + p0, k1);
-          fimg_adler32(&s->adler_a, &s->adler_b, s->win, n - k1);
+          window_adler(s, p0, n);
           flushed = out;
         }
         if (((s->adler_b << 16) | s->adler_a) != s->hdr)
@@ -501,9 +515,7 @@ fimg_inf_result_t fimg_inflate(fimg_inflate_t *s, const uint8_t *in,
 leave:
   if (out > flushed) {
     uint32_t p0 = (start + flushed) & FIMG_INF_WMASK, n = out - flushed;
-    uint32_t k1 = n < FIMG_INF_WSIZE - p0 ? n : FIMG_INF_WSIZE - p0;
-    fimg_adler32(&s->adler_a, &s->adler_b, s->win + p0, k1);
-    fimg_adler32(&s->adler_a, &s->adler_b, s->win, n - k1);
+    window_adler(s, p0, n);
   }
   if (s->total > 0x7fffffffu)
     s->total = 0x40000000u; /* only "has 32 KiB of history" matters */

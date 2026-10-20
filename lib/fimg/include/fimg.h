@@ -208,8 +208,8 @@ void fimg_config_default(fimg_config_t *cfg);
 /**
  * Workspace size in bytes required by fimg_init() for @p cfg (worst case over
  * every accepted image). Returns 0 if @p cfg is invalid. With the default
- * configuration: 94 592 B (PNG dominates; 64 880 B with FIMG_FLAG_NO_PNG);
- * see docs/developer/lib-fimg.md.
+ * configuration PNG dominates. Sizes depend on the pointer ABI; query this
+ * function rather than hardcoding a platform-specific byte count.
  */
 size_t fimg_workspace_size(const fimg_config_t *cfg);
 
@@ -233,6 +233,43 @@ size_t fimg_bitmap_size(const fimg_config_t *cfg);
 fimg_status_t fimg_init(fimg_ctx_t **out, void *workspace,
                         size_t workspace_size, const fimg_config_t *cfg,
                         uint8_t *bitmap, size_t bitmap_size);
+
+/** Largest individual scratch block in the scattered allocator. */
+#define FIMG_SCATTERED_BLOCK_MAX 16384u
+/** Maximum descriptors needed for any valid configuration. */
+#define FIMG_SCATTERED_MAX_BLOCKS 16u
+
+/** Caller-owned, 8-byte-aligned, mutually disjoint scratch buffer. */
+typedef struct {
+  void *ptr;
+  size_t size;
+} fimg_block_t;
+
+/**
+ * Query the complete worst-case scratch plan. Element zero contains the
+ * context; remaining buffers are individually <= FIMG_SCATTERED_BLOCK_MAX.
+ * Returns 0 for an invalid configuration, otherwise the descriptor count.
+ * Writes all sizes only when sizes != NULL and capacity >= the returned
+ * count; an insufficient output array is left untouched. No allocation.
+ */
+size_t fimg_scattered_sizes(const fimg_config_t *cfg, size_t *sizes,
+                            size_t capacity);
+
+/**
+ * Initialise without a large contiguous scratch allocation. The caller
+ * preallocates the buffers reported by fimg_scattered_sizes(), preserving
+ * the descriptors and every buffer until the decoder is no longer used.
+ * Bitmap remains contiguous and disjoint from every block. Blocks must not
+ * overlap one another or the descriptor array. Initialization checks all
+ * required capacities before returning FIMG_OK. No hidden allocation/free.
+ * Reinitializing reuses the same buffers; the caller owns wiping/freeing.
+ * Returns FIMG_E_PARAM for invalid/overlapping/unaligned memory and
+ * FIMG_E_WORKSPACE for insufficient buffers. Existing contiguous API remains
+ * available with identical image/limit semantics.
+ */
+fimg_status_t fimg_init_scattered(fimg_ctx_t **out, fimg_block_t *blocks,
+                                  size_t count, const fimg_config_t *cfg,
+                                  uint8_t *bitmap, size_t bitmap_size);
 
 /**
  * Feed the next @p len bytes of the file (any length, including 0).

@@ -32,7 +32,7 @@ from ...core.secure import wipe
 from ...platform import crypto
 from . import envelope
 from . import provider as registry
-from .errors import AuthenticationFailed, FrameConflict, PlaintextError
+from .errors import AuthenticationFailed, FrameConflict, PlaintextError, RestoreLimitExceeded
 from .export import PURPOSE_RESTORE, PassphraseRequest, acquire_passphrase, category_name
 
 #: wrong-passphrase attempts per envelope group before giving up
@@ -284,7 +284,16 @@ class StreamingRestore:
         progress=None,
         yield_fn=None,
         max_attempts: int = DEFAULT_MAX_ATTEMPTS,
+        max_envelopes: int = MAX_ENVELOPES,
+        max_sets: int = MAX_ENVELOPES,
     ) -> None:
+        if not isinstance(max_envelopes, int) or not 1 <= max_envelopes <= MAX_ENVELOPES:
+            raise InvalidInput("restore envelope limit")
+        if not isinstance(max_sets, int) or not 1 <= max_sets <= MAX_ENVELOPES:
+            raise InvalidInput("restore set limit")
+        self.max_envelopes = max_envelopes
+        self.max_sets = max_sets
+        self._salts = []  # accepted export salts; bounded independently of the four-key cache
         self.ui = ui
         self.get_passphrase = get_passphrase
         self.progress = progress
@@ -351,7 +360,7 @@ class StreamingRestore:
                 if entry[2][bit // 8] & (1 << (bit % 8)):
                     raise FrameConflict("full export sequence reused with a different backup id")
                 return entry
-        if len(self._sets) >= MAX_ENVELOPES:
+        if len(self._sets) >= self.max_sets:
             raise InvalidInput("too many full export sets")
         return [contents.header.salt, contents.count, bytearray((contents.count + 7) // 8)]
 
@@ -376,8 +385,10 @@ class StreamingRestore:
         self.last_duplicate = self._already_seen(raw, header)
         if self.last_duplicate:
             return self.report
-        if len(self._seen) // 40 >= MAX_ENVELOPES:
-            raise InvalidInput("too many backup envelopes")
+        if len(self._seen) // 40 >= self.max_envelopes:
+            raise RestoreLimitExceeded("restore session limit reached; finish and reopen import")
+        if header.salt not in self._salts and len(self._salts) >= self.max_sets:
+            raise RestoreLimitExceeded("restore set limit reached; finish and reopen import")
         contents = await self._open(raw, header)
         # No mutation, including partial restore of a multi-item envelope,
         # takes place before every authenticated item has passed validation.
@@ -439,6 +450,8 @@ class StreamingRestore:
                     self.report.not_attempted.append((remaining.type, remaining.label))
                 break
         if self.report.failed is None:
+            if header.salt not in self._salts:
+                self._salts.append(header.salt)
             self._seen.extend(header.backup_id)
             self._seen.extend(crypto.sha256(raw))
             if full_set is not None:

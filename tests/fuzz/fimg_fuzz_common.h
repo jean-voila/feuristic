@@ -75,6 +75,11 @@ static void fz_decode(const uint8_t *data, size_t len, uint8_t opt,
                       uint32_t seed, fz_luma_t *lum, fz_result_t *res) {
   static uint8_t ws[160 * 1024];
   static uint8_t bm[131072];
+  static union {
+    uint64_t alignment;
+    uint8_t data[FIMG_SCATTERED_BLOCK_MAX];
+  } scattered[FIMG_SCATTERED_MAX_BLOCKS];
+  static fimg_block_t blocks[FIMG_SCATTERED_MAX_BLOCKS];
   fimg_config_t c;
   fimg_ctx_t *ctx;
   size_t off = 0;
@@ -85,7 +90,18 @@ static void fz_decode(const uint8_t *data, size_t len, uint8_t opt,
   c.luma_cb_user = lum;
   if (fimg_workspace_size(&c) > sizeof ws || fimg_bitmap_size(&c) > sizeof bm)
     abort();
-  st = fimg_init(&ctx, ws + (seed & 7u), sizeof ws - 8, &c, bm, sizeof bm);
+  if (seed & 1u) {
+    size_t sizes[FIMG_SCATTERED_MAX_BLOCKS];
+    size_t count = fimg_scattered_sizes(&c, sizes, FIMG_SCATTERED_MAX_BLOCKS);
+    if (count == 0 || count > FIMG_SCATTERED_MAX_BLOCKS) abort();
+    for (size_t i = 0; i < count; i++) {
+      blocks[i].ptr = scattered[i].data;
+      blocks[i].size = sizes[i];
+    }
+    st = fimg_init_scattered(&ctx, blocks, count, &c, bm, sizeof bm);
+  } else {
+    st = fimg_init(&ctx, ws + (seed & 7u), sizeof ws - 8, &c, bm, sizeof bm);
+  }
   if (st != FIMG_OK) abort();
   while (off < len) {
     size_t n = len - off;
@@ -126,7 +142,8 @@ static void fz_run(const uint8_t *data, size_t len, fz_luma_t *lum_first) {
   opt = data[0];
   data++;
   len--;
-  fz_decode(data, len, opt, (uint32_t)(opt >> 2) * 2654435761u, lum_first, &a);
+  fz_decode(data, len, opt, ((uint32_t)(opt >> 2) * 2654435761u) | 1u,
+            lum_first, &a);
   fz_decode(data, len, opt, 0, &l2, &b);
   if (a.st != b.st) abort(); /* chunking changed the outcome */
   if (a.st == FIMG_OK &&

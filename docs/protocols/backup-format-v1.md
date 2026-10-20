@@ -323,6 +323,12 @@ provider without `validate` gets only the generic checks.
 6. For each identity: `export_identity` → envelope (new backup id and
    nonce) → frames → `on_exported` → display "QR i of n".
 
+The optional re-authentication hook is a core API extension point. The device
+UI instead collects and confirms the passphrase first, then re-enters the
+actual device PIN inside its passphrase callback, comparing the two locally.
+It supplies no separate core hook, so there is one PIN check. All of this
+happens after the recovery warning and before derivation or identity export.
+
 ### 8.2 Restore
 
 1. The import session (§9) collects frames until every sequence is

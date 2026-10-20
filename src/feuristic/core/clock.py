@@ -45,7 +45,11 @@ class SessionClock:
         """Current UNIX time in seconds, or ``None`` if not synchronised."""
         if self._base_unix is None:
             return None
-        elapsed_ms = ptime.ticks_diff(ptime.ticks_ms(), self._base_ticks)
+        try:
+            elapsed_ms = ptime.ticks_diff(ptime.ticks_ms(), self._base_ticks)
+        except ptime.MonotonicError:
+            self.clear()
+            return None
         return self._base_unix + elapsed_ms // 1000
 
     @staticmethod
@@ -67,8 +71,9 @@ class SessionClock:
     def set(self, unix: int) -> None:  # noqa: A003
         """Apply ``unix`` (caller must have obtained any required confirmation)."""
         self.validate(unix)
+        ticks = ptime.ticks_ms()
         self._base_unix = unix
-        self._base_ticks = ptime.ticks_ms()
+        self._base_ticks = ticks
 
     def clear(self) -> None:
         self._base_unix = None

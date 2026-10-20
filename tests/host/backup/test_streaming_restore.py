@@ -158,3 +158,75 @@ def test_receipts_keep_exact_totals_with_only_four_examples():
     assert len(receipts) == receipts.total == 192
     assert len(receipts.recent) == 4
     assert [int.from_bytes(uid, "big") for _, _, uid in receipts] == [188, 189, 190, 191]
+
+
+def test_device_envelope_limit_preserves_prior_results_and_accepts_exact_replay(data):
+    _, destination, first, second, sealed, _ = data
+    ui = ScriptedInteraction()
+    streamed = restore.StreamingRestore(ui, passphrases(PASSPHRASE), max_envelopes=1, max_sets=1)
+    raw = sealed(first)
+    run(streamed.restore_envelope(raw))
+    run(streamed.restore_envelope(raw))
+    assert streamed.last_duplicate
+    prompts = len(ui.prompts)
+    with pytest.raises(PolicyDenied, match="finish and reopen"):
+        run(streamed.restore_envelope(sealed(second, 2)))
+    assert destination.restored == ["first"] and len(streamed.report.restored) == 1
+    assert len(ui.prompts) == prompts and streamed.incomplete_sets() == [(1, 2)]
+
+
+def test_set_limit_counts_identity_salts_before_kdf_or_mutation(data):
+    source, destination, first, second, _, key = data
+    get_phrase = passphrases(PASSPHRASE)
+    streamed = restore.StreamingRestore(ScriptedInteraction(), get_phrase, max_sets=1)
+    for index, uid in enumerate((first, second)):
+        raw = envelope.seal(key, b"s" * 16, envelope.KIND_IDENTITY, [source.export_identity(uid)])
+        run(streamed.restore_envelope(raw))
+        assert len(streamed.report.restored) == index + 1
+    other = envelope.seal(key, b"t" * 16, envelope.KIND_IDENTITY, [source.export_identity(first)])
+    with pytest.raises(PolicyDenied, match="finish and reopen"):
+        run(streamed.restore_envelope(other))
+    assert len(get_phrase.calls) == 1 and destination.restored == ["first", "second"]
+    assert streamed._salts == [b"s" * 16]
+
+
+@pytest.mark.parametrize(
+    "limits",
+    [{"max_envelopes": 0}, {"max_envelopes": 1025}, {"max_sets": 0}, {"max_sets": 1025}],
+)
+def test_restore_limits_cannot_exceed_generic_format(limits):
+    with pytest.raises(InvalidInput):
+        restore.StreamingRestore(ScriptedInteraction(), passphrases(PASSPHRASE), **limits)
+
+
+def test_exact_device_bounds_keep_all_receipt_counts(data):
+    from feuristic.apps.importer.session import DEVICE_MAX_ENVELOPES, DEVICE_MAX_SETS
+
+    source, destination, first, _, _, key = data
+    streamed = restore.StreamingRestore(
+        ScriptedInteraction(),
+        passphrases(*([PASSPHRASE] * 4)),
+        max_envelopes=DEVICE_MAX_ENVELOPES,
+        max_sets=DEVICE_MAX_SETS,
+    )
+    for index in range(DEVICE_MAX_ENVELOPES):
+        salt = bytes((index % DEVICE_MAX_SETS,)) * 16
+        raw = envelope.seal(
+            key,
+            salt,
+            envelope.KIND_IDENTITY,
+            [source.export_identity(first)],
+            backup_id=(index + 1).to_bytes(8, "big"),
+        )
+        # This test checks session bounds independently of KDF salt inputs.
+        if not any(old_salt == salt for old_salt, _ in streamed._keys):
+            streamed._keys.append((salt, bytearray(key)))
+        run(streamed.restore_envelope(raw))
+    assert len(streamed.report.restored) == DEVICE_MAX_ENVELOPES == 192
+    assert len(streamed.report.restored.recent) == 4
+    assert len(streamed._salts) == DEVICE_MAX_SETS == 4
+    assert len(streamed._seen) == 192 * 40
+    raw = envelope.seal(key, b"z" * 16, envelope.KIND_IDENTITY, [source.export_identity(first)])
+    with pytest.raises(PolicyDenied, match="finish and reopen"):
+        run(streamed.restore_envelope(raw))
+    assert len(destination.restored) == 192

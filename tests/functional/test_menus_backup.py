@@ -10,8 +10,10 @@ import time
 import cbor2
 import segno
 from conftest import enter_pin
+from cryptography.hazmat.primitives.asymmetric import rsa
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
-from harness.emulator import PORT_MSC
+from harness.ccid import CcidClient
+from harness.emulator import PORT_CCID, PORT_MSC
 from harness.msc import Fat12Writer, MscClient
 from trezorlib import messages
 
@@ -24,13 +26,21 @@ def _png(text):
     return out.getvalue()
 
 
-def _backup_frames(account="alice@example.com", bid=b"backup01", seq=None, count=None):
+def _backup_frames(
+    account="alice@example.com",
+    bid=b"backup01",
+    seq=None,
+    count=None,
+    item=None,
+    chunk_size=156,
+    created=None,
+):
     """Independent format encoder: no firmware Python modules used."""
     salt, nonce = bytes(range(16)), bid + (seq or 0).to_bytes(4, "big")
     kind = 1 if seq is None else 2
     header = cbor2.dumps({1: kind, 2: bid, 3: 1, 4: 600000, 5: salt, 6: 1, 7: nonce}, canonical=True)
     aad = b"FEBK\x01" + len(header).to_bytes(2, "big") + header
-    item = {
+    item = item or {
         "type": "otp",
         "v": 1,
         "kind": "totp",
@@ -44,15 +54,17 @@ def _backup_frames(account="alice@example.com", bid=b"backup01", seq=None, count
     content = {"v": 1, "kind": "identity" if seq is None else "full", "items": [item]}
     if seq is not None:
         content.update(seq=seq, count=count)
+    if created is not None:
+        content["created"] = created
     plaintext = cbor2.dumps(content, canonical=True)
     key = hashlib.pbkdf2_hmac("sha256", PHRASE.encode(), salt, 600000)
     raw = aad + AESGCM(key).encrypt(nonce, plaintext, aad)
-    total = (len(raw) + 155) // 156
+    total = (len(raw) + chunk_size - 1) // chunk_size
     alphabet = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ $%*+-./:"
     texts = []
     for index in range(total):
         body = bid + (index + 1).to_bytes(2, "big") + total.to_bytes(2, "big")
-        body += raw[index * 156 : (index + 1) * 156]
+        body += raw[index * chunk_size : (index + 1) * chunk_size]
         body += binascii.crc32(body).to_bytes(4, "big")
         encoded = ""
         for offset in range(0, len(body), 2):
@@ -321,3 +333,87 @@ def test_full_restore_streams_identities_reuses_phrase_and_warns_before_early_fi
     assert "alice@example.com" in ready.screen().choice
     ready.right()
     assert "bob@example.com" in ready.screen().choice
+
+
+def test_large_identity_survives_234_images_in_batches_on_64_entry_volume(ready, emu):
+    # Maximal native OpenPGP schema, independently encoded/encrypted. A single
+    # fixture RSA key is reused in its three roles; it is only public test data.
+    numbers = rsa.generate_private_key(public_exponent=65537, key_size=2048).private_numbers()
+    secret = numbers.p.to_bytes(128, "big") + numbers.q.to_bytes(128, "big")
+    key = {
+        "attr": bytes.fromhex("010800002000"),
+        "secret": secret,
+        "fpr": b"f" * 20,
+        "ca": b"c" * 20,
+        "date": 0xFFFFFFFF,
+        "origin": 1,
+    }
+    pin = {"kdf": 1_000_000, "salt": b"s" * 16, "hash": b"h" * 32, "len": 127}
+    item = {
+        "type": "openpgp",
+        "v": 1,
+        "keys": [key, key, key],
+        "name": b"N" * 39,
+        "lang": b"enfrdeen",
+        "sex": b"9",
+        "url": b"u" * 254,
+        "login": b"l" * 254,
+        "private": [bytes((i,)) * 254 for i in range(4)],
+        "cert": b"c" * 2048,
+        "pw1": pin,
+        "pw3": pin,
+        "rc": pin,
+        "pw1_status": 0,
+        "dsc": 0xFFFFFF,
+    }
+    texts = _backup_frames(item=item, seq=192, count=192, chunk_size=22, created=0xFFFFFFFF)
+    assert len(texts) == 234
+    msc = _open_restore(ready, emu)
+    try:
+        writer = Fat12Writer(msc)
+        assert writer.root_entries == 64
+        for start in range(0, len(texts), 32):
+            end = min(start + 32, len(texts))
+            names = []
+            for index in range(start, end):
+                name = f"QR{index:06}.PNG"  # short 8.3, no LFN directory entries
+                writer.write_file(name, _png(texts[index]))
+                names.append(name)
+            if end < len(texts):
+                progress = f"{end} of {len(texts)} QR received"
+                ready.wait_for(lambda s, expected=progress: expected in s.text(), timeout=30)
+                for name in names:
+                    writer.delete_file(name)
+                # Deletion and cluster reuse must not purge already received
+                # frame bytes, or cause an IMPORT→NORMAL re-enumeration.
+                assert msc.inquiry()[16:32] == b"FEURISTIC-IMPORT"
+                assert f"{end} of {len(texts)} QR received" in ready.screen().text()
+        ready.wait_for(lambda s: "Backup sequence" in s.text() and "complete" in s.text(), timeout=30)
+        ready.approve()
+        _text_entry(ready, PHRASE)
+        ready.wait_title("Incomplete full export", timeout=30)
+        ready.approve()
+        ready.wait_title("Restore backup")
+        ready.approve()
+        ready.wait_for(lambda s: "1 identities restored" in s.text(), timeout=30)
+        ready.approve()
+        ready.wait_title("Incomplete full export")
+        ready.approve()
+        ready.wait_for(lambda s: "Eject" in s.text(), timeout=10)
+        assert msc.eject() == 0
+    finally:
+        msc.close()
+    ready.wait_title("Backup", timeout=20)
+    # A real application read confirms that the authenticated assembled item
+    # reached protected storage, rather than only showing a progress counter.
+    emu.wait_ready(PORT_CCID, 20)
+    card = CcidClient(emu.port(PORT_CCID))
+    try:
+        card.power_on()
+        assert card.transmit(bytes.fromhex("00A4040006D27600012401"))[1] == 0x9000
+        cert, sw = card.transmit(bytes.fromhex("00CA7F2100"))
+        assert sw == 0x9000 and cert == item["cert"]
+        pub, sw = card.transmit(bytes.fromhex("0047810002B60000"))
+        assert sw == 0x9000 and numbers.public_numbers.n.to_bytes(256, "big") in pub
+    finally:
+        card.close()

@@ -28,7 +28,7 @@ The file is never stored. Every byte is consumed as it arrives.
 ```c
 fimg_config_t cfg;
 fimg_config_default(&cfg);              /* 720 x 720 output, 256 KiB file cap */
-size_t ws_size = fimg_workspace_size(&cfg);   /* 94 592 B (PNG+JPEG) */
+size_t ws_size = fimg_workspace_size(&cfg);   /* query the current ABI/configuration */
 size_t bm_size = fimg_bitmap_size(&cfg);      /* 64 800 B */
 fimg_ctx_t *ctx;
 fimg_init(&ctx, ws, ws_size, &cfg, bm, bm_size);
@@ -273,7 +273,7 @@ Default configuration (720 × 720), host build:
 
 | Region | PNG | JPEG |
 |---|---:|---:|
-| context (`fimg_ctx_t`: state, inflate tables, Huffman / quant tables, histogram) | 6 232 | 6 232 |
+| context (`fimg_ctx_t`: state, inflate tables, Huffman / quant tables, histogram) | 6 320 | 6 320 |
 | decoder heap: LZ77 window | 32 768 | — |
 | decoder heap: 2 scanlines (worst case 1024 × RGBA16 + filter byte) | 16 400 | — |
 | decoder heap: luma row | 1 024 | — |
@@ -283,13 +283,28 @@ Default configuration (720 × 720), host build:
 | column sums + column square sums (u16) | 2 880 | 2 880 |
 | downscaler accumulators (u32) | 2 880 | 2 880 |
 | alignment slack | 8 | 8 |
-| **workspace total** | **94 592 (92.4 KiB)** | **64 880 (63.4 KiB)** |
+| **workspace total** | **94 680 (92.5 KiB)** | **64 968 (63.4 KiB)** |
 | output bitmap (separate buffer) | 64 800 | 64 800 |
 
 Both totals meet the targets (≤ 96 KiB PNG, ≤ 64 KiB JPEG, excluding the
-bitmap). With the default flags the workspace is 94 592 B. Pointers are
+bitmap). With the default flags the workspace is 94 680 B. Pointers are
 4 bytes on Cortex-M, so the context is a little smaller there. With a
-1024 × 1024 output the workspace is 131 184 B and the bitmap 131 072 B.
+1024 × 1024 output the workspace is 131 272 B and the bitmap 131 072 B.
+
+The optional scattered API addresses fragmentation without weakening the image
+contract. `fimg_scattered_sizes()` reports at most sixteen caller-owned buffers,
+each no larger than 16384 bytes, including the context in element zero.
+`fimg_init_scattered()` validates eight-byte alignment, capacities and complete
+non-overlap with the bitmap and descriptor array. The two DEFLATE window pages
+retain the full 32 KiB history. Binarizer pages end at complete row boundaries.
+The 720² scattered plan reserves 95760 bytes on this host ABI because a
+smaller actual output width can require a larger full page than the maximum
+configuration width; the unused capacity guarantees every accepted geometry.
+The T2B1 384² plan is 69064 bytes on a 32-bit ABI, plus the separate 18432-byte
+bitmap and the native caller's payload/README/session state. Initialization
+performs no allocation: the caller retains ownership and must wipe/free every
+buffer only after decoding finishes. See [import RAM](import-memory.md) for
+the hardware budget and remaining runtime qualification gate.
 
 ## 4. Performance
 

@@ -9,14 +9,14 @@ returning its frames, as required by backup-format-v1 §7.
 
 import gc
 
-from trezor import loop
-
 from ..apps.backup import envelope, export, frames, provider, strings
 from ..apps.backup.errors import WeakPassphrase
 from ..core.errors import FeuristicError, NotFound, PolicyDenied, UserCancelled
 from ..core.i18n import t
 from ..core.secure import wipe
 from . import screens, strings_backup
+from .backup_progress import Derivation as _Derivation
+from .backup_progress import yield_control as _yield
 from .interaction import InlineInteraction
 
 strings_backup.register()
@@ -65,28 +65,6 @@ async def _passphrase(_request):
             if pw is not None:
                 wipe(pw)
     raise WeakPassphrase("backup phrase entry failed")
-
-
-class _Derivation:
-    def __init__(self) -> None:
-        self.progress = None
-
-    def report(self, done, total) -> None:
-        # Start only after the passphrase dialogs have finished.
-        if self.progress is None:
-            self.progress = screens.Progress(t("backup.ui.progress"))
-        self.progress.report(done / total if total else 1)
-        if done >= total:
-            self.stop()
-
-    def stop(self) -> None:
-        if self.progress is not None:
-            self.progress.stop()
-            self.progress = None
-
-
-async def _yield():
-    await loop.sleep(0)
 
 
 async def _display(result) -> bool:

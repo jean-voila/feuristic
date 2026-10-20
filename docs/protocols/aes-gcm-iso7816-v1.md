@@ -200,10 +200,12 @@ decryption.
 For every ENCIPHER the device builds the 96-bit nonce as
 
 ```
-nonce = prefix (4 bytes) ‖ counter (8 bytes, big-endian)
-prefix  = HKDF-SHA-256(IKM = device master secret, salt = "feuristic/v1",
-                       info = "card/aes-nonce-prefix" ‖ 00 ‖ key-record-uid)[0..4]
-counter = next value of the device-global AES nonce counter
+counter   = next value of the device-global 64-bit AES nonce counter
+epoch     = uint32(counter >> 32), big-endian
+index     = uint32(counter & 0xffffffff), big-endian
+namespace = HKDF-SHA-256(IKM = device master secret, salt = "feuristic/v1",
+                info = "card/aes-nonce-namespace" ‖ 00 ‖ key-record-uid ‖ epoch)[0..8]
+nonce     = namespace (8 bytes) ‖ index (4 bytes)
 ```
 
 * The counter is **global to all AES keys** of the device, strictly
@@ -213,17 +215,29 @@ counter = next value of the device-global AES nonce counter
   cut allocation restarts at the end of the last reserved block, so a value
   is never handed out twice (at most 255 values are skipped). The counter is
   never reset, not even when all AES keys are deleted.
-* The prefix separates devices and key records (a key restored on another
-  device uses that device's prefix). Restores also advance the counter past
+* The namespace separates devices, key records and counter epochs. The
+  32-bit index never wraps within a namespace: crossing `2^32` selects the
+  next epoch. Exhausting the 64-bit allocator refuses encryption; there is
+  no silent reset. Restores also advance the counter past
   the source device's counter value recorded in the backup
   (`docs/protocols/backup-aes.md`).
-* Consequence: with a given key, a nonce is never reused by a device, across
-  power loss included (spec §7, R12). The residual risk when the *same* key
-  is used concurrently on two devices (after a restore) is a collision of
-  their 32-bit prefixes (2⁻³²); applications needing more SHOULD use the key
-  on one device only.
+* Within one key/device/epoch, index uniqueness follows from the persistent
+  counter, including across power loss. HKDF namespaces have a residual
+  collision probability of 2⁻⁶⁴ per pair of distinct device/key/epoch
+  contexts. Across many contexts, account for the corresponding birthday
+  bound. This is not an absolute uniqueness guarantee across clones;
+  applications requiring that property SHOULD use the key on one device only.
 * A refused or failed operation consumes no nonce value beyond the
   reservation granularity.
+
+**Development hardening, 19 October 2026:** earlier development builds used
+`legacy-prefix(4) || uint64(counter)`, with the separate KDF label
+`card/aes-nonce-prefix`. New encryption uses the 64-bit namespace above.
+DECIPHER accepts either construction as an opaque 12-byte nonce, so existing
+ciphertexts remain usable. Key records, the 64-bit `nonce_floor`, backup item
+v1 and every APDU field retain their encoding. The store's namespace cache
+retains only the latest epoch per key and belongs to one device power session;
+lock/master-secret replacement discards the store.
 
 ## 8. Limits
 
@@ -301,7 +315,7 @@ malformed command (`6A80`).
 ## 11. Worked example
 
 Assumptions (illustration only): key 1 = `000102…1F`, the device's nonce
-prefix for that key is `A1B2C3D4`, the global counter is at 0 (fresh device),
+namespace for that key is `A1B2C3D400000000`, the global counter is at 0 (fresh device),
 AAD = `"hdr"`, plaintext = `"hello"`, policy "every operation".
 
 ```
@@ -431,9 +445,13 @@ bytes with stock tools.
   MAY raise the limits advertised in the FCI; clients MUST ignore unknown FCI
   tags and MUST respect the advertised limits.
 * Any change that alters the meaning of an existing command, tag or status
-  word, adds a mandatory field, or changes the nonce construction creates
+  word, adds a mandatory field, or changes the 96-bit nonce wire encoding creates
   **version 2** with a new AID (`…63 02`); the firmware MAY then offer both
   versions side by side.
+* Internal nonce-allocation hardening MAY retain version 1 when the nonce
+  remains an opaque 12-byte value and every existing ciphertext and backup
+  remains usable. Such changes MUST be documented with their security bounds
+  and migration evidence, as for the pre-release hardening in §7.
 * New algorithms would get new algorithm references (tag `80` in MSE);
   reference `47` always means AES-256-GCM with 96-bit nonces and 128-bit tags.
 

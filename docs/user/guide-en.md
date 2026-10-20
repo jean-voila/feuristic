@@ -230,13 +230,20 @@ calculation. If the computer reports the device is not ready, **retry that file
 once the device invites you to copy the next identity**; a failed copy is not a
 successful import.
 
+For an identity with many images, the FAT12 root has only 64 directory entries.
+Use short names such as `QR000001.PNG` and batches of at most 32 images. Wait
+until the device counts those frames as received, then delete **only the copies
+on the import volume**, keeping the original backup images elsewhere. Continue
+with the next batch on the same mounted volume; do not eject or restart before
+all frames of that identity have arrived.
+
 Repeat for the remaining identities with the volume still mounted. The same
 export set reuses its cached derived key without another phrase entry. Choose
 Done to finish, inspect the result and any incomplete-set warning, then eject
 when requested. Previously approved identities stay restored if a later one
 fails or is missing. Wrong phrase/tag never modifies the current identity. The
-result keeps exact counts and the four most recent examples; inspect complete
-restored identities in their application menus.
+device displays the number restored; inspect restored identities in their
+application menus.
 
 Restoration is atomic **per identity**, not for an entire export. Device/FIDO
 PINs and PIV administration state are not globally cloned: the destination

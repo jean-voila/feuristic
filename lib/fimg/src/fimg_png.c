@@ -207,8 +207,9 @@ static fimg_status_t consume(fimg_ctx_t *ctx, uint32_t pos, uint32_t n) {
   while (n > 0) {
     uint32_t k = full - g->row_fill;
     if (k > n) k = n;
-    if (k > FIMG_INF_WSIZE - pos) k = FIMG_INF_WSIZE - pos;
-    memcpy(g->cur + g->row_fill, g->win + pos, k);
+    if (k > FIMG_INF_PAGE_SIZE - (pos & FIMG_INF_PAGE_MASK))
+      k = FIMG_INF_PAGE_SIZE - (pos & FIMG_INF_PAGE_MASK);
+    memcpy(g->cur + g->row_fill, fimg_window_ptr(&g->inf, pos), k);
     g->row_fill += k;
     pos = (pos + k) & FIMG_INF_WMASK;
     n -= k;
@@ -374,14 +375,16 @@ static fimg_status_t parse_ihdr(fimg_ctx_t *ctx) {
   g->seen_ihdr = 1;
   memset(g->pal_luma, 0, sizeof g->pal_luma);
 
-  g->win = (uint8_t *)fimg_alloc(ctx, FIMG_INF_WSIZE);
+  g->win[0] = (uint8_t *)fimg_alloc(ctx, FIMG_INF_PAGE_SIZE);
+  g->win[1] = (uint8_t *)fimg_alloc(ctx, FIMG_INF_PAGE_SIZE);
   g->cur = (uint8_t *)fimg_alloc(ctx, FIMG_PNG_MAX_ROWBYTES + 1u);
   g->prev = (uint8_t *)fimg_alloc(ctx, FIMG_PNG_MAX_ROWBYTES + 1u);
   g->luma = (uint8_t *)fimg_alloc(ctx, FIMG_MAX_DIM);
-  if (g->win == NULL || g->cur == NULL || g->prev == NULL || g->luma == NULL)
+  if (g->win[0] == NULL || g->win[1] == NULL || g->cur == NULL ||
+      g->prev == NULL || g->luma == NULL)
     return FIMG_E_INTERNAL;
   memset(g->prev, 0, g->rowbytes + 1u);
-  fimg_inflate_init(&g->inf, g->win);
+  fimg_inflate_init_paged(&g->inf, g->win[0], g->win[1]);
   return fimg_pix_setup(ctx, w, h);
 }
 

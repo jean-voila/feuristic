@@ -11,6 +11,8 @@ _transports_started = False
 
 
 def register_strings() -> None:
+    if i18n.FIRMWARE:
+        return  # All firmware translations are already frozen in i18n ROM.
     from ..apps.backup import strings as backup_strings
     from ..apps.card.aes import strings as aes_strings
     from ..apps.card.openpgp import strings as pgp_strings
@@ -134,6 +136,54 @@ def release_import_stores() -> None:
             module._reset_default()
 
 
+def release_import_modules() -> None:
+    """Unload application code after NORMAL workers and stores are released.
+
+    Keep the registry, translations, clock and active import/backup UI alive.
+    OTP's calling menu uses local imports and releases its account list before
+    entering IMPORT, so it cannot retain the old application modules.
+    """
+    import sys
+
+    from . import transports
+
+    if (
+        not transports._suspended
+        or transports._pollers
+        or transports._workers
+        or transports._fido is not None
+        or transports._card is not None
+    ):
+        raise RuntimeError("application modules require suspended transports")
+    release_import_stores()
+    roots = ("feuristic.apps.fido2", "feuristic.apps.card", "feuristic.apps.otp")
+    packages = roots + (
+        "feuristic.apps.card.openpgp",
+        "feuristic.apps.card.piv",
+        "feuristic.apps.card.aes",
+    )
+    temporary_modules = (
+        "feuristic.ui.app_fido2",
+        "feuristic.ui.app_openpgp",
+        "feuristic.ui.app_piv",
+        "feuristic.ui.app_aes",
+        "feuristic.ui.app_backup",
+        "feuristic.apps.backup.export",
+        "feuristic.apps.backup.envelope",
+        "feuristic.apps.backup.restore",
+    )
+    for name in list(sys.modules):
+        if name in packages or name.endswith(".strings"):
+            continue
+        if name not in temporary_modules and not any(name.startswith(root + ".") for root in roots):
+            continue
+        del sys.modules[name]
+        parent, attr = name.rsplit(".", 1)
+        module = sys.modules.get(parent)
+        if module is not None and hasattr(module, attr):
+            delattr(module, attr)
+
+
 def reload_stores() -> None:
     """Refresh shared stores/providers after a temporary import session."""
     from . import transports
@@ -182,6 +232,21 @@ async def _boot() -> None:
         utils.halt(e.__class__.__name__)
 
 
+async def _clock_maintenance() -> None:
+    # Sample the wrapping MCU tick counter in every USB/lock mode. A session
+    # may remain powered for many native tick periods without a TOTP request.
+    from ..core.clock import CLOCK
+    from ..platform import time as ptime
+
+    while True:
+        try:
+            ptime.ticks_ms()
+            CLOCK.now()
+        except ptime.MonotonicError:
+            CLOCK.clear()
+        await loop.sleep(60_000)
+
+
 def run() -> None:
     register_strings()
     device.apply_language(device.language() if device.is_initialized() else i18n.EN)
@@ -196,5 +261,6 @@ def run() -> None:
             apps.debug.boot()
         except ImportError:
             pass
+    loop.schedule(_clock_maintenance())
     loop.schedule(_boot())
     loop.run()

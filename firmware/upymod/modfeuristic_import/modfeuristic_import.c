@@ -14,9 +14,10 @@
 // UI and application actions. Interpretation of the decoded payload is done
 // in Python (apps/importer).
 //
-// Memory: the image decoder needs ~78-95 KiB of workspace plus the output
-// bitmap. Both are allocated from the MicroPython heap when the session is
-// created (after the caller freed what it could) and wiped on close. On
+// Memory: the image decoder's workspace is scattered over blocks of at most
+// 16 KiB, plus a contiguous output bitmap. All are allocated before accepting
+// writes and wiped/freed when paused or closed. lib/fqr borrows a 16 KiB
+// workspace block after image completion instead of adding another buffer. On
 // T2B1 the fmsc context and its caches use the otherwise unused CCM region
 // (.no_dma_buffers, 30 KiB, unprivileged), keeping the heap requirement
 // within the T2B1 budget.
@@ -38,6 +39,8 @@
 #define IMPORT_PAYLOAD_MAX 3072  // QR v40 holds at most 2953 bytes
 #define IMPORT_CACHE_CLUSTERS 1
 #define IMPORT_REORDER_SECTORS 8
+#define IMPORT_FIMG_MAX_BLOCKS FIMG_SCATTERED_MAX_BLOCKS
+#define IMPORT_FIMG_MAX_BLOCK_SIZE FIMG_SCATTERED_BLOCK_MAX
 
 // frame opcodes / events (firmware/kernel/usb/inc/io/usb_bulk.h)
 #define OP_DATA 0x00
@@ -83,8 +86,10 @@ typedef struct _mp_obj_ImportSession_t {
   mp_obj_base_t base;
   import_static_t *st;
   bool st_owned;  // allocated from the heap (not CCM)
-  uint8_t *fimg_ws;
-  size_t fimg_ws_len;
+  fimg_block_t fimg_blocks[IMPORT_FIMG_MAX_BLOCKS];
+  size_t fimg_block_count;
+  uint8_t *qr_ws;  // borrowed from fimg_blocks, valid only while allocated
+  size_t qr_ws_len;
   uint8_t *bitmap;
   size_t bitmap_len;
   uint8_t *payload;
@@ -150,25 +155,70 @@ static void decoder_reset(mp_obj_ImportSession_t *o) {
   o->image_failed = false;
   o->image_err = 0;
   if (o->bitmap != NULL) fimg_secure_zero(o->bitmap, o->bitmap_len);
+  for (size_t i = 0; i < o->fimg_block_count; i++) {
+    if (o->fimg_blocks[i].ptr != NULL) {
+      fimg_secure_zero(o->fimg_blocks[i].ptr, o->fimg_blocks[i].size);
+    }
+  }
 }
 
 static void decoder_allocate(mp_obj_ImportSession_t *o) {
   // Store every pointer immediately so close() also cleans partial allocation
   // when MicroPython raises MemoryError. Writes stay paused until all exist.
-  if (o->fimg_ws == NULL) o->fimg_ws = m_new(uint8_t, o->fimg_ws_len);
-  if (o->bitmap == NULL) o->bitmap = m_new(uint8_t, o->bitmap_len);
-  if (o->payload == NULL) o->payload = m_new(uint8_t, IMPORT_PAYLOAD_MAX);
-  fimg_secure_zero(o->fimg_ws, o->fimg_ws_len);
-  fimg_secure_zero(o->bitmap, o->bitmap_len);
-  fimg_secure_zero(o->payload, IMPORT_PAYLOAD_MAX);
+  // Claim every buffer in descending size order. In a fragmented heap a
+  // small context/README must not consume the only hole for a 16 KiB window.
+  const size_t bitmap_slot = o->fimg_block_count;
+  const size_t payload_slot = bitmap_slot + 1;
+  const size_t none = payload_slot + 1;
+  for (;;) {
+    size_t selected = none;
+    size_t size = 0;
+    for (size_t i = 0; i < o->fimg_block_count; i++) {
+      if (o->fimg_blocks[i].ptr == NULL && o->fimg_blocks[i].size > size) {
+        selected = i;
+        size = o->fimg_blocks[i].size;
+      }
+    }
+    if (o->bitmap == NULL && o->bitmap_len > size) {
+      selected = bitmap_slot;
+      size = o->bitmap_len;
+    }
+    if (o->payload == NULL && IMPORT_PAYLOAD_MAX > size) {
+      selected = payload_slot;
+      size = IMPORT_PAYLOAD_MAX;
+    }
+    if (selected == none) break;
+    uint8_t *buffer = m_new(uint8_t, size);
+    if (selected == bitmap_slot) {
+      o->bitmap = buffer;
+    } else if (selected == payload_slot) {
+      o->payload = buffer;
+    } else {
+      o->fimg_blocks[selected].ptr = buffer;
+    }
+    fimg_secure_zero(buffer, size);
+  }
+  for (size_t i = 0; i < o->fimg_block_count && o->qr_ws == NULL; i++) {
+    if (o->fimg_blocks[i].size >= FQR_WORKSPACE_SIZE) {
+      o->qr_ws = o->fimg_blocks[i].ptr;
+      o->qr_ws_len = o->fimg_blocks[i].size;
+    }
+  }
+  if (o->qr_ws == NULL) {
+    mp_raise_ValueError(MP_ERROR_TEXT("import QR workspace unavailable"));
+  }
 }
 
 static void decoder_release(mp_obj_ImportSession_t *o) {
   decoder_reset(o);
-  if (o->fimg_ws != NULL) {
-    fimg_secure_zero(o->fimg_ws, o->fimg_ws_len);
-    m_del(uint8_t, o->fimg_ws, o->fimg_ws_len);
-    o->fimg_ws = NULL;
+  o->qr_ws = NULL;
+  o->qr_ws_len = 0;
+  for (size_t i = 0; i < o->fimg_block_count; i++) {
+    fimg_block_t *block = &o->fimg_blocks[i];
+    if (block->ptr != NULL) {
+      m_del(uint8_t, block->ptr, block->size);
+      block->ptr = NULL;
+    }
   }
   if (o->bitmap != NULL) {
     fimg_secure_zero(o->bitmap, o->bitmap_len);
@@ -205,8 +255,9 @@ static bool cb_stream_start(void *user, uint32_t id) {
     return false;  // one image at a time; the host copies files one by one
   }
   decoder_reset(o);
-  fimg_status_t s = fimg_init(&o->fimg, o->fimg_ws, o->fimg_ws_len, &o->fcfg,
-                              o->bitmap, o->bitmap_len);
+  fimg_status_t s =
+      fimg_init_scattered(&o->fimg, o->fimg_blocks, o->fimg_block_count,
+                          &o->fcfg, o->bitmap, o->bitmap_len);
   if (s != FIMG_OK) {
     o->fimg = NULL;
     return false;
@@ -323,17 +374,26 @@ static mp_obj_t mod_feuristic_import_Session_make_new(const mp_obj_type_t *type,
     o->fcfg.max_out_width = (uint16_t)max_out;
     o->fcfg.max_out_height = (uint16_t)max_out;
     o->fcfg.max_out_pixels = 0;
-    o->fimg_ws_len = fimg_workspace_size(&o->fcfg);
-    if (o->fimg_ws_len < FQR_WORKSPACE_SIZE) {
-      o->fimg_ws_len = FQR_WORKSPACE_SIZE;  // reused by fqr after decoding
+    size_t sizes[IMPORT_FIMG_MAX_BLOCKS];
+    size_t count =
+        fimg_scattered_sizes(&o->fcfg, sizes, IMPORT_FIMG_MAX_BLOCKS);
+    if (count == 0 || count > IMPORT_FIMG_MAX_BLOCKS) {
+      mp_raise_ValueError(MP_ERROR_TEXT("invalid import workspace plan"));
     }
+    for (size_t i = 0; i < count; i++) {
+      if (sizes[i] == 0 || sizes[i] > IMPORT_FIMG_MAX_BLOCK_SIZE) {
+        mp_raise_ValueError(MP_ERROR_TEXT("invalid import workspace block"));
+      }
+      o->fimg_blocks[i].size = sizes[i];
+    }
+    o->fimg_block_count = count;
     o->bitmap_len = fimg_bitmap_size(&o->fcfg);
+    decoder_allocate(o);
     o->readme_len = readme.len;
     if (readme.len > 0) {
       o->readme = m_new(uint8_t, readme.len);
       memcpy(o->readme, readme.buf, readme.len);
     }
-    decoder_allocate(o);
 
     fmsc_config_t cfg = {
         .cache_mem = o->st->cache,
@@ -558,9 +618,9 @@ static mp_obj_t mod_feuristic_import_Session_decode(mp_obj_t self) {
     memset(&res, 0, sizeof(res));
     res.payload = o->payload;
     res.payload_cap = IMPORT_PAYLOAD_MAX;
-    // the fimg workspace is free once the bitmap is complete
+    // Borrow one scattered fimg block once image decoding is complete.
     fqr_status_t q =
-        fqr_decode_single(&img, o->fimg_ws, o->fimg_ws_len, NULL, &res);
+        fqr_decode_single(&img, o->qr_ws, o->qr_ws_len, NULL, &res);
     if (q == FQR_OK && res.status == FQR_OK) {
       mp_obj_t items[3] = {MP_OBJ_NEW_QSTR(MP_QSTR_qr),
                            mp_obj_new_bytes(o->payload, res.payload_len), name};
@@ -586,7 +646,6 @@ static mp_obj_t mod_feuristic_import_Session_decode(mp_obj_t self) {
   o->ready_size = 0;
   o->ready_name[0] = '\0';
   decoder_reset(o);
-  fimg_secure_zero(o->fimg_ws, o->fimg_ws_len);
   return result;
 }
 static MP_DEFINE_CONST_FUN_OBJ_1(mod_feuristic_import_Session_decode_obj,
@@ -630,7 +689,16 @@ static MP_DEFINE_CONST_FUN_OBJ_1(mod_feuristic_import_Session_pause_decode_obj,
 static mp_obj_t mod_feuristic_import_Session_resume_decode(mp_obj_t self) {
   mp_obj_ImportSession_t *o = live(self);
   if (!o->decode_paused) return mp_const_true;
-  decoder_allocate(o);
+  nlr_buf_t nlr;
+  if (nlr_push(&nlr) == 0) {
+    decoder_allocate(o);
+    nlr_pop();
+  } else {
+    // No partially reallocated workspace may linger after an OOM. The MSC
+    // refusal state remains in force, and a later retry can allocate afresh.
+    decoder_release(o);
+    nlr_jump(nlr.ret_val);
+  }
   if (!fmsc_set_write_paused(&o->st->fmsc, false)) return mp_const_false;
   o->decode_paused = false;
   return mp_const_true;
@@ -664,7 +732,7 @@ static mp_obj_t mod_feuristic_import_Session_close(mp_obj_t self) {
     m_del(import_static_t, o->st, 1);
   }
   o->st = NULL;
-  o->fimg_ws = o->bitmap = o->payload = NULL;
+  o->bitmap = o->payload = NULL;
   if (g_owner == o) g_owner = NULL;
   return mp_const_none;
 }

@@ -23,10 +23,13 @@ Nonces (spec §7 "aucun réemploi de nonce pour une même clé, y compris après
 coupure de courant")
 --------------------------------------------------------------------------
 
-``nonce = prefix(4) || counter(8)`` (96 bits, big-endian counter) where
+``nonce = namespace(8) || index(4)`` (96 bits, big-endian index) where
 
-* ``prefix = HKDF(master secret, "card/aes-nonce-prefix", context = record
-  uid)[:4]`` separates devices / key instances;
+* ``namespace = HKDF(master secret, "card/aes-nonce-namespace", context =
+  record uid || uint32(counter >> 32))[:8]`` separates devices, key instances
+  and counter epochs (residual collision probability 2**-64 per pair);
+* ``index = counter & 0xffffffff`` never wraps within a namespace: crossing
+  2**32 selects the next epoch instead;
 * ``counter`` comes from a :class:`~feuristic.core.counters.NonceAllocator`
   over the redundant public counter ``CARD_COUNTERS`` keys ``0x00/0x01``.
   It is **global across keys**, strictly increasing, reserved in flash
@@ -36,7 +39,9 @@ coupure de courant")
 
 A restored key also raises the counter to the ``nonce_floor`` recorded in
 its backup (the source device's counter at export time), see
-docs/protocols/backup-aes.md.
+docs/protocols/backup-aes.md. Legacy ``prefix(4) || counter(8)`` ciphertexts
+remain decryptable: APDU/backup v1 carry an opaque 12-byte nonce, not its
+internal construction. The legacy KDF helper remains for migration vectors.
 """
 
 from micropython import const
@@ -57,6 +62,7 @@ KEY_LEN = const(32)
 SCHEMA = const(1)
 NONCE_BLOCK = const(256)
 NONCE_PREFIX_LEN = const(4)
+NONCE_NAMESPACE_LEN = const(8)
 
 POLICY_EVERY = const(0)  # confirmation on the device for every operation
 POLICY_SESSION = const(1)  # first operation of the card session only
@@ -149,7 +155,7 @@ class AesKeyStore:
         #: bumped on every key change; the applet then drops its security
         #: environment and per-session confirmations
         self.epoch = 0
-        self._prefix_cache = {}
+        self._namespace_cache = {}
 
     def load(self) -> None:
         self.store.load()
@@ -255,28 +261,37 @@ class AesKeyStore:
         if k is None:
             return False
         self.store.delete(k.uid)
-        self._prefix_cache.pop(k.uid, None)
+        self._namespace_cache.pop(k.uid, None)
         self.epoch += 1
         return True
 
     def wipe(self) -> None:
         """Delete all keys. The nonce counter is deliberately kept."""
         self.store.wipe()
-        self._prefix_cache = {}
+        self._namespace_cache = {}
         self.epoch += 1
 
     # -- nonces --------------------------------------------------------------------
     def nonce_prefix(self, master_secret: bytes, uid: bytes) -> bytes:
-        p = self._prefix_cache.get(uid)
-        if p is None:
-            p = kdf.derive(master_secret, b"card/aes-nonce-prefix", NONCE_PREFIX_LEN, uid)
-            self._prefix_cache[uid] = p
-        return p
+        """Legacy four-byte construction, never used for new encryption."""
+        return kdf.derive(master_secret, b"card/aes-nonce-prefix", NONCE_PREFIX_LEN, uid)
+
+    def nonce_namespace(self, master_secret: bytes, uid: bytes, epoch: int) -> bytes:
+        # One store belongs to one device power session. Retain only the
+        # current public namespace per key; old epochs never grow the cache.
+        cached = self._namespace_cache.get(uid)
+        if cached is None or cached[0] != epoch:
+            context = uid + epoch.to_bytes(4, "big")
+            value = kdf.derive(master_secret, b"card/aes-nonce-namespace", NONCE_NAMESPACE_LEN, context)
+            cached = (epoch, value)
+            self._namespace_cache[uid] = cached
+        return cached[1]
 
     def allocate_nonce(self, master_secret: bytes, k: AesKey) -> bytes:
         """A fresh 12-byte nonce, persisted as used before it is returned."""
         value = self.allocator.allocate()
-        return self.nonce_prefix(master_secret, k.uid) + value.to_bytes(8, "big")
+        namespace = self.nonce_namespace(master_secret, k.uid, value >> 32)
+        return namespace + (value & 0xFFFFFFFF).to_bytes(4, "big")
 
     def nonce_floor(self) -> int:
         """Upper bound (exclusive) of every counter value ever handed out."""

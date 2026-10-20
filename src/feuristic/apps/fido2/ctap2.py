@@ -504,7 +504,7 @@ class Authenticator:
     # -- authenticatorGetAssertion (§6.2) -----------------------------------------
     def _applicable(self, rp_id_hash: bytes, allow_ids, uv: bool) -> list:
         """Applicable credentials (§6.2.2 step 7) with credProtect applied."""
-        out = []
+        out = cr.CredentialSelection(self.store, rp_id_hash)
         if allow_ids:
             seen = []
             for cid in allow_ids:
@@ -633,7 +633,7 @@ class Authenticator:
                         UP_TIMEOUT_MS,
                     ),
                 )
-                idx = await self._select(chan, "fido2.title.choose_account", [c.label() for c in creds])
+                idx = await self._select(chan, "fido2.title.choose_account", creds.labels())
                 selected = creds[idx]
                 user_selected = True
             if pin_param is not None:

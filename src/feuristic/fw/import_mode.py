@@ -40,13 +40,21 @@ def _readme() -> bytes:
         "Copy PNG or baseline JPEG images (max 256 KiB, 1024x1024) of one QR code\r\n"
         "each to this drive, then follow the instructions on the device.\r\n"
         "Copy all QR images of ONE identity, confirm on the device, then copy\r\n"
-        "the next identity. While confirmation is pending, writes fail with\r\n"
+        "the next identity. For large sets use short names QR000001.PNG and\r\n"
+        "batches of at most 32 images (fewer if host metadata fills the drive).\r\n"
+        "Wait for the received QR count, then delete that batch FROM THIS DRIVE\r\n"
+        "ONLY. Keep your originals. Continue without ejecting until complete.\r\n"
+        "While confirmation is pending, writes fail with\r\n"
         "NOT READY: wait for the device to resume, then retry failed copies.\r\n"
         "Copied images are decoded on the fly and are not stored: reading them\r\n"
         "back returns zeros. Eject the drive when the device asks for it.\r\n\r\n"
         "Copiez des images PNG ou JPEG baseline (max 256 Kio, 1024x1024) contenant\r\n"
         "chacune un QR code, puis suivez les instructions sur l'appareil.\r\n"
         "Copiez UNE identite, confirmez sur l'appareil puis copiez la suivante.\r\n"
+        "Pour les grands ensembles : noms courts QR000001.PNG, lots de 32 images\r\n"
+        "maximum (moins si les fichiers caches de l'ordinateur saturent le volume).\r\n"
+        "Attendez le nombre de QR recus, puis supprimez ce lot DU VOLUME SEULEMENT.\r\n"
+        "Gardez vos originaux. Continuez sans ejecter jusqu'a l'identite complete.\r\n"
         "Pendant la confirmation, les copies sont refusees : attendez la\r\n"
         "reprise puis recommencez les copies qui ont echoue.\r\n"
         "Les images sont decodees a la volee et ne sont pas conservees : leur\r\n"
@@ -198,6 +206,7 @@ async def _resume_decoder(sess, state) -> None:
 
 
 async def _controller(sess, imp, state) -> None:
+    from ..apps.backup.errors import RestoreLimitExceeded
     from ..core.errors import FeuristicError, UserCancelled
 
     title = t("importer.title")
@@ -236,18 +245,29 @@ async def _controller(sess, imp, state) -> None:
             # Decoder RAM is already freed; hold at most one authenticated
             # identity, then release it before accepting the next images.
             from ..apps.backup import restore, strings
-            from ..ui.app_backup import _Derivation, _yield
+            from ..ui.backup_progress import Derivation, yield_control
 
             if streaming is None:
-                progress = _Derivation()
+                progress = Derivation()
                 streaming = restore.StreamingRestore(
-                    InlineInteraction(), _passphrase, progress=progress.report, yield_fn=_yield
+                    InlineInteraction(),
+                    _passphrase,
+                    progress=progress.report,
+                    yield_fn=yield_control,
+                    max_envelopes=isession.DEVICE_MAX_ENVELOPES,
+                    max_sets=isession.DEVICE_MAX_SETS,
                 )
+            # Only provider code imported for this identity is temporary.
+            # The live controller, registry and KDF must precede the mark.
+            modules = utils.unimport_begin()
             try:
                 report = await streaming.restore_envelope(raw)
                 if report.failed is not None:
                     await screens.show_error(t(strings.error_key(report.failed[2])), close_others=False)
                     break
+            except RestoreLimitExceeded:
+                await screens.show_error(t("import.ui.session_limit"), close_others=False)
+                break
             except UserCancelled:
                 break
             except FeuristicError as exc:
@@ -256,7 +276,10 @@ async def _controller(sess, imp, state) -> None:
             finally:
                 raw = None
                 progress.stop()
-                gc.collect()
+                from . import session
+
+                session.release_import_stores()
+                utils.unimport_end(modules)
             await screens.show_info(
                 t("backup.restore_done.title"),
                 t("import.ui.restored", len(streaming.report.restored)),
@@ -299,7 +322,7 @@ async def run(purpose: str = "otp") -> None:
     try:
         transports.suspend()  # free protocol objects before allocating the decoder
         await transports.wait_suspended()
-        session.release_import_stores()
+        session.release_import_modules()
         gc.collect()
         max_out = 384 if utils.INTERNAL_MODEL == "T2B1" else 720
         sess = feuristic_import.Session(_readme(), max_out, utime.ticks_ms())

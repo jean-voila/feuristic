@@ -4,7 +4,7 @@
 # Host tests of lib/fimg. Vectors: tests/c/fimg/vectors (gen_vectors.py).
 set(FIMG_TEST_DIR ${CMAKE_CURRENT_SOURCE_DIR})
 
-foreach(t fimg_test_unit fimg_test_vectors)
+foreach(t fimg_test_unit fimg_test_vectors fimg_test_scattered)
   string(REPLACE "fimg_test_" "test_" src ${t})
   add_executable(${t} ${src}.c)
   target_link_libraries(${t} PRIVATE fimg)
@@ -15,5 +15,6 @@ foreach(t fimg_test_unit fimg_test_vectors)
 endforeach()
 
 add_test(NAME fimg_unit COMMAND fimg_test_unit)
+add_test(NAME fimg_scattered COMMAND fimg_test_scattered)
 add_test(NAME fimg_vectors COMMAND fimg_test_vectors ${FIMG_TEST_DIR}/vectors)
 set_tests_properties(fimg_vectors PROPERTIES TIMEOUT 900)

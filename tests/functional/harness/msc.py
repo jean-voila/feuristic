@@ -230,3 +230,24 @@ class Fat12Writer:
             write_meta()
             write_data()
         self.msc.sync()
+
+    def delete_file(self, name83: str) -> None:
+        """Delete a synchronized 8.3 file, freeing its FAT chain for reuse."""
+        base, ext = (name83.split(".") + [""])[:2]
+        name = base.upper().ljust(8)[:8].encode() + ext.upper().ljust(3)[:3].encode()
+        slot = next(
+            i
+            for i in range(0, len(self.root), 32)
+            if self.root[i] not in (0x00, 0xE5) and self.root[i : i + 11] == name
+        )
+        cluster = struct.unpack_from("<H", self.root, slot + 26)[0]
+        self.root[slot] = 0xE5
+        # Remove the live entry before freeing/reusing its data clusters.
+        self.msc.write(self.root_lba, bytes(self.root))
+        while 2 <= cluster < 0xFF8:
+            following = self._get(cluster)
+            self._set(cluster, 0)
+            cluster = following
+        for index in range(self.nfats):
+            self.msc.write(self.fat_lba + index * self.fat_sectors, bytes(self.fat))
+        self.msc.sync()

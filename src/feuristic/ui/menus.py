@@ -72,7 +72,12 @@ async def backup_menu() -> None:
         cur = await screens.menu(t("menu.backup"), items, cur)
         if cur is None:
             return
-        await _call("app_backup", ("export_identity", "export_full", "restore")[cur])
+        if cur == 2:
+            from ..fw import import_mode
+
+            await import_mode.run(purpose="backup")
+        else:
+            await _call("app_backup", ("export_identity", "export_full")[cur])
 
 
 # --- Settings ---------------------------------------------------------------
