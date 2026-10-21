@@ -4,8 +4,16 @@
 # Reprise — 21 octobre 2026
 
 Travailler seul, sans sous-agents. Rester sur `main`, sans branche ni worktree.
-Objectif : candidats T2B1/T3B1 prêts aux essais matériels. Aucun hardware n'a
-été manipulé ; R01–R16 physiques restent NON EXÉCUTÉS. Ne pas annoncer stable.
+Objectif : candidats T2B1/T3B1 prêts aux essais matériels. Une première campagne
+physique T2B1/macOS est désormais consignée dans le
+[rapport matériel](../acceptance/campaign-2026-10-21-T2B1-macos.md).
+Les procédures R01–R16 complètes restent non qualifiées. Ne pas annoncer stable.
+
+Derniers correctifs issus du matériel : `f56f02ef4018` (compte à rebours TOTP,
+confirmé sur l'appareil), puis `b97aa7cb9ae2` (accueil verrouillé visible FR/EN).
+Le rapport et les journaux locaux `build/hardware-20261021-T2B1/` indiquent quel
+binaire est installé et les vérifications réellement terminées. Ne jamais
+relancer un déverrouillage du bootloader déjà déverrouillé.
 
 La base avant ce lot est `5933b82dca588583ba21c5c568f92495b659992c`, dont la
 [CI 39473656986](https://github.com/jean-voila/feuristic/actions/runs/39473656986)

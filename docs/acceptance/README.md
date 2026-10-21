@@ -7,6 +7,10 @@
 hôte et émulateur constituent des preuves préparatoires distinctes. Aucun
 résultat ci-dessous ne qualifie un appareil physique par sa seule présence.
 
+Une [première campagne partielle T2B1/macOS](campaign-2026-10-21-T2B1-macos.md)
+consigne les essais physiques et correctifs du 21 octobre 2026 UTC. Les statuts
+globaux ci-dessous restent inchangés tant que chaque procédure n'est pas complète.
+
 Une release stable exige chaque critère sur **T2B1 et T3B1**, et chaque OS
 spécifié. Employer deux appareils sacrifiables, des secrets de test, un câble de
 données fiable, macOS/Windows/Linux, au moins deux téléphones/caméras ordinaires
