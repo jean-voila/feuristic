@@ -44,10 +44,10 @@ attestation FIDO propre à son profil, sans certification constructeur.
 
 Preuves dans la base épinglée :
 
-- [workflow de déverrouillage](../../upstream/trezor-firmware/core/embed/projects/bootloader/workflow/wf_unlock_bootloader.c) : confirmation locale, `erase_storage`, puis `secret_unlock_bootloader` ;
-- [secret STM32F4](../../upstream/trezor-firmware/core/embed/sec/secret/stm32f4/secret.c) et [secret STM32U5](../../upstream/trezor-firmware/core/embed/sec/secret/stm32u5/secret.c) : effacement du secret ou des emplacements privés ;
-- [initialisation Optiga](../../upstream/trezor-firmware/core/embed/sec/optiga/optiga_init.c) : perte du canal protégé et des attestations lorsque le secret n'est plus disponible ;
-- [en-tête tiers T2B1](../../upstream/trezor-firmware/core/embed/models/T2B1/vendorheader/vendor_unsafe.json) et [T3B1](../../upstream/trezor-firmware/core/embed/models/T3B1/vendorheader/vendor_unsafe.json) : avertissement `UNSAFE, DO NOT USE!`, clic utilisateur et délai.
+- [workflow de déverrouillage](https://github.com/trezor/trezor-firmware/blob/66ac7295aaa0aa9fb427a0cc035b34dd61b6d472/core/embed/projects/bootloader/workflow/wf_unlock_bootloader.c) : confirmation locale, `erase_storage`, puis `secret_unlock_bootloader` ;
+- [secret STM32F4](https://github.com/trezor/trezor-firmware/blob/66ac7295aaa0aa9fb427a0cc035b34dd61b6d472/core/embed/sec/secret/stm32f4/secret.c) et [secret STM32U5](https://github.com/trezor/trezor-firmware/blob/66ac7295aaa0aa9fb427a0cc035b34dd61b6d472/core/embed/sec/secret/stm32u5/secret.c) : effacement du secret ou des emplacements privés ;
+- [initialisation Optiga](https://github.com/trezor/trezor-firmware/blob/66ac7295aaa0aa9fb427a0cc035b34dd61b6d472/core/embed/sec/optiga/optiga_init.c) : perte du canal protégé et des attestations lorsque le secret n'est plus disponible ;
+- [en-tête tiers T2B1](https://github.com/trezor/trezor-firmware/blob/66ac7295aaa0aa9fb427a0cc035b34dd61b6d472/core/embed/models/T2B1/vendorheader/vendor_unsafe.json) et [T3B1](https://github.com/trezor/trezor-firmware/blob/66ac7295aaa0aa9fb427a0cc035b34dd61b6d472/core/embed/models/T3B1/vendorheader/vendor_unsafe.json) : avertissement `UNSAFE, DO NOT USE!`, clic utilisateur et délai.
 
 Cet avertissement revient au démarrage. Le remplacer par un message de
 confiance constructeur n'est pas une étape d'installation.
