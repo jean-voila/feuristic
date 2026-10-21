@@ -44,7 +44,7 @@ standard clients handle authentication and cryptography.
    `trezorctl`. Confirm every request on the device. A firmware file is **not**
    copied onto the OTP import drive.
 3. **Create a device PIN.** Accept the third-party boot warning, choose English
-   or French, set the PIN and follow the [user guide](user/guide-en.md).
+   or French, set the PIN and follow the [user guide](user/guide.md).
 
 Read the [complete installation procedure](user/install.md) before step 2.
 It explains the irreversible effects, exact button sequence and recovery path.

@@ -1,27 +1,24 @@
 <!-- SPDX-License-Identifier: GPL-3.0-only -->
 <!-- Copyright (C) 2026 The feuristic contributors -->
 
-# Candidat aux essais matériels
+# Hardware test candidates
 
-Les binaires de développement T2B1 et T3B1 doivent provenir du même commit
-propre, avec CI complète et reproductibilité validées. Le dossier
-`dist/hardware-<révision>/` associe chaque `.bin` à son SHA-256, un SBOM et une
-provenance donnant le commit exact, la CI et les contrôles logiciels exécutés.
-Utiliser ces fichiers, et non les anciens binaires de travail présents dans
-`dist/`.
+T2B1 and T3B1 development images must come from the same identified clean source
+commit, with full CI and reproducibility checks. A candidate bundle associates
+each `.bin` with SHA-256, SBOM and provenance naming the source, CI run and
+executed software checks. Use the selected candidate or release bundle, not
+unrelated older images in `dist/`.
 
-1. Identifier précisément la révision T2B1 ou T3B1 et suivre
-   [l'installation et ses conséquences](../user/guide-fr.md).
-2. Vérifier les SHA-256 du dossier candidat avant installation. La signature
-   est celle des clés de développement publiques amont, avec avertissement
-   unsafe obligatoire ; ce n'est pas une signature privée de distribution.
-3. Exécuter les fiches [R01–R16](../acceptance/README.md) sur les deux révisions,
-   en enregistrant pour chaque résultat le modèle, le hash, l'OS et les preuves.
-   Tester en particulier les copies MSC, les deux profils QR, la restauration
-   croisée et les interruptions d'alimentation.
+1. Identify T2B1/T3B1 precisely and read [installation and its irreversible
+   effects](../user/install.md).
+2. Verify candidate SHA-256 before installing. Images use public upstream
+   development signing keys and retain the mandatory unsafe warning; these
+   are not private distribution signatures.
+3. Execute [R01–R16](../acceptance/README.md) on both revisions, recording model,
+   image hash, OS and evidence. Include MSC copies, both QR profiles,
+   cross-revision restore and power interruptions.
 
-Les sondes32 bits et les émulateurs constituent des preuves logicielles.
-Ils ne valident ni l'USB physique, ni la lisibilité OLED/caméra, ni les pics RAM
-sur le MCU réel. Tous les résultats matériels restent NON EXÉCUTÉS tant que
-les fiches n'ont pas été renseignées. La publication stable reste conditionnée
-à la [checklist de release](../release-checklist.md).
+32-bit host probes and emulators provide software evidence. They do not verify
+physical USB, OLED/camera readability or real MCU peak RAM. The initial partial
+T2B1 campaign does not complete the acceptance procedures. Stable publication
+requires the [release checklist](../release-checklist.md).

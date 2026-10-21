@@ -20,3 +20,18 @@
   {% endif %}
   {% endif %}
 {% endblock %}
+
+{% block content %}
+  {% if page.meta.content_language == 'fr' and i18n_page_locale == 'en' %}
+    <div class="admonition note" lang="en">
+      <p class="admonition-title">Original French document</p>
+      <p>This is the original design specification. The installation, user guides and acceptance procedures are available in English.</p>
+    </div>
+  {% elif i18n_page_locale == 'fr' and i18n_file_locale != 'fr' and page.meta.content_language != 'fr' %}
+    <div class="admonition note" lang="fr">
+      <p class="admonition-title">Référence en anglais</p>
+      <p>Cette page technique est disponible en anglais. Les guides d’utilisation et d’installation sont traduits en français.</p>
+    </div>
+  {% endif %}
+  {{ super() }}
+{% endblock %}

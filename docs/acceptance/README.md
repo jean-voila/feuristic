@@ -1,74 +1,69 @@
 <!-- SPDX-License-Identifier: GPL-3.0-only -->
 <!-- Copyright (C) 2026 The feuristic contributors -->
 
-# Recette matérielle R01–R16
+# Hardware acceptance R01–R16
 
-**Statut initial de toute cette campagne : NON EXÉCUTÉE sur matériel.** Les tests
-hôte et émulateur constituent des preuves préparatoires distinctes. Aucun
-résultat ci-dessous ne qualifie un appareil physique par sa seule présence.
+**Initial status of the complete campaign: NOT EXECUTED on hardware.** Host and
+emulator tests provide separate preparatory evidence. A procedure’s presence
+does not qualify a physical device.
 
-Une [première campagne partielle T2B1/macOS](campaign-2026-10-21-T2B1-macos.md)
-consigne les essais physiques et correctifs du 21 octobre 2026 UTC. Les statuts
-globaux ci-dessous restent inchangés tant que chaque procédure n'est pas complète.
+An [initial partial T2B1/macOS campaign](campaign-2026-10-21-T2B1-macos.md)
+records physical tests and fixes on 21 October 2026 UTC. Complete-procedure
+statuses below remain unchanged until every step passes.
 
-Une release stable exige chaque critère sur **T2B1 et T3B1**, et chaque OS
-spécifié. Employer deux appareils sacrifiables, des secrets de test, un câble de
-données fiable, macOS/Windows/Linux, au moins deux téléphones/caméras ordinaires
-pour R13 et un moyen contrôlé de couper réellement l'alimentation pour R04/R12.
-Le déverrouillage efface les données et l'attestation d'origine de façon
-irréversible ; suivre [installation](../user/install.md).
+A stable release requires every criterion on **both T2B1 and T3B1**, on every
+specified OS. Use two sacrificial devices, disposable secrets, reliable data
+cables, macOS/Windows/Linux, two ordinary cameras/phones for R13 and controlled
+actual power cuts for R04/R12. Unlocking irreversibly erases data and original
+attestation; follow [installation](../user/install.md).
 
-## Registre de campagne
+## Campaign record
 
-Créer un dossier de preuves privé par commit/modèle/OS, puis un fichier de
-résultats contenant date UTC, opérateur, modèle exact et référence d'appareil,
-version bootloader, version firmware, commit complet, SHA-256 du binaire,
-propreté du source/diff, versions des outils et OS, alimentation/câble, commandes,
-étapes, résultat observé, écarts et liens vers preuves. Répertorier chaque essai
-`PASS`, `FAIL` ou `NON EXÉCUTÉ`. Un skip ne vaut pas PASS. Garder les originaux
-privés et produire une copie expurgée avant publication (PIN, clés, photos QR et
-APDU peuvent révéler des secrets).
+Keep a private evidence folder per commit/model/OS. Record UTC date, operator,
+exact model/device reference, bootloader/firmware versions, full source commit,
+image SHA-256, source cleanliness/diff, tool/OS versions, power/cable, commands,
+steps, observed results, deviations and evidence links. Mark each test `PASS`,
+`FAIL` or `NOT EXECUTED`; a skip is not a pass. Keep originals private and redact
+PINs, keys, QR backup photos and APDUs before publication.
 
-Consigner séparément pour chaque critère : T2B1/macOS, T2B1/Windows,
-T2B1/Linux, T3B1/macOS, T3B1/Windows, T3B1/Linux lorsque le critère concerne les
-OS ; pour les autres, au minimum une exécution physique par modèle. R14 exige
-les deux directions inter-révisions. Après un défaut ou changement de binaire,
-reprendre les critères affectés et identifier le nouveau hash.
+For OS-related criteria, record T2B1/macOS, T2B1/Windows, T2B1/Linux,
+T3B1/macOS, T3B1/Windows and T3B1/Linux separately. Other criteria require at least
+one physical run per model. R14 requires both cross-revision directions. After
+a defect or image change, repeat affected criteria and identify the new hash.
 
-| Critère | Procédure | T2B1 | T3B1 |
+| Criterion | Procedure | T2B1 | T3B1 |
 |---|---|---|---|
-| R01 | [Boot, boutons, PIN, FR/EN](R01.md) | NON EXÉCUTÉ | NON EXÉCUTÉ |
-| R02 | [FIDO et passkeys](R02.md) | NON EXÉCUTÉ | NON EXÉCUTÉ |
-| R03 | [CTAP 2.1 et extensions](R03.md) | NON EXÉCUTÉ | NON EXÉCUTÉ |
-| R04 | [Capacité, endurance, coupures](R04.md) | NON EXÉCUTÉ | NON EXÉCUTÉ |
-| R05 | [Import MSC par OS](R05.md) | NON EXÉCUTÉ | NON EXÉCUTÉ |
-| R06 | [Images/QR hostiles](R06.md) | NON EXÉCUTÉ | NON EXÉCUTÉ |
-| R07 | [Heure CDC-ACM](R07.md) | NON EXÉCUTÉ | NON EXÉCUTÉ |
-| R08 | [Vecteurs TOTP/HOTP](R08.md) | NON EXÉCUTÉ | NON EXÉCUTÉ |
-| R09 | [Interop OpenPGP/GnuPG](R09.md) | NON EXÉCUTÉ | NON EXÉCUTÉ |
-| R10 | [Interop PIV/OpenSC](R10.md) | NON EXÉCUTÉ | NON EXÉCUTÉ |
-| R11 | [Aléa GET CHALLENGE](R11.md) | NON EXÉCUTÉ | NON EXÉCUTÉ |
-| R12 | [AES-GCM/nonces](R12.md) | NON EXÉCUTÉ | NON EXÉCUTÉ |
-| R13 | [Lisibilité caméra et multi-QR](R13.md) | NON EXÉCUTÉ | NON EXÉCUTÉ |
-| R14 | [Sauvegardes inter-révisions](R14.md) | NON EXÉCUTÉ | NON EXÉCUTÉ |
-| R15 | [Consentement, PIN, effacement](R15.md) | NON EXÉCUTÉ | NON EXÉCUTÉ |
-| R16 | [Build, licences, SBOM, reproductibilité](R16.md) | NON EXÉCUTÉ | NON EXÉCUTÉ |
+| R01 | [Boot, buttons, PIN, FR/EN](R01.md) | NOT EXECUTED | NOT EXECUTED |
+| R02 | [FIDO and passkeys](R02.md) | NOT EXECUTED | NOT EXECUTED |
+| R03 | [CTAP 2.1 and extensions](R03.md) | NOT EXECUTED | NOT EXECUTED |
+| R04 | [Capacity, endurance, power cuts](R04.md) | NOT EXECUTED | NOT EXECUTED |
+| R05 | [MSC import per OS](R05.md) | NOT EXECUTED | NOT EXECUTED |
+| R06 | [Hostile images/QR](R06.md) | NOT EXECUTED | NOT EXECUTED |
+| R07 | [CDC-ACM clock](R07.md) | NOT EXECUTED | NOT EXECUTED |
+| R08 | [TOTP/HOTP vectors](R08.md) | NOT EXECUTED | NOT EXECUTED |
+| R09 | [OpenPGP/GnuPG interop](R09.md) | NOT EXECUTED | NOT EXECUTED |
+| R10 | [PIV/OpenSC interop](R10.md) | NOT EXECUTED | NOT EXECUTED |
+| R11 | [GET CHALLENGE randomness](R11.md) | NOT EXECUTED | NOT EXECUTED |
+| R12 | [AES-GCM/nonces](R12.md) | NOT EXECUTED | NOT EXECUTED |
+| R13 | [Camera readability and multi-QR](R13.md) | NOT EXECUTED | NOT EXECUTED |
+| R14 | [Cross-revision backups](R14.md) | NOT EXECUTED | NOT EXECUTED |
+| R15 | [Consent, PINs, erasure](R15.md) | NOT EXECUTED | NOT EXECUTED |
+| R16 | [Build, licenses, SBOM, reproducibility](R16.md) | NOT EXECUTED | NOT EXECUTED |
 
-## Préparation logicielle commune
+## Shared software preparation
 
-Suivre [building](../developer/building.md) et [testing](../developer/testing.md)
-pour figer les outils et lancer lint, tests host/C, cross compilation,
-fuzzing et les deux émulateurs avant le flash. Ne pas exporter des données
-réelles pour créer la campagne. Le PID `1209:0001` est provisoire ;
-[CCID](../protocols/ccid.md) décrit les conditions de liaison libccid sur Linux.
-Les modes temporaires suspendent FIDO/CCID et exigent la réouverture des clients
-après réénumération. Un lecteur virtuel d'émulateur n'est pas un vrai lecteur USB.
+Follow [building](../developer/building.md) and [testing](../developer/testing.md)
+to pin tools and run lint, host/C tests, ARM cross checks, fuzzing and both
+emulators before flashing. Do not export real data to prepare a campaign.
+PID `1209:0001` is provisional; [CCID](../protocols/ccid.md) documents Linux
+libccid binding. Temporary modes suspend FIDO/CCID and require client reopening
+after re-enumeration. An emulator’s virtual reader is not a physical USB reader.
 
-## Décision de publication
+## Publication decision
 
-Toute cellule NON EXÉCUTÉE, tout échec de lecture caméra, dépassement mémoire,
-perte d'atomicité, réemploi de nonce ou export sans consentement bloque la
-qualification. Le responsable joint les preuves et signe la décision de
-campagne ; modifier le tableau sans exécuter les essais est interdit.
-La [checklist de release](../release-checklist.md) ajoute les gates de PID,
-signature/provenance et distribution des sources/licences.
+An unexecuted cell, camera-readability failure, memory overflow, loss of
+atomicity, nonce reuse or export without consent blocks qualification. The
+responsible maintainer attaches evidence and signs the campaign decision;
+changing a table without executing tests is prohibited. The
+[release checklist](../release-checklist.md) adds PID, signing/provenance and
+source/license distribution gates.

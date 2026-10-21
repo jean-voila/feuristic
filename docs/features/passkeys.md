@@ -27,5 +27,5 @@ ssh-keygen -t ed25519-sk -O resident -f ./feuristic-test-sk
 ```
 
 Use a fresh filename. Registration with a remote service or SSH server is a
-separate host operation. Read the [English guide](../user/guide-en.md) or
-[French guide](../user/guide-fr.md) for management and deletion.
+separate host operation. Read the [English guide](../user/guide.md) or
+[French guide](https://jean-voila.github.io/feuristic/fr/user/guide/) for management and deletion.

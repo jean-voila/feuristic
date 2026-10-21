@@ -29,5 +29,5 @@ GnuPG certificate creation involves key-generation and certification-signature
 requests. Read each device prompt. Signature/decryption prompts expire after
 30 seconds; an expired or refused request must fail.
 
-Read the [user guide](../user/guide-en.md), [OpenPGP protocol](../protocols/openpgp.md)
+Read the [user guide](../user/guide.md), [OpenPGP protocol](../protocols/openpgp.md)
 and [physical test report](../acceptance/campaign-2026-10-21-T2B1-macos.md).

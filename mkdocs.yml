@@ -42,6 +42,75 @@ theme:
     - content.code.copy
     - content.tabs.link
 plugins:
+  - i18n:
+      docs_structure: suffix
+      fallback_to_default: true
+      languages:
+        - locale: en
+          default: true
+          name: English
+          build: true
+        - locale: fr
+          name: Français
+          build: true
+          site_description: "Firmware personnalisé pour Trezor Safe 3 : passkeys FIDO2, OpenPGP, PIV, TOTP/HOTP et AES-GCM. Téléchargements, installation et résultats des essais."
+          theme:
+            palette:
+              - scheme: default
+                primary: custom
+                accent: custom
+                toggle:
+                  icon: material/weather-night
+                  name: Passer au thème sombre
+              - scheme: slate
+                primary: custom
+                accent: custom
+                toggle:
+                  icon: material/weather-sunny
+                  name: Passer au thème clair
+          nav_translations:
+            Overview: Accueil
+            Get started: Premiers pas
+            Downloads: Téléchargements
+            Supported hardware: Matériel compatible
+            Frequently asked questions: Questions fréquentes
+            User guides: Guides d’utilisation
+            User guide: Guide d’utilisation
+            FIDO2 and passkeys: FIDO2 et passkeys
+            OpenPGP and SSH: OpenPGP et SSH
+            PIV and certificates: PIV et certificats
+            TOTP and HOTP: TOTP et HOTP
+            AES-GCM and random bytes: AES-GCM et nombres aléatoires
+            Backup and restore: Sauvegarde et restauration
+            Protocols: Protocoles
+            Clock synchronisation: Synchronisation de l’heure
+            OTP URI format: Format des URI OTP
+            Encrypted backup format: Format de sauvegarde chiffrée
+            Development: Développement
+            Build from source: Compilation
+            Tests: Tests
+            Emulator: Émulateur
+            Architecture: Architecture
+            Upstream patches: Correctifs amont
+            Shared storage: Stockage partagé
+            Image import memory: Mémoire d’import d’images
+            QR decoder: Décodeur QR
+            Image decoder: Décodeur d’images
+            Mass storage: Stockage de masse
+            Backup validation: Validation des sauvegardes
+            Hardware candidates: Candidats matériels
+            Releases: Versions distribuées
+            Documentation and artwork: Documentation et visuels
+            Contributing: Contribuer
+            Decisions: Décisions
+            Security and testing: Sécurité et validation
+            Security policy: Politique de sécurité
+            Threat model: Modèle de menace
+            Security history: Historique de sécurité
+            Hardware acceptance: Recette matérielle
+            Physical T2B1 results: Résultats physiques T2B1
+            Release checklist: Liste de contrôle des versions
+            Specification: Cahier des charges
   - search:
       lang: [en, fr]
 markdown_extensions:
@@ -80,8 +149,7 @@ nav:
       - Supported hardware: hardware.md
       - Frequently asked questions: faq.md
   - User guides:
-      - English: user/guide-en.md
-      - Français: user/guide-fr.md
+      - User guide: user/guide.md
       - FIDO2 and passkeys: features/passkeys.md
       - OpenPGP and SSH: features/openpgp.md
       - PIV and certificates: features/piv.md

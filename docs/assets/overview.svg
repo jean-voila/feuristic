@@ -14,7 +14,8 @@
         <text id="feuristic" font-family="AvenirNext-Heavy, Avenir Next" font-size="220" font-weight="600" line-spacing="275" fill="#102D23">
             <tspan x="70" y="464">feuristic</tspan>
         </text>
-        <circle id="Lime-i-dot" fill="#C4E525" fill-rule="evenodd" cx="863" cy="303" r="26"></circle>
+        <rect id="Dot-background" fill="#F3F3EB" fill-rule="evenodd" x="832" y="272" width="62" height="62"></rect>
+        <circle id="Lime-i-dot" fill="#C4E525" fill-rule="evenodd" cx="863" cy="303" r="28"></circle>
         <text id="Custom-firmware-for" font-family="HelveticaNeue, Helvetica Neue" font-size="42" font-weight="normal" line-spacing="52.5" fill="#102D23">
             <tspan x="78" y="542">Custom firmware for Trezor Safe 3</tspan>
         </text>

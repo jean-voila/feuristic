@@ -21,7 +21,7 @@ Discoverable FIDO credentials, OpenPGP, PIV, OTP and AES identities have defined
 backup profiles. A QR photo plus its phrase can recover the private keys.
 A plain OTP export exposes its seed directly.
 
-See the [user guide](../user/guide-en.md),
+See the [user guide](../user/guide.md),
 [encrypted envelope specification](../protocols/backup-format-v1.md) and
 [acceptance plan](../acceptance/R13.md). Real-camera and inter-revision recovery
 are remaining qualification work; the format specification is not proof that

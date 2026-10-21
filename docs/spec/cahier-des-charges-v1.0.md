@@ -1,3 +1,8 @@
+---
+title: Design specification — original French document
+content_language: fr
+---
+
 # feuristic
 ## Cahier des charges définitif de conception — firmware cryptographique alternatif pour Trezor Safe 3
 

@@ -2,7 +2,7 @@
 
 # Feuristic — custom firmware for Trezor Safe 3
 
-[Documentation](https://jean-voila.github.io/feuristic/) · [Download firmware](https://github.com/jean-voila/feuristic/releases) · [Installation](docs/user/install.md) · [Français](docs/user/guide-fr.md)
+[Documentation](https://jean-voila.github.io/feuristic/) · [Download firmware](https://github.com/jean-voila/feuristic/releases) · [Installation](docs/user/install.md) · [Français](docs/user/guide.fr.md)
 
 [![CI](https://github.com/jean-voila/feuristic/actions/workflows/ci.yml/badge.svg)](https://github.com/jean-voila/feuristic/actions/workflows/ci.yml)
 [![Documentation](https://github.com/jean-voila/feuristic/actions/workflows/docs.yml/badge.svg)](https://jean-voila.github.io/feuristic/)
@@ -34,7 +34,7 @@ standard clients on your computer. No companion account or cloud service.
    firmware**, select or drag the downloaded `.bin` into the upload box. Confirm
    the device requests. The guide also provides the tested `trezorctl` route.
 3. **Set your PIN.** Accept the third-party warning, select English or French,
-   create a device PIN and follow the [user guide](docs/user/guide-en.md).
+   create a device PIN and follow the [user guide](docs/user/guide.md).
 
 A firmware binary is uploaded through the **bootloader**, not copied onto the
 Feuristic OTP import drive. Check the model and SHA-256 before installing.
@@ -78,7 +78,7 @@ color. [Compatibility details](docs/hardware.md).
 ## Documentation
 
 - [Install and recover](docs/user/install.md) · [Downloads and verification](docs/downloads.md)
-- [English user guide](docs/user/guide-en.md) · [Guide français](docs/user/guide-fr.md)
+- [English user guide](docs/user/guide.md) · [Guide français](docs/user/guide.fr.md)
 - [FIDO2](docs/protocols/fido2.md) · [OpenPGP](docs/protocols/openpgp.md) · [PIV](docs/protocols/piv.md) · [AES-GCM](docs/protocols/aes-gcm-iso7816-v1.md)
 - [Architecture](docs/architecture.md) · [Threat model](docs/threat-model.md) · [Backup format](docs/protocols/backup-format-v1.md)
 - [Physical test results](docs/acceptance/campaign-2026-10-21-T2B1-macos.md) · [Release checklist](docs/release-checklist.md)

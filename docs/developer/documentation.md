@@ -28,3 +28,19 @@ Screens are recorded from the firmware emulator using disposable identities.
 To regenerate the artwork with Sketch installed, run the command documented in
 [the artwork directory](../../assets/design/README.md). Preserve the exported
 artboard names so existing links continue to work.
+
+## Languages
+
+English is the default language at the site root. French pages are built under
+`/fr/`, with a language switcher that keeps the current page. The primary README
+is English. Add translations as `page.fr.md` beside `page.md`; use ordinary
+`page.md` links so the language plugin resolves the correct destination.
+Shared assets stay unsuffixed; `overview.fr.svg` localizes the French banner.
+
+Use the same commands, limits and security conditions in each translation.
+Update both when behavior changes. Technical pages without a French translation
+fall back to English and display a notice. Localized titles/descriptions belong
+in each file’s front matter; navigation labels live in `mkdocs.yml`.
+The original design specification is retained in French and explicitly labelled.
+The strict build checks both languages. Verify language switching, canonical
+URLs, alternate-language links and search before merging documentation changes.
