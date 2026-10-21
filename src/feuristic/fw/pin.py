@@ -2,7 +2,6 @@
 # Copyright (C) 2026 The feuristic contributors
 """Device PIN: onboarding, unlock, change (spec §10.1: PIN mandatory)."""
 
-import trezorui_api
 from micropython import const
 from trezor import config
 
@@ -59,9 +58,7 @@ async def unlock() -> None:
     """Lockscreen + PIN entry until the storage is unlocked."""
     wrong = False
     while not config.is_unlocked():
-        await screens.run(
-            trezorui_api.show_lockscreen(label="feuristic", bootscreen=False, skip_first_paint=False)
-        )
+        await screens.show_lockscreen()
         rem = config.get_pin_rem()
         attempts = t("pin.attempts", rem) if rem < _STORAGE_MAX_TRIES else ""
         pin = await screens.request_pin(t("pin.enter"), attempts, wrong=wrong, last=rem == 1)

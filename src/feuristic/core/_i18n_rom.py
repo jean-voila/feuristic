@@ -217,6 +217,7 @@ TABLE = (
     ('importer.status.otp_ready', ('OTP account found', 'Compte OTP trouvé')),
     ('importer.title', ('Import a QR', 'Importer un QR')),
     ('lock.locked', ('Locked', 'Verrouillé')),
+    ('lock.press_any', ('Press any button...', 'Appuyez sur un bouton...')),
     ('manage.aes.id', ('Key identifier', 'Identifiant de clé')),
     ('manage.aes.name', ('Key name (1-16 ASCII)', 'Nom de clé (1-16 ASCII)')),
     ('manage.aes.state', ('Activation', 'Activation')),

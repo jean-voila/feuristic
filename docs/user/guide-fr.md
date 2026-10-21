@@ -15,6 +15,10 @@ Après l'avertissement `UNSAFE, DO NOT USE!`, choisir Français, lire le statut 
 firmware tiers et saisir deux fois un nouveau PIN de **4 à 50 chiffres**. Ce PIN
 protège le stockage de l'appareil ; le choisir avant d'ajouter des identités.
 
+Aux démarrages suivants et après verrouillage, l'écran affiche **FEURISTIC**
+et « Appuyez sur un bouton... ». Appuyer sur l'un des boutons ouvre la saisie
+du PIN ; l'appareil reste verrouillé jusqu'à sa vérification.
+
 - Gauche : précédent ; droite : suivant ; les deux : sélectionner/valider.
 - Maintenir gauche environ une seconde : retour ou annulation.
 - Sur un écran de confirmation, lire toutes les pages et suivre l'indication

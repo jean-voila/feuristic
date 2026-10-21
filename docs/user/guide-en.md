@@ -14,6 +14,10 @@ stable release. Feuristic has no cryptocurrency or wallet-seed migration.
 Acknowledge the `UNSAFE, DO NOT USE!` boot warning, select English, read the
 third-party notice, then enter a new **4–50 digit device PIN twice**.
 
+On later boots and after locking, the screen shows **FEURISTIC** and
+“Press any button...”. Either button opens PIN entry; the device remains
+locked until the PIN is verified.
+
 - Left: previous; right: next; both together: select/confirm.
 - Hold left for approximately one second: back/cancel.
 - Read every page of sensitive prompts; follow the hold indication for

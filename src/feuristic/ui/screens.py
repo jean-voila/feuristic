@@ -239,6 +239,25 @@ def show_busy(text: str) -> None:
 # --- input -------------------------------------------------------------------
 
 
+async def show_lockscreen() -> None:
+    """Visible locked greeting; releasing either button opens the PIN prompt."""
+
+    # The wrapper is needed only while locked. Release its class and instances
+    # on return rather than adding a permanent class to the small NORMAL heap.
+    class WakeLayout(ui.Layout):
+        def _event(self, event_call, *args):
+            if (
+                len(args) == 2
+                and args[0] == io.BUTTON_RELEASED
+                and args[1] in (io.BUTTON_LEFT, io.BUTTON_RIGHT)
+            ):
+                self._emit_message(trezorui_api.CONFIRMED)
+                return None
+            return super()._event(event_call, *args)
+
+    await run(trezorui_api.show_simple(text="FEURISTIC\n\n" + t("lock.press_any")), cls=WakeLayout)
+
+
 async def request_pin(
     prompt: str, attempts: str = "", wrong: bool = False, last: bool = False, close_others: bool = False
 ):

@@ -49,6 +49,7 @@ STRINGS = {
     "pin.changed": ("PIN changed", "PIN modifié"),
     "pin.wiped": ("Too many wrong PINs. Device wiped.", "Trop d'essais. Appareil effacé."),
     "lock.locked": ("Locked", "Verrouillé"),
+    "lock.press_any": ("Press any button...", "Appuyez sur un bouton..."),
     # main menu
     "menu.home": ("feuristic", "feuristic"),
     "menu.auth": ("Authentication", "Authentification"),
