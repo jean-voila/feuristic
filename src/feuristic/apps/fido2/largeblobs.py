@@ -15,6 +15,7 @@ buffer is bounded by the same cap.
 from micropython import const
 
 from ...core import cbor, namespaces
+from ...core import store as record_store
 from ...core.errors import StorageFull
 from ...core.store import Blob
 from ...platform import crypto
@@ -45,7 +46,7 @@ R_CONFIG = const(0x01)
 
 
 def _serialized_parts(entries):
-    parts = cbor.encode_parts(entries)
+    parts = cbor.encode_parts(entries, borrow_bytes=True)
     digest = crypto.Sha256()
     for part in parts:
         digest.update(part)
@@ -55,6 +56,20 @@ def _serialized_parts(entries):
 
 def serialize(entries: list) -> bytes:
     return b"".join(_serialized_parts(entries))
+
+
+def serialized_length(entries):
+    return 16 + sum(len(part) for part in cbor.iter_encode(entries, borrow_bytes=True))
+
+
+def _encoded_parts(entries):
+    yield cbor._head(4, len(entries))
+    for raw in entries:
+        yield from cbor.iter_encode(cbor.decode(raw, bytes_view=True), borrow_bytes=True)
+
+
+def encoded_length(entries):
+    return 16 + sum(len(part) for part in _encoded_parts(entries))
 
 
 # h'80' || LEFT(SHA-256(h'80'), 16): the initial (empty) serialized array
@@ -78,8 +93,8 @@ def entry_belongs_to(entry, key: bytes) -> bool:
     nonce = entry.get(2)
     size = entry.get(3)
     if (
-        not isinstance(ct, bytes)
-        or not isinstance(nonce, bytes)
+        not isinstance(ct, (bytes, bytearray, memoryview))
+        or not isinstance(nonce, (bytes, bytearray, memoryview))
         or not isinstance(size, int)
         or isinstance(size, bool)
         or len(nonce) != 12
@@ -88,7 +103,7 @@ def entry_belongs_to(entry, key: bytes) -> bool:
     ):
         return False
     try:
-        crypto.aes256_gcm_decrypt(key, nonce, ct[:-16], ct[-16:], b"blob" + size.to_bytes(8, "little"))
+        crypto.aes256_gcm_verify(key, nonce, ct[:-16], ct[-16:], b"blob" + size.to_bytes(8, "little"))
     except MemoryError:
         # A failed ownership check must never silently omit backup data or
         # allow credential deletion while leaving its blobs behind.
@@ -99,15 +114,20 @@ def entry_belongs_to(entry, key: bytes) -> bool:
 
 
 class LargeBlobs:
-    def __init__(self, pin, max_fragment: int) -> None:
+    def __init__(self, pin, max_fragment: int, reserve_write=False) -> None:
         self.pin = pin
         self.max_fragment = max_fragment
+        # NORMAL reserves this before applet/module churn fragments the heap.
+        # Exclusive restore instead borrows the consumed ciphertext arena.
+        self._buffer = bytearray(4 + MAX_SERIALIZED) if reserve_write else None
         self.blob = Blob(
             namespaces.FIDO_STATE,
             namespaces.FIDO_STATE_LARGEBLOB,
             namespaces.FIDO_STATE_LARGEBLOB + 1,
             MAX_SERIALIZED,
+            cache_head=True,
         )
+        self._snapshot = None
         self._abort_write()
 
     def _abort_write(self) -> None:
@@ -117,10 +137,16 @@ class LargeBlobs:
         self._next_offset = 0
 
     def _read_view(self):
+        if self._snapshot is not None:
+            return self._snapshot
         data = self.blob.get_view()
         if data is None or not check_integrity(data):
             return memoryview(EMPTY_ARRAY)
         return data
+
+    def snapshot(self) -> None:
+        """Pin one authenticated-storage read during an exclusive local export."""
+        self._snapshot = self._read_view()
 
     def read(self) -> bytes:
         """The current serialized array (initial empty array if none)."""
@@ -130,7 +156,7 @@ class LargeBlobs:
         """Decoded array items (list of maps) — used by the backup provider."""
         data = self._read_view()
         try:
-            items = cbor.decode(data[:-16], max_depth=3, max_items=1024)
+            items = cbor.decode(data[:-16], max_depth=3, max_items=1024, bytes_view=True)
         except cbor.CborError:
             return []
         return items if isinstance(items, list) else []
@@ -138,23 +164,46 @@ class LargeBlobs:
     def write_entries(self, entries: list) -> None:
         """Atomically replace the array (local use: backup restore).
         Raises ``StorageFull`` if the serialized array exceeds the cap."""
-        # This operation is synchronous: read metadata before allocating the
-        # new full array, rather than keeping both A/B payloads beside it.
+        self._write_entries(entries, False)
+
+    def encoded_entries(self):
+        data = self._read_view()
+        try:
+            return [raw for _, raw in cbor.array_items(data[:-16], max_depth=3, max_items=1024)]
+        except cbor.CborError:
+            return []
+
+    def write_encoded_entries(self, entries):
+        self._write_entries(entries, True)
+
+    def _write_entries(self, entries, encoded):
+        self._abort_write()  # The reusable buffer may belong to a pending CTAP transfer.
+        self._snapshot = None
         generation, key = self.blob._head()
-        parts = _serialized_parts(entries)
-        length = sum(len(part) for part in parts)
+        length = encoded_length(entries) if encoded else serialized_length(entries)
         if length > MAX_SERIALIZED:
             raise StorageFull("largeBlob array full")
-        data = bytearray(4 + length)
+        buffer = record_store._write_buffer
+        if buffer is not None and len(buffer) >= 4 + length:
+            record_store.claim_write_buffer()
+            data = memoryview(buffer)[: 4 + length]
+        elif self._buffer is not None:
+            data = memoryview(self._buffer)[: 4 + length]
+        else:
+            data = bytearray(4 + length)
         offset = 4
+        digest = crypto.Sha256()
+        parts = _encoded_parts(entries) if encoded else cbor.iter_encode(entries, borrow_bytes=True)
         for part in parts:
+            digest.update(part)
             data[offset : offset + len(part)] = part
             offset += len(part)
-        parts = None
+        data[offset : offset + 16] = digest.digest()[:16]
         self.blob._commit(data, generation, key)
         self._abort_write()
 
     def reset(self) -> None:
+        self._snapshot = None
         self.blob.clear()
         self._abort_write()
 
@@ -184,6 +233,7 @@ class LargeBlobs:
         if len(data) > self.max_fragment:
             raise CtapError(CTAP1_ERR_INVALID_LENGTH)
         if offset == 0:
+            self._snapshot = None
             if length is None:
                 raise CtapError(CTAP1_ERR_INVALID_PARAMETER)
             if length > MAX_SERIALIZED:
@@ -213,7 +263,11 @@ class LargeBlobs:
             # write. Capture its A/B head before allocating the receive buffer;
             # no other writer to these keys exists in a live NORMAL session.
             self._write_head = self.blob._head()
-            self._pending = bytearray(4 + self._expected_len)
+            self._pending = (
+                bytearray(4 + self._expected_len)
+                if self._buffer is None
+                else memoryview(self._buffer)[: 4 + self._expected_len]
+            )
         self._pending[4 + offset : 4 + offset + len(data)] = data
         self._next_offset = offset + len(data)
         if self._next_offset == self._expected_len:

@@ -60,7 +60,7 @@ def _head(major: int, value: int) -> bytes:
     raise CborError("integer too large")
 
 
-def _encode_into(out: list, obj) -> None:
+def _encode_into(out: list, obj, borrow_bytes=False) -> None:
     # bool must be tested before int (bool is a subclass of int on CPython)
     if obj is False:
         out.append(b"\xf4")
@@ -74,7 +74,7 @@ def _encode_into(out: list, obj) -> None:
         else:
             out.append(_head(_MT_NINT, -1 - obj))
     elif isinstance(obj, (bytes, bytearray, memoryview)):
-        b = bytes(obj)
+        b = obj if borrow_bytes else bytes(obj)
         out.append(_head(_MT_BYTES, len(b)))
         out.append(b)
     elif isinstance(obj, str):
@@ -84,7 +84,7 @@ def _encode_into(out: list, obj) -> None:
     elif isinstance(obj, (list, tuple)):
         out.append(_head(_MT_ARRAY, len(obj)))
         for item in obj:
-            _encode_into(out, item)
+            _encode_into(out, item, borrow_bytes)
     elif isinstance(obj, dict):
         items = []
         for k, v in obj.items():
@@ -99,25 +99,78 @@ def _encode_into(out: list, obj) -> None:
         out.append(_head(_MT_MAP, len(items)))
         for ek, v in items:
             out.append(ek)
-            _encode_into(out, v)
+            _encode_into(out, v, borrow_bytes)
     else:
         raise CborError("unsupported type")
 
 
-def encode_parts(obj) -> list:
+def encode_parts(obj, borrow_bytes=False) -> list:
     """Return deterministic CBOR chunks without joining a second full copy.
 
     Bytes-like input is snapshotted by the encoder, as with :func:`encode`.
     The returned list can be hashed or copied directly into a bounded buffer.
+    ``borrow_bytes=True`` avoids copies for immediate synchronous consumption;
+    the caller must keep those buffers alive and unchanged until consumed.
     """
     out = []
-    _encode_into(out, obj)
+    _encode_into(out, obj, borrow_bytes)
     return out
+
+
+def iter_encode(obj, borrow_bytes=False):
+    """Yield canonical chunks without retaining a list for a large array."""
+    if obj is False or obj is True or obj is None or isinstance(obj, int):
+        parts = []
+        _encode_into(parts, obj)
+        yield from parts
+    elif isinstance(obj, (bytes, bytearray, memoryview)):
+        data = obj if borrow_bytes else bytes(obj)
+        yield _head(_MT_BYTES, len(data))
+        yield data
+    elif isinstance(obj, str):
+        data = obj.encode()
+        yield _head(_MT_TEXT, len(data))
+        yield data
+    elif isinstance(obj, (list, tuple)):
+        yield _head(_MT_ARRAY, len(obj))
+        for item in obj:
+            yield from iter_encode(item, borrow_bytes)
+    elif isinstance(obj, dict):
+        items = []
+        for key, value in obj.items():
+            if key is None or key is True or key is False or not isinstance(key, (int, str, bytes)):
+                raise CborError("unsupported map key type")
+            items.append((encode(key), value))
+        items.sort(key=lambda item: item[0])
+        for index in range(1, len(items)):
+            if items[index][0] == items[index - 1][0]:
+                raise CborError("duplicate map key")
+        yield _head(_MT_MAP, len(items))
+        for key, value in items:
+            yield key
+            yield from iter_encode(value, borrow_bytes)
+    else:
+        raise CborError("unsupported type")
 
 
 def encode(obj) -> bytes:
     """Encode ``obj`` in deterministic CBOR."""
     return b"".join(encode_parts(obj))
+
+
+def encode_into(obj, buffer, offset=0):
+    """Encode into an owned buffer; input must not alias the destination.
+
+    Validate and check capacity before mutation, then stream canonical chunks.
+    """
+    size = sum(len(part) for part in iter_encode(obj, borrow_bytes=True))
+    if offset < 0 or offset + size > len(buffer):
+        raise CborError("encoding buffer too small")
+    position = offset
+    for part in iter_encode(obj, borrow_bytes=True):
+        buffer[position : position + len(part)] = part
+        position += len(part)
+    return memoryview(buffer)[offset:position]
 
 
 # ---------------------------------------------------------------------------
@@ -126,12 +179,13 @@ def encode(obj) -> bytes:
 
 
 class _Reader:
-    def __init__(self, data, max_depth: int, max_items: int, canonical: bool) -> None:
+    def __init__(self, data, max_depth: int, max_items: int, canonical: bool, bytes_view=False) -> None:
         self.data = data
         self.pos = 0
         self.max_depth = max_depth
         self.items_left = max_items
         self.canonical = canonical
+        self.bytes_view = bytes_view
 
     def take(self, n: int):
         end = self.pos + n
@@ -180,7 +234,8 @@ class _Reader:
         if major == _MT_NINT:
             return -1 - val
         if major == _MT_BYTES:
-            return bytes(self.take(val))
+            value = self.take(val)
+            return value if self.bytes_view else bytes(value)
         if major == _MT_TEXT:
             raw = bytes(self.take(val))
             try:
@@ -199,6 +254,8 @@ class _Reader:
             for _ in range(val):
                 kstart = self.pos
                 k = self.item(depth + 1)
+                if isinstance(k, memoryview):
+                    k = bytes(k)  # Map keys remain hashable in view mode.
                 kenc = self.data[kstart : self.pos]
                 if isinstance(k, (list, dict)):
                     raise CborError("unsupported map key type")
@@ -228,6 +285,7 @@ def decode(
     max_items: int = DEFAULT_MAX_ITEMS,
     canonical: bool = False,
     allow_trailing: bool = False,
+    bytes_view: bool = False,
 ):
     """Decode one CBOR item from ``data``.
 
@@ -235,10 +293,27 @@ def decode(
     and (unless ``allow_trailing``) when bytes remain after the item.
     With ``allow_trailing=True`` returns ``(item, consumed_length)``.
     """
-    r = _Reader(memoryview(data), max_depth, max_items, canonical)
+    r = _Reader(memoryview(data), max_depth, max_items, canonical, bytes_view)
     obj = r.item(0)
     if allow_trailing:
         return obj, r.pos
     if r.pos != len(data):
         raise CborError("trailing bytes")
     return obj
+
+
+def array_items(data, *, max_depth=DEFAULT_MAX_DEPTH, max_items=DEFAULT_MAX_ITEMS):
+    """Yield (decoded item, encoded view) without retaining the whole array."""
+    if max_depth < 0 or max_items < 1:
+        raise CborError("expected bounded array")
+    reader = _Reader(memoryview(data), max_depth, max_items, False, True)
+    major, count, _ = reader.head()
+    reader.items_left -= 1
+    if major != _MT_ARRAY or count > reader.items_left:
+        raise CborError("expected bounded array")
+    for _ in range(count):
+        start = reader.pos
+        value = reader.item(1)
+        yield value, reader.data[start : reader.pos]
+    if reader.pos != len(data):
+        raise CborError("trailing bytes")

@@ -105,6 +105,18 @@ def test_gcm_roundtrip_and_tamper():
         crypto.aes256_gcm_decrypt(key, nonce, ct, tag[:15], b"aad")
 
 
+@pytest.mark.parametrize("size", [0, 1, 17, 257, 4070])
+def test_gcm_decrypt_into_wipes_failed_plaintext_and_preserves_neighboring_bytes(size):
+    key, nonce, aad = b"k" * 32, b"n" * 12, b"associated"
+    ciphertext, tag = crypto.aes256_gcm_encrypt(key, nonce, b"p" * size, aad)
+    arena = bytearray(b"secret" * (size // 6 + 1))[:size] + bytearray(b"TAILTAIL")
+    plaintext = crypto.aes256_gcm_decrypt_into(key, nonce, memoryview(ciphertext), tag, arena, aad)
+    assert bytes(plaintext) == b"p" * size
+    with pytest.raises(crypto.AuthenticationError):
+        crypto.aes256_gcm_decrypt_into(key, nonce, ciphertext, bytes((tag[0] ^ 1,)) + tag[1:], arena, aad)
+    assert not any(arena[:size]) and arena[size:] == b"TAILTAIL"
+
+
 def test_gcm_nist_vector():
     # NIST GCM test vector (AES-256, 96-bit IV, empty plaintext)
     key = bytes(32)

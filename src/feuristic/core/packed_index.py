@@ -98,9 +98,16 @@ class CredentialIndex:
     # uid(8), RP SHA-256(32), creation sequence(4)
     WIDTH = 44
 
-    def __init__(self, capacity):
+    def __init__(self, capacity, buffer=None, revision=None):
+        if buffer is not None and len(buffer) < capacity * self.WIDTH:
+            raise ValueError("credential index buffer too small")
         self.capacity = capacity
-        self.data = bytearray(capacity * self.WIDTH)
+        self.data = (
+            bytearray(capacity * self.WIDTH)
+            if buffer is None
+            else memoryview(buffer)[: capacity * self.WIDTH]
+        )
+        self.revision = revision
         self.count = 0
 
     def __len__(self):
@@ -153,6 +160,22 @@ class CredentialIndex:
         positions.sort(key=self._sequence, reverse=True)
         for index in positions:
             yield self[index]
+
+    def rp_groups(self):
+        """Yield one UID and count per RP without retaining RP strings/hashes."""
+        for index in range(self.count):
+            uid, rp_hash, _seq = self[index]
+            count = 1
+            for other in range(self.count):
+                if other == index:
+                    continue
+                offset = other * self.WIDTH + 8
+                if self.data[offset : offset + 32] == rp_hash:
+                    if other < index:
+                        break
+                    count += 1
+            else:
+                yield uid, count
 
     def remove_uid(self, uid):
         if len(uid) != 8:

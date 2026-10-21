@@ -235,6 +235,21 @@ def test_full_export(setup, monkeypatch):
     assert len(otp.exported) == 2 and len(fido.exported) == 1
 
 
+def test_packed_uid_snapshot_crosses_pages_without_retaining_labels():
+    providers = [object(), object(), object()]
+    snapshot = export._Snapshot(providers)
+    expected = []
+    for index in range(150):
+        uid = bytes((index,)) * (1 + index % 32)
+        snapshot.append(index % 3, uid)
+        expected.append((providers[index % 3], uid, None))
+    assert list(snapshot) == expected
+    assert snapshot[-1] == expected[-1]
+    assert all(len(page) == 256 for page in snapshot.pages)
+    with pytest.raises(IndexError):
+        snapshot[150]
+
+
 def test_full_export_session_lazy_and_close(setup):
     otp, _ = setup
     otp.add("a-one")

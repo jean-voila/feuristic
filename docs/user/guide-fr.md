@@ -231,6 +231,10 @@ Pour un OTP individuel, son menu Sauvegarder QR montre un `otpauth://` standard
 après PIN et avertissement. Si l'URI ne tient pas à l'écran, suivre le repli en
 sauvegarde chiffrée fragmentée proposé par l'interface.
 
+L'export QR chiffré déconnecte temporairement l'USB et suspend FIDO/CCID.
+Conserver l'alimentation. L'USB se reconnecte à la fin ou à l'annulation ;
+rouvrir ensuite les sessions de carte à puce interrompues.
+
 1. Choisir **Sauvegarde → Exporter une identité**, puis catégorie/identité, ou
    **Export complet** pour enchaîner les identités sauvegardables.
 2. Choisir Lisibilité QR : Gros modules (davantage de photos) ou dense.

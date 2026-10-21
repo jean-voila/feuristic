@@ -205,13 +205,11 @@ async def _resume_decoder(sess, state) -> None:
     state.set(t("import.ui.instructions"))
 
 
-async def _controller(sess, imp, state) -> None:
+async def _controller(sess, imp, state, streaming=None, progress=None) -> None:
     from ..apps.backup.errors import RestoreLimitExceeded
     from ..core.errors import FeuristicError, UserCancelled
 
     title = t("importer.title")
-    streaming = None
-    progress = None
     raw = None
     try:
         while not state.ejected:
@@ -222,9 +220,10 @@ async def _controller(sess, imp, state) -> None:
             text = state.message
             if ready:
                 text += "\n" + t("import.ui.ready")
-            elif streaming is not None:
+            started = streaming is not None and bool(streaming.report.restored or streaming.report.skipped)
+            if not ready and started:
                 text += "\n" + t("import.ui.restored", len(streaming.report.restored))
-            button = t("ui.continue") if ready else t("ui.done" if streaming else "ui.cancel")
+            button = t("ui.continue") if ready else t("ui.done" if started else "ui.cancel")
             result = await _wait_screen(state, title, text, button)
             if result is None or (result is True and not ready):
                 missing = imp.counts()[1]
@@ -260,6 +259,9 @@ async def _controller(sess, imp, state) -> None:
             # Only provider code imported for this identity is temporary.
             # The live controller, registry and KDF must precede the mark.
             modules = utils.unimport_begin()
+            from ..core import store as record_store
+
+            old_buffer = record_store.use_write_buffer(imp._arena)
             try:
                 report = await streaming.restore_envelope(raw)
                 if report.failed is not None:
@@ -274,6 +276,7 @@ async def _controller(sess, imp, state) -> None:
                 await screens.show_error(t(strings.error_key(exc)), close_others=False)
                 break
             finally:
+                record_store.use_write_buffer(old_buffer)
                 raw = None
                 progress.stop()
                 from . import session
@@ -317,22 +320,46 @@ async def run(purpose: str = "otp") -> None:
 
     sess = None
     imp = None
+    streaming = None
+    progress = None
     completed = False
     no_memory = False
     try:
         transports.suspend()  # free protocol objects before allocating the decoder
         await transports.wait_suspended()
         session.release_import_modules()
+        if purpose == "backup":
+            # These modules survive every identity. Load them before native
+            # pages occupy the heap, rather than splitting their freed holes
+            # during the first restore.
+            from ..apps.backup import restore
+            from ..ui import backup_progress
+
+            progress = backup_progress.Derivation()
+            streaming = restore.StreamingRestore(
+                InlineInteraction(),
+                _passphrase,
+                progress=progress.report,
+                yield_fn=backup_progress.yield_control,
+                max_envelopes=isession.DEVICE_MAX_ENVELOPES,
+                max_sets=isession.DEVICE_MAX_SETS,
+                reserve_ledger=True,
+            )
         gc.collect()
-        max_out = 384 if utils.INTERNAL_MODEL == "T2B1" else 720
-        sess = feuristic_import.Session(_readme(), max_out, utime.ticks_ms())
+        max_out = 256 if utils.INTERNAL_MODEL == "T2B1" else 720
         imp = isession.ImportSession(
-            max_backups=isession.DEVICE_MAX_BACKUPS, max_bytes=isession.DEVICE_MAX_BYTES, compact=True
+            max_backups=isession.DEVICE_MAX_BACKUPS,
+            max_bytes=isession.DEVICE_MAX_BYTES,
+            compact=True,
+            reserve_bytes=5440,
         )
+        sess = feuristic_import.Session(_readme(), max_out, utime.ticks_ms())
         state = _State(purpose)
         await usbmodes.switch(usbmodes.IMPORT)
         await loop.race(
-            _controller(sess, imp, state), _usb_task(sess, imp, state), loop.sleep(IDLE_TIMEOUT_MS)
+            _controller(sess, imp, state, streaming, progress),
+            _usb_task(sess, imp, state),
+            loop.sleep(IDLE_TIMEOUT_MS),
         )
         completed = True
     except MemoryError:
@@ -345,6 +372,11 @@ async def run(purpose: str = "otp") -> None:
             sess.close()
         sess = None
         imp = None
+        if streaming is not None:
+            streaming.close()
+        if progress is not None:
+            progress.stop()
+        streaming = progress = None
         gc.collect()
         # GeneratorExit may not yield: the independent cleanup task survives
         # both workflow closure and cancellation while awaiting its mailbox.

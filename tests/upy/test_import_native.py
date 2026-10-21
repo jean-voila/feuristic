@@ -42,8 +42,8 @@ def paused_decoder_releases_ram_and_refuses_writes_without_losing_sectors():
         used = gc.mem_free()
         assert session.pause_decode()
         gc.collect()
-        assert gc.mem_free() - used > 100000
-        inquiry(session)  # MSC public reads work with all decoder RAM freed
+        assert gc.mem_free() - used > 40000
+        inquiry(session)  # Reads work with the wiped bitmap/QR blocks reserved.
         write = b"\x2a\x00\x00\x00\x00\x19\x00\x00\x01\x00"
         frames = command(session, write, 512)
         assert b"\x03" in frames  # OUT halt: the host must not send data
@@ -165,8 +165,8 @@ def scattered_decoder_works_without_a_64k_heap_run_and_resume_oom_is_atomic():
         baseline = gc.mem_free()
         raises(MemoryError, session.resume_decode)
         gc.collect()
-        # Failed resume frees its bitmap and every already-allocated block
-        # immediately; the existing MSC context/owner stays usable and paused.
+        # Failed resume frees its bitmap and partial allocations immediately;
+        # the preexisting wiped bitmap/QR reservations and MSC owner stay usable.
         assert gc.mem_free() >= baseline - 4096
         inquiry(session)
         assert session.pause_decode()

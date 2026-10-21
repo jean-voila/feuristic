@@ -29,7 +29,7 @@ import micropython
 import feuristic_import
 from trezor import config, loop, utils
 from feuristic.fw import device, session, usbmodes
-from feuristic.fw.import_mode import _readme
+from feuristic.fw.import_mode import _State, _controller, _readme, _usb_task
 from feuristic.apps.importer.session import (
     ImportSession, DEVICE_MAX_BYTES, DEVICE_MAX_ENVELOPES, DEVICE_MAX_SETS
 )
@@ -67,7 +67,7 @@ async def phrase(request):
     return bytearray(b"Memory probe passphrase")
 
 
-def command(cdb, data=None, read=0):
+def command(cdb, data=None, read=0, buffer=None):
     cbw = bytearray(31)
     cbw[:4] = b"USBC"
     cbw[4:8] = b"\x01\x00\x00\x00"
@@ -79,7 +79,8 @@ def command(cdb, data=None, read=0):
     if data is not None:
         for offset in range(0, len(data), 64):
             native.feed(b"\x00" + data[offset:offset+64])
-    output = bytearray()
+    output = bytearray() if buffer is None else buffer
+    output_offset = 0
     status = None
     while True:
         packet = native.tx()
@@ -89,14 +90,22 @@ def command(cdb, data=None, read=0):
             if len(packet) == 14 and packet[1:5] == b"USBS":
                 status = packet[-1]
             elif read:
-                output.extend(packet[1:])
+                if buffer is None:
+                    output.extend(packet[1:])
+                else:
+                    output[output_offset:output_offset+len(packet)-1] = packet[1:]
+                    output_offset += len(packet)-1
         native.tx_done()
     assert status is not None
+    if buffer is not None and status == 0:
+        assert output_offset == read
     return status, output
 
 
 def read_sector(lba):
-    status, data = command(b"\x28\x00" + lba.to_bytes(4, "big") + b"\x00\x00\x01\x00", read=512)
+    status, data = command(
+        b"\x28\x00" + lba.to_bytes(4, "big") + b"\x00\x00\x01\x00", read=512, buffer=host_sector
+    )
     assert status == 0 and len(data) == 512
     return data
 
@@ -110,13 +119,16 @@ def write_sector(lba, data):
 def image(path, cluster):
     # One-cluster PNGs; rewrite one directory slot to model deleting each
     # previously received file. Received ciphertext remains in the collector.
-    with open(path, "rb") as source:
-        data = source.read()
-    assert 0 < len(data) <= 4096
     start = 29 + (cluster - 2) * 8
-    for offset in range(0, len(data), 512):
-        part = data[offset:offset+512]
-        write_sector(start + offset // 512, part + bytes(512-len(part)))
+    with open(path, "rb") as source:
+        size = source.seek(0, 2)
+        source.seek(0)
+        assert 0 < size <= 4096
+        for offset in range(0, size, 512):
+            count = source.readinto(host_sector)
+            for padding in range(count, 512):
+                host_sector[padding] = 0
+            write_sector(start + offset // 512, host_sector)
     sector = (cluster * 3 // 2) // 512
     fat = read_sector(1 + sector)
     offset = (cluster * 3 // 2) % 512
@@ -134,18 +146,23 @@ def image(path, cluster):
     entry[:11] = b"MEMORY  PNG"
     entry[11] = 32
     entry[26:28] = cluster.to_bytes(2, "little")
-    entry[28:32] = len(data).to_bytes(4, "little")
+    entry[28:32] = size.to_bytes(4, "little")
     root[96:128] = entry
     write_sector(25, root)
     assert command(b"\x35" + bytes(9))[0] == 0
     while native.event() is not None:
         pass
+    # FAT/directory buffers belong to the simulated external host. They do
+    # not coexist with QR collection in the actual 65-byte USB poller.
+    fat = root = entry = source = None
+    gc.collect()
     result = native.decode()
     if result is None or result[0] != "qr":
         raise RuntimeError("image decode failed: " + str(result))
     assert collector.add_payload(result[1]).accepted
 
 
+session.configure_gc()
 os.mount(os.VfsPosix(), "/")
 config.init()
 config.unlock("", None)
@@ -165,9 +182,30 @@ if hasattr(session, "_clock_maintenance"):
     loop.schedule(session._clock_maintenance())
 usbmodes.current = lambda: usbmodes.IMPORT
 checkpoint("bootstrap")
+from feuristic.apps.backup.restore import StreamingRestore
+# The simulated external host reuses one sector, reserved before decoding.
+# A real device receives only the 65-byte USB frames, never these host copies.
+host_sector = bytearray(512)
+collector = ImportSession(max_backups=1, max_bytes=DEVICE_MAX_BYTES, compact=True, reserve_bytes=5440)
+streamed = StreamingRestore(
+    Approve(), phrase, max_envelopes=DEVICE_MAX_ENVELOPES, max_sets=DEVICE_MAX_SETS,
+    reserve_ledger=True,
+)
 native = feuristic_import.Session(_readme(), OUTPUT_SIDE, 1)
-collector = ImportSession(max_backups=1, max_bytes=DEVICE_MAX_BYTES, compact=True)
-streamed = None
+from feuristic.ui import screens
+from feuristic.ui.backup_progress import Derivation
+import trezorui_api
+state = _State("backup")
+progress = Derivation()
+idle_controller = _controller(native, collector, state, streamed, progress)
+idle_usb = _usb_task(native, collector, state)
+idle_usb_buffer = bytearray(65)
+idle_context = trezorui_api.show_warning(
+    title="Import", button="Continue", description=state.message, allow_cancel=True
+)
+idle_layout = screens.NavLayout(idle_context.__enter__())
+idle_screen = idle_layout.get_result()
+idle_screen.send(None)
 command(bytes(6))
 command(b"\x03\x00\x00\x00\x12\x00", read=18)
 checkpoint("decoder")
@@ -184,13 +222,13 @@ for identity in range(IDENTITIES):
     raw = collector.take_complete()
     assert raw is not None
     checkpoint("paused-" + str(identity+1))
-    if streamed is None:
-        from feuristic.apps.backup.restore import StreamingRestore
-        streamed = StreamingRestore(
-            Approve(), phrase, max_envelopes=DEVICE_MAX_ENVELOPES, max_sets=DEVICE_MAX_SETS
-        )
     modules = utils.unimport_begin()
-    report = run(streamed.restore_envelope(raw))
+    from feuristic.core import store as record_store
+    old_buffer = record_store.use_write_buffer(collector._arena)
+    try:
+        report = run(streamed.restore_envelope(raw))
+    finally:
+        record_store.use_write_buffer(old_buffer)
     if report.failed is not None:
         print("RESTORE_FAILED", report.failed)
         raise AssertionError("provider restore failed")
@@ -203,8 +241,65 @@ for identity in range(IDENTITIES):
 assert len(streamed.report.restored) == IDENTITIES
 assert streamed.incomplete_sets() == []
 streamed.close()
+idle_screen.close()
+idle_layout.stop()
+idle_context.__exit__(None, None, None)
+idle_usb.close()
+idle_controller.close()
 native.close()
 print("RESTORE_MEMORY_PROBE_OK", IDENTITIES)
+# The restored records are all five real maximum-size providers. Exercise
+# their export too, after releasing the importer exactly as the UI does.
+streamed = collector = report = native = state = progress = raw = None
+idle_screen = idle_layout = idle_context = idle_usb = idle_controller = None
+idle_usb_buffer = host_sector = modules = listing = None
+session.release_import_modules(keep_backup=True)
+gc.collect()
+from feuristic.fw import backup_providers
+from feuristic.apps.backup.export import begin_full_export
+
+class MaxEntries:
+    # Force two-byte sequence/count and a maximal timestamp without retaining
+    # 192 duplicate UID tuples. This is the native-export byte bound fixture.
+    def __init__(self, entries):
+        self.entries = entries
+
+    def __len__(self):
+        return 192
+
+    def __getitem__(self, index):
+        return self.entries[index % 5]
+
+maximum_sizes = {"openpgp":5127, "fido2":4847, "piv":2500, "otp":379, "aes":241}
+backup_providers.begin_export()
+for profile in ("dense", "large"):
+    exported = run(begin_full_export(Approve(), phrase, profile=profile))
+    try:
+        assert len(exported) == 5
+        exported.entries = MaxEntries(exported.entries)
+        exported.created = 0xFFFFFFFF
+        for index in range(185, 190):
+            built = exported.build(index)
+            assert built.frames and built.count == 192
+            if built.type == "fido2":
+                assert built.envelope_len in (4721, maximum_sizes["fido2"])
+            else:
+                assert built.envelope_len == maximum_sizes[built.type]
+            with screens._qr_layout("Backup", built.frames[0]) as qr:
+                qr_layout = screens._QrLayout(qr)
+                qr_wait = qr_layout.get_result()
+                qr_wait.send(None)
+                qr_wait.close()
+                qr_layout.stop()
+            print("MAX_EXPORT_MEMORY", profile, built.type, built.envelope_len, len(built.frames))
+            built.frames.clear()
+            built = qr_layout = qr_wait = qr = None
+            checkpoint("max-export-" + profile)
+    finally:
+        exported.close()
+        exported = None
+backup_providers.end_export()
+print("MAX_EXPORT_MEMORY_PROBE_OK")
 """
 
 # Frozen production builds remove assert statements; retain every probe action.
@@ -274,7 +369,7 @@ def main() -> int:
     parser.add_argument("--fixtures", type=Path, default=ROOT / "build/restore-memory-fixtures")
     parser.add_argument("--profile-dir", type=Path, default=ROOT / "build/restore-memory-profile")
     parser.add_argument("--heap", default="171492")
-    parser.add_argument("--output-side", type=int, choices=(128, 192, 256, 320, 384, 512, 720), default=384)
+    parser.add_argument("--output-side", type=int, choices=(128, 192, 256, 320, 384, 512, 720), default=256)
     parser.add_argument("--identities", type=int, default=192)
     parser.add_argument("--profile", choices=("dense", "large"), default="dense")
     parser.add_argument("--fido-blobs", type=int, choices=(1, 64), default=64)

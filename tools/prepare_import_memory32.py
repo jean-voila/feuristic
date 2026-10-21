@@ -111,6 +111,7 @@ def main() -> int:
                 'static import_static_t g_static __attribute__((section(".no_dma_buffers")));',
                 "static import_static_t g_static;",
             )
+            .replace('section(".no_dma_buffers"), ', "")
         )
         glue.write_text(source)
     sources = {}
@@ -133,7 +134,7 @@ def main() -> int:
         "isolated_adaptations": [
             "host PRNG guard accepts pointer32",
             "secp context verified 180 bytes",
-            "MSC .bss replaces CCM" if not args.msc_on_heap else "MSC unchanged",
+            "MSC and image context .bss replace CCM" if not args.msc_on_heap else "MSC unchanged",
         ],
     }
     (destination / "source-snapshot.json").write_text(json.dumps(manifest, indent=2) + "\n")

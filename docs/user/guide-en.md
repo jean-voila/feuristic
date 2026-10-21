@@ -206,6 +206,10 @@ Feuristic cannot recover a lost passphrase.
 An OTP account's QR export shows a standard `otpauth://` after PIN and warning.
 If its URI does not fit, the UI offers encrypted multi-frame backup instead.
 
+Encrypted QR export temporarily disconnects USB and suspends FIDO/CCID.
+Keep power connected. USB reconnects when export finishes or is cancelled;
+reopen any interrupted smart-card session afterwards.
+
 1. Choose **Backup → Export an identity**, then category/identity, or **Full
    export** to chain the exportable identities.
 2. Choose **Large modules** (more images) or **Dense QR**. Neither physical

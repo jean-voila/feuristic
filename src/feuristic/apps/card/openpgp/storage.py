@@ -31,6 +31,7 @@ so a power cut never gives back a consumed PIN try.
 from micropython import const
 
 from ....core import cbor, namespaces
+from ....core import store as record_store
 from ....core.counters import RedundantCounter
 from ....core.errors import InvalidInput, StorageCorrupted, StorageFull
 from ....core.store import RecordStore
@@ -261,10 +262,11 @@ class Identity:
             8: self.dsc_base,
             9: aux_ref,
         }
-        return cbor.encode(obj)
+        return record_store.encode_payload(obj)
 
-    def encode_aux(self) -> bytes:
-        return cbor.encode({0: self.url, 1: self.login, 2: list(self.private), 3: self.cert})
+    def encode_aux(self):
+        obj = {0: self.url, 1: self.login, 2: list(self.private), 3: self.cert}
+        return record_store.encode_payload(obj)
 
     @classmethod
     def decode_main(cls, raw: bytes):

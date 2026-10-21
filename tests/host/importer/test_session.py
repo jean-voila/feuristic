@@ -181,6 +181,20 @@ def test_abort_purges():
     assert uri == bytearray(len(OTP)) and not s2.has_otp()
 
 
+def test_reserved_compact_arena_is_reused_across_identities_and_wiped():
+    s = sess.ImportSession(max_backups=1, max_bytes=12 * 1024, compact=True, reserve_bytes=6144)
+    arena = s._arena
+    for number in range(3):
+        data = bytes((number + 1,)) * 5127
+        for text in reversed(frames.split(data, number.to_bytes(8, "big"), "large")):
+            assert s.add_payload(text.encode()).accepted
+            assert s._backups[0]._data is arena
+        assert s.take_complete() == data
+        assert s._arena is arena and s.counts() == (0, 0)
+    s.abort()
+    assert s._arena is None and arena == bytearray(6144)
+
+
 def test_status_keys_translated():
     sess._strings.register()
     for key in sess._STATUS_KEYS.values():

@@ -50,7 +50,7 @@ static void arena_close(arena_t *a) {
 }
 
 static void sizes_contract(void) {
-  static const uint16_t dims[] = {8, 100, 320, 384, 720, 1024};
+  static const uint16_t dims[] = {8, 100, 256, 320, 384, 720, 1024};
   static const uint32_t flags[] = {0, FIMG_FLAG_NO_PNG, FIMG_FLAG_NO_JPEG,
                                    FIMG_FLAG_STRICT_TRAILER};
   fimg_config_t cfg;
@@ -193,9 +193,9 @@ static void put_be32(uint8_t *p, uint32_t value) {
 }
 
 static void image_header_geometry(void) {
-  static const uint16_t limits[][2] = {{8, 8},     {320, 320},   {384, 384},
-                                       {720, 720}, {1024, 1024}, {8, 1024},
-                                       {1024, 8}};
+  static const uint16_t limits[][2] = {{8, 8},     {256, 256}, {320, 320},
+                                       {384, 384}, {720, 720}, {1024, 1024},
+                                       {8, 1024},  {1024, 8}};
   static const uint32_t heights[] = {1, 1024};
   fimg_config_t cfg;
   arena_t a;

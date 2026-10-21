@@ -66,7 +66,7 @@ static uint32_t paeth(uint32_t a, uint32_t b, uint32_t c) {
 }
 
 static uint8_t *row_ptr(const fimg_png_t *g, uint32_t at) {
-  return g->prev[at / g->page_size] + (at & (g->page_size - 1u));
+  return g->prev[at / FIMG_PNG_ROW_PAGE] + (at & (FIMG_PNG_ROW_PAGE - 1u));
 }
 
 static uint32_t row_sample(const fimg_png_t *g, uint32_t at, uint32_t bytes) {
@@ -340,7 +340,7 @@ static fimg_status_t parse_ihdr(fimg_ctx_t *ctx) {
   memset(g->pal_luma, 0, sizeof g->pal_luma);
 
   g->page_size = (uint32_t)fimg_page_size(&ctx->cfg);
-  uint8_t *pages[16];
+  uint8_t *pages[32];
   uint8_t *first = (uint8_t *)fimg_alloc(ctx, FIMG_QR_REUSE_BYTES);
   if (first == NULL) return FIMG_E_INTERNAL;
   size_t prefix = FIMG_QR_REUSE_BYTES / g->page_size;
@@ -350,10 +350,10 @@ static fimg_status_t parse_ihdr(fimg_ctx_t *ctx) {
                           : (uint8_t *)fimg_alloc(ctx, g->page_size);
     if (pages[i] == NULL) return FIMG_E_INTERNAL;
   }
-  for (size_t i = 0; i < FIMG_PNG_MAX_ROWBYTES / g->page_size; i++) {
-    g->prev[i] = (uint8_t *)fimg_alloc(ctx, g->page_size);
+  for (size_t i = 0; i < FIMG_PNG_MAX_ROWBYTES / FIMG_PNG_ROW_PAGE; i++) {
+    g->prev[i] = (uint8_t *)fimg_alloc(ctx, FIMG_PNG_ROW_PAGE);
     if (g->prev[i] == NULL) return FIMG_E_INTERNAL;
-    memset(g->prev[i], 0, g->page_size);
+    memset(g->prev[i], 0, FIMG_PNG_ROW_PAGE);
   }
   g->luma = (uint8_t *)fimg_alloc(ctx, FIMG_MAX_DIM);
   if (g->luma == NULL) return FIMG_E_INTERNAL;

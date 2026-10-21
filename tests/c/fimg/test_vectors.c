@@ -514,7 +514,7 @@ int main(int argc, char **argv) {
     if (strcmp(file, "qr_backup_1024.png") == 0 ||
         strcmp(file, "qr_backup_1024_q70.jpg") == 0 ||
         strcmp(file, "png_1024_gray1.png") == 0) {
-      static const uint16_t dimensions[] = {320, 384, 1024};
+      static const uint16_t dimensions[] = {256, 320, 384, 1024};
       for (size_t i = 0; i < sizeof dimensions / sizeof dimensions[0]; i++) {
         result_t limited;
         c = cfg;

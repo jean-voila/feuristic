@@ -2,6 +2,26 @@
 # Copyright (C) 2026 The feuristic contributors
 """Create short-lived backup providers without retaining USB protocol servers."""
 
+_export_fido = None
+
+
+def begin_export():
+    """Reuse the bounded FIDO indexes and array while USB is disconnected."""
+    global _export_fido
+    from . import transports
+
+    if not transports._suspended:
+        raise RuntimeError("export context requires suspended transports")
+    auth = _StoredFido()
+    auth.large_blobs.snapshot()
+    auth.store.count()
+    _export_fido = auth
+
+
+def end_export():
+    global _export_fido
+    _export_fido = None
+
 
 def create(kind):
     if kind == "otp":
@@ -25,9 +45,11 @@ def create(kind):
         from ..apps.fido2.provider import Fido2BackupProvider
         from . import transports, usbmodes
 
+        if _export_fido is not None:
+            return Fido2BackupProvider(_export_fido)
         # Export in NORMAL must update the live credential index/backup flags.
         # During IMPORT the suspended HID server has been released completely.
-        if usbmodes.current() == usbmodes.NORMAL:
+        if usbmodes.current() == usbmodes.NORMAL and not transports._suspended:
             server = transports.fido_server()
             if server is not None:
                 return Fido2BackupProvider(server.app.auth)

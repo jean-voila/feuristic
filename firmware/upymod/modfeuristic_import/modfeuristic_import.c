@@ -16,9 +16,10 @@
 //
 // Memory: the image decoder's workspace is scattered over blocks of at most
 // 16 KiB, plus a contiguous output bitmap. All are allocated before accepting
-// writes and wiped/freed when paused or closed. lib/fqr borrows a 16 KiB
-// workspace block after image completion instead of adding another buffer. On
-// T2B1 the fmsc context and its caches use the otherwise unused CCM region
+// writes and wiped when paused or closed. Pause retains only the bitmap and
+// 12 KiB shared reservation; close frees everything. lib/fqr borrows that 12
+// KiB workspace block after image completion instead of adding another buffer.
+// On T2B1 the fmsc context and its caches use the otherwise unused CCM region
 // (.no_dma_buffers, 30 KiB, unprivileged), keeping the heap requirement
 // within the T2B1 budget.
 
@@ -36,7 +37,7 @@
 #define IMPORT_TXQ_LEN 4
 #define IMPORT_EVQ_LEN 8
 #define IMPORT_FRAME_MAX 65
-#define IMPORT_PAYLOAD_MAX 3072  // QR v40 holds at most 2953 bytes
+#define IMPORT_PAYLOAD_MAX 1024  // accepted otpauth URI / FB1 frame limit
 #define IMPORT_CACHE_CLUSTERS 1
 #define IMPORT_REORDER_SECTORS 8
 #define IMPORT_FIMG_MAX_BLOCKS FIMG_SCATTERED_MAX_BLOCKS
@@ -60,6 +61,10 @@ typedef struct {
 #if (defined(STM32F427xx) || defined(STM32F429xx)) && !defined(TREZOR_EMULATOR)
 // T2B1: CCM, not initialised at startup (fmsc_init() initialises it)
 static import_static_t g_static __attribute__((section(".no_dma_buffers")));
+// Together with the 4096-byte interpreter stack and 20084-byte MSC state,
+// this fits the 30 KiB CCM region. Never used for DMA or a Python object.
+static uint8_t g_image_context[6496]
+    __attribute__((section(".no_dma_buffers"), aligned(8)));
 #define IMPORT_STATIC_IN_CCM 1
 #endif
 
@@ -167,6 +172,12 @@ static void decoder_allocate(mp_obj_ImportSession_t *o) {
   // when MicroPython raises MemoryError. Writes stay paused until all exist.
   // Claim every buffer in descending size order. In a fragmented heap a
   // small context/README must not consume the only hole for a 16 KiB window.
+#ifdef IMPORT_STATIC_IN_CCM
+  if (o->fimg_blocks[0].size > sizeof(g_image_context)) {
+    mp_raise_ValueError(MP_ERROR_TEXT("import context exceeds CCM budget"));
+  }
+  o->fimg_blocks[0].ptr = g_image_context;
+#endif
   const size_t bitmap_slot = o->fimg_block_count;
   const size_t payload_slot = bitmap_slot + 1;
   const size_t readme_slot = payload_slot + 1;
@@ -216,18 +227,30 @@ static void decoder_allocate(mp_obj_ImportSession_t *o) {
   }
 }
 
-static void decoder_release(mp_obj_ImportSession_t *o) {
+static void decoder_release(mp_obj_ImportSession_t *o, bool keep_reservations) {
   decoder_reset(o);
+  // Keep the largest contiguous reservation across identities. Long-lived
+  // restore receipts must not split its only heap hole before resume. The
+  // contents were wiped above; close() releases this reservation as well.
+  uint8_t *reserved = keep_reservations ? o->qr_ws : NULL;
   o->qr_ws = NULL;
   o->qr_ws_len = 0;
   for (size_t i = 0; i < o->fimg_block_count; i++) {
     fimg_block_t *block = &o->fimg_blocks[i];
     if (block->ptr != NULL) {
-      m_del(uint8_t, block->ptr, block->size);
+      if (block->ptr == reserved) {
+        o->qr_ws = block->ptr;
+        o->qr_ws_len = block->size;
+        continue;
+      }
+#ifdef IMPORT_STATIC_IN_CCM
+      if (block->ptr != g_image_context)
+#endif
+        m_del(uint8_t, block->ptr, block->size);
       block->ptr = NULL;
     }
   }
-  if (o->bitmap != NULL) {
+  if (o->bitmap != NULL && !keep_reservations) {
     fimg_secure_zero(o->bitmap, o->bitmap_len);
     m_del(uint8_t, o->bitmap, o->bitmap_len);
     o->bitmap = NULL;
@@ -669,13 +692,15 @@ static MP_DEFINE_CONST_FUN_OBJ_1(mod_feuristic_import_Session_ejected_obj,
                                  mod_feuristic_import_Session_ejected);
 
 /// def pause_decode(self) -> bool:
-///     """At an image/BOT boundary, free decoder RAM and fail new writes
+///     """At an image/BOT boundary, wipe decoder RAM and fail new writes.
+///     Release all but the bitmap and largest shared image/QR reservation.
 ///     explicitly. Return False while an image/command is still in flight.
 ///     Reads, sense and eject remain available. Idempotent when paused."""
 static mp_obj_t mod_feuristic_import_Session_pause_decode(mp_obj_t self) {
   mp_obj_ImportSession_t *o = live(self);
   if (o->decode_paused) {
-    decoder_release(o);  // also clean partial allocations after a failed resume
+    decoder_release(o,
+                    true);  // clean partial allocations after a failed resume
     return mp_const_true;
   }
   if (o->active != 0 || o->ready != 0 ||
@@ -683,7 +708,7 @@ static mp_obj_t mod_feuristic_import_Session_pause_decode(mp_obj_t self) {
     return mp_const_false;
   }
   o->decode_paused = true;
-  decoder_release(o);
+  decoder_release(o, true);
   return mp_const_true;
 }
 static MP_DEFINE_CONST_FUN_OBJ_1(mod_feuristic_import_Session_pause_decode_obj,
@@ -700,9 +725,9 @@ static mp_obj_t mod_feuristic_import_Session_resume_decode(mp_obj_t self) {
     decoder_allocate(o);
     nlr_pop();
   } else {
-    // No partially reallocated workspace may linger after an OOM. The MSC
-    // refusal state remains in force, and a later retry can allocate afresh.
-    decoder_release(o);
+    // Release partial allocations, retaining only the wiped bitmap/QR buffers.
+    // The MSC refusal state remains in force until a later successful retry.
+    decoder_release(o, true);
     nlr_jump(nlr.ret_val);
   }
   if (!fmsc_set_write_paused(&o->st->fmsc, false)) return mp_const_false;
@@ -726,7 +751,7 @@ static mp_obj_t mod_feuristic_import_Session_close(mp_obj_t self) {
     fmsc_wipe(&o->st->fmsc);
     fimg_secure_zero(o->st, sizeof(*o->st));
   }
-  decoder_release(o);
+  decoder_release(o, false);
   fimg_secure_zero(o->txq, sizeof(o->txq));
   if (o->readme != NULL) {
     fimg_secure_zero(o->readme, o->readme_len);

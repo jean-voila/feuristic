@@ -138,7 +138,7 @@ class Authenticator:
         self.state = FidoState()
         self.store = cr.CredentialStore(self.state, ctx.ms)
         self.pin = ClientPin(self.state)
-        self.large_blobs = LargeBlobs(self.pin, MAX_MSG_SIZE - 64)
+        self.large_blobs = LargeBlobs(self.pin, MAX_MSG_SIZE - 64, reserve_write=True)
         self.credmgmt = CredentialManagement(self.store, self.pin)
         self._ga = None
         self.last_auth_valid = False

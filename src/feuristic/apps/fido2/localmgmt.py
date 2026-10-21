@@ -38,9 +38,40 @@ def paginate(items: list, page: int, size: int = PAGE_SIZE) -> tuple:
     return items[page * size : (page + 1) * size], pages
 
 
-def list_rps(auth) -> list:
-    """``[(rpIdHash, rpId, count)]`` sorted by rpId."""
-    return [(h, rp_id, n) for rp_id, h, n in auth.store.rps()]
+class _Services:
+    def __init__(self, rps):
+        self.rps = rps
+
+    def __len__(self):
+        return len(self.rps)
+
+    def __getitem__(self, index):
+        if isinstance(index, slice):
+            return [(h, name, n) for name, h, n in self.rps[index]]
+        name, h, n = self.rps[index]
+        return h, name, n
+
+    def labels(self):
+        return _ServiceLabels(self)
+
+
+class _ServiceLabels:
+    def __init__(self, services):
+        self.services = services
+
+    def __len__(self):
+        return len(self.services)
+
+    def __getitem__(self, index):
+        if isinstance(index, slice):
+            return [f"{name} ({n})" for _, name, n in self.services[index]]
+        _, name, n = self.services[index]
+        return f"{name} ({n})"
+
+
+def list_rps(auth):
+    """Lazy ``(rpIdHash, rpId, count)`` sequence sorted by rpId."""
+    return _Services(auth.store.rps())
 
 
 def list_credentials(auth, rp_id_hash: bytes) -> list:

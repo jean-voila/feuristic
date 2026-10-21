@@ -8,6 +8,24 @@ from hypothesis import strategies as st
 
 from feuristic.core import cbor
 
+
+def test_array_items_borrow_payloads_and_enforce_complete_bounded_input():
+    source = bytearray(cbor.encode([{1: b"x" * 300}, {2: b"last"}]))
+    items = list(cbor.array_items(source, max_depth=2, max_items=7))
+    assert [bytes(raw) for _, raw in items] == [cbor.encode({1: b"x" * 300}), cbor.encode({2: b"last"})]
+    assert items[0][0][1].obj is source
+    for data, limits in (
+        (source + b"\x00", {}),
+        (source, {"max_items": 6}),
+        (source, {"max_depth": 1}),
+        (b"\x80", {"max_items": 0}),
+        (b"\x80", {"max_depth": -1}),
+        (b"\xa0", {}),
+    ):
+        with pytest.raises(cbor.CborError):
+            list(cbor.array_items(data, **limits))
+
+
 # RFC 8949 Appendix A examples (subset supported by feuristic)
 VECTORS = [
     (0, "00"),
@@ -187,6 +205,7 @@ def _reference_encode(obj):
 @given(_values)
 def test_roundtrip_and_cross_check_with_reference(obj):
     enc = cbor.encode(obj)
+    assert b"".join(cbor.iter_encode(obj)) == enc
     assert cbor.decode(enc, canonical=True) == obj
     assert cbor2.loads(enc) == obj
     assert _reference_encode(obj) == enc
@@ -196,3 +215,36 @@ def test_roundtrip_and_cross_check_with_reference(obj):
 def test_decoder_never_crashes(data):
     with contextlib.suppress(cbor.CborError):
         cbor.decode(data)
+
+
+def test_byte_views_are_opt_in_and_map_keys_remain_hashable():
+    raw = bytearray(cbor.encode({b"key": b"value"}))
+    copied = cbor.decode(raw)
+    viewed = cbor.decode(raw, bytes_view=True, canonical=True)
+    assert isinstance(copied[b"key"], bytes)
+    assert isinstance(viewed[b"key"], memoryview)
+    raw[-1] = ord("X")
+    assert copied[b"key"] == b"value" and viewed[b"key"] == b"valuX"
+    assert cbor.encode(viewed) == bytes(raw)
+
+
+def test_encode_into_checks_capacity_before_modifying_buffer():
+    obj = {1: b"data", 2: [1, 2, 3]}
+    encoded = cbor.encode(obj)
+    buffer = bytearray(b"x" * (16 + len(encoded)))
+    result = cbor.encode_into(obj, buffer, 16)
+    assert result == encoded and buffer[:16] == b"x" * 16
+    before = bytes(buffer)
+    with pytest.raises(cbor.CborError):
+        cbor.encode_into(obj, buffer, 17)
+    assert buffer == before
+
+
+def test_borrowed_cbor_parts_preserve_bytes_without_a_second_large_copy():
+    data = bytearray(b"a" * 4096)
+    copied = cbor.encode_parts({1: data})
+    borrowed = cbor.encode_parts({1: memoryview(data)}, borrow_bytes=True)
+    assert b"".join(copied) == b"".join(borrowed)
+    data[-1] = ord("b")
+    assert b"".join(copied)[-1:] == b"a"
+    assert b"".join(borrowed)[-1:] == b"b"

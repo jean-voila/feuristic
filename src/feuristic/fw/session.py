@@ -10,6 +10,16 @@ from . import device, pin, usbmodes
 _transports_started = False
 
 
+def configure_gc() -> None:
+    import gc
+
+    # Collect temporary protocol/image objects before new module dictionaries
+    # split their holes. Waiting for allocation failure fragments the small,
+    # non-moving T2 heap even when many kilobytes remain free.
+    heap_size = gc.mem_alloc() + gc.mem_free()
+    gc.threshold(max(1, heap_size // (128 * 1024)) * 2048)
+
+
 def register_strings() -> None:
     if i18n.FIRMWARE:
         return  # All firmware translations are already frozen in i18n ROM.
@@ -136,7 +146,7 @@ def release_import_stores() -> None:
             module._reset_default()
 
 
-def release_import_modules() -> None:
+def release_import_modules(keep_backup=False) -> None:
     """Unload application code after NORMAL workers and stores are released.
 
     Keep the registry, translations, clock and active import/backup UI alive.
@@ -173,6 +183,8 @@ def release_import_modules() -> None:
         "feuristic.apps.backup.restore",
     )
     for name in list(sys.modules):
+        if keep_backup and (name.startswith("feuristic.apps.backup.") or name == "feuristic.ui.app_backup"):
+            continue
         if name in packages or name.endswith(".strings"):
             continue
         if name not in temporary_modules and not any(name.startswith(root + ".") for root in roots):
@@ -248,6 +260,7 @@ async def _clock_maintenance() -> None:
 
 
 def run() -> None:
+    configure_gc()
     register_strings()
     device.apply_language(device.language() if device.is_initialized() else i18n.EN)
     if __debug__:

@@ -164,6 +164,8 @@ class FakeProvider(provider.BackupProvider):
 
 @test
 def export_real_frames_full_set_and_secret_cleanup():
+    from feuristic.fw import backup_providers, session, transports, usbmodes
+
     p = FakeProvider()
     saved = provider.all()
     provider.clear()
@@ -212,6 +214,15 @@ def export_real_frames_full_set_and_secret_cleanup():
             patch.set(app_backup, "_yield", noop)
             patch.set(envelope, "ITERATIONS", 10)
             patch.set(export.ExportSession, "close", close)
+            # Fake providers exercise the real export orchestration without
+            # opening unrelated device stores or a physical USB controller.
+            patch.set(transports, "suspend", lambda: None)
+            patch.set(transports, "wait_suspended", noop)
+            patch.set(usbmodes, "disconnect", lambda: None)
+            patch.set(usbmodes, "restore_normal", noop)
+            patch.set(session, "release_import_modules", lambda **kwargs: None)
+            patch.set(backup_providers, "begin_export", lambda: None)
+            patch.set(backup_providers, "end_export", lambda: None)
             drive(app_backup.export_full())
             assert len(ui.auth) == 1
             assert ui.auth[0] == bytes(len(ui.auth[0]))
@@ -301,6 +312,7 @@ def restore_controller_requires_local_ready_and_respects_cancel():
 def restore_controller_bounds_sessions_and_explains_restart():
     class Import:
         finished = False
+        _arena = bytearray(5440)
 
         def has_otp(self):
             return False

@@ -42,7 +42,10 @@ def _build_fido():
     from ..apps.fido2.ctaphid import CtapHid, HidServer
 
     ctx = Context(device.master_secret(), _ui, power_up_ms=_POWER_UP_MS)
-    return HidServer(CtapHid(wink=True), Fido2App(ctx))
+    app = Fido2App(ctx)
+    # Reserve the bounded indexes before lazy CCID modules fragment the heap.
+    app.auth.store.count()
+    return HidServer(CtapHid(wink=True), app)
 
 
 def _build_card(public_only=False):
@@ -61,8 +64,9 @@ def _build_card(public_only=False):
                 "openpgp",
                 pgp.AID_PREFIX + pgp.card_serial(device.master_secret()) + pgp.AID_RFU,
                 _create_card_applet,
+                unload_on_deselect=True,
             ),
-            LazyApplet("piv", PIV_AID, _create_card_applet),
+            LazyApplet("piv", PIV_AID, _create_card_applet, unload_on_deselect=True),
             LazyApplet("aes", AES_AID, _create_card_applet),
         ]
     # With no application selected, only GET CHALLENGE is answered (spec F06);
@@ -174,6 +178,8 @@ def fido_server():
 
 def _card_obj():
     global _card
+    if config.is_unlocked():
+        fido_server()
     if _card is None:
         # GET CHALLENGE is public (F06) even while the device PIN is locked.
         # The locked reader has no applet capable of loading protected keys.

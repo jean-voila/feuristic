@@ -56,6 +56,7 @@ discoverable credential is backup eligible (BE = 1).
 from micropython import const
 
 from ...core import cbor, kdf, namespaces
+from ...core import store as record_store
 from ...core.errors import InvalidInput, StorageCorrupted, StorageFull
 from ...core.packed_index import CredentialIndex
 from ...core.store import RecordStore
@@ -192,6 +193,52 @@ class _CredentialLabels:
         return "-" if credential is None else credential.label()
 
 
+class RelyingParties:
+    """Sorted RP snapshot retaining only a representative UID and count."""
+
+    WIDTH = 9
+
+    def __init__(self, store):
+        self.store = store
+        self.data = bytearray(store.count() * self.WIDTH)
+        self.count = 0
+        for uid, count in store._build_index().rp_groups():
+            credential = store._load(uid)
+            if credential is None:
+                continue
+            name = credential.rp_id
+            credential = None
+            low, high = 0, self.count
+            while low < high:
+                middle = (low + high) // 2
+                if self[middle][0] < name:
+                    low = middle + 1
+                else:
+                    high = middle
+            start = low * self.WIDTH
+            for offset in range(self.count * self.WIDTH - 1, start - 1, -1):
+                self.data[offset + self.WIDTH] = self.data[offset]
+            self.data[start : start + 8] = uid
+            self.data[start + 8] = count
+            self.count += 1
+
+    def __len__(self):
+        return self.count
+
+    def __getitem__(self, index):
+        if isinstance(index, slice):
+            return [self[i] for i in range(self.count)[index]]
+        if index < 0:
+            index += self.count
+        if not 0 <= index < self.count:
+            raise IndexError(index)
+        offset = index * self.WIDTH
+        credential = self.store._load(bytes(self.data[offset : offset + 8]))
+        if credential is None:
+            raise StorageCorrupted("RP representative disappeared")
+        return credential.rp_id, credential.rp_id_hash, self.data[offset + 8]
+
+
 class Credential:
     """A usable credential (decoded record, unwrapped ID or U2F key handle)."""
 
@@ -296,7 +343,7 @@ def encode_record(cred: Credential) -> bytes:
         m[_K_USER_NAME] = cred.user_name
     if cred.display_name:
         m[_K_DISPLAY] = cred.display_name
-    return cbor.encode(m)
+    return record_store.encode_payload(m)
 
 
 def _opt_text(m: dict, k: int, cap: int):
@@ -388,8 +435,16 @@ class CredentialStore:
     # -- index -------------------------------------------------------------
     def _build_index(self) -> CredentialIndex:
         if self._index is not None:
-            return self._index
-        index = CredentialIndex(CAPACITY)
+            revision = self._index.revision
+            if revision is None or revision == record_store._write_revision:
+                return self._index
+            self._index = None
+        buffer = record_store._write_buffer
+        if buffer is not None and len(buffer) >= CAPACITY * CredentialIndex.WIDTH:
+            record_store.claim_write_buffer()
+            index = CredentialIndex(CAPACITY, buffer, record_store._write_revision)
+        else:
+            index = CredentialIndex(CAPACITY)
         owners = {}  # SHA-256(rpIdHash || user.id) -> (position, generation)
         max_seq = 0
         for uid in self.records.uids():
@@ -448,10 +503,10 @@ class CredentialStore:
     def get(self, uid: bytes):
         """Credential for ``uid`` or ``None``."""
         uid = bytes(uid)
-        for e in self._build_index():
-            if e[0] == uid:
-                return self._load(uid)
-        return None
+        # A UID lookup needs only the record index, not every RP/sequence or
+        # the temporary ownership map used for registration/recovery. NORMAL
+        # performs that recovery at unlock; restore does it before any write.
+        return self._load(uid) if uid in self.records else None
 
     def _load(self, uid: bytes):
         try:
@@ -481,34 +536,25 @@ class CredentialStore:
                     return credential
         return None
 
-    def rps(self) -> list:
-        """``[(rpId, rpIdHash, count)]`` sorted by rpId."""
-        seen = {}
-        for uid, h, _seq in self._build_index():
-            entry = seen.get(h)
-            if entry is None:
-                c = self._load(uid)
-                if c is None:
-                    continue
-                seen[h] = [c.rp_id, h, 1]
-            else:
-                entry[2] += 1
-        out = [tuple(v) for v in seen.values()]
-        out.sort(key=lambda t: t[0])
-        return out
+    def rps(self):
+        """Lazy ``(rpId, rpIdHash, count)`` sequence sorted by rpId."""
+        return RelyingParties(self)
 
     # -- writes ------------------------------------------------------------
     def _put(self, cred: Credential) -> None:
         payload = encode_record(cred)
         flags = RECORD_FLAG_BS if cred.backup_state else 0
+        if self._index is not None and self._index.revision is not None:
+            self._index = None  # The record serialization reuses the loaned index arena.
         self.records.put(cred.uid, payload, flags)
-        index = self._build_index()
-        for i in range(len(index)):
-            if index[i][0] == cred.uid:
-                index[i] = (cred.uid, cred.rp_id_hash, cred.seq)
-                break
-        else:
-            index.append((cred.uid, cred.rp_id_hash, cred.seq))
+        index = self._index
+        if index is not None:
+            for i in range(len(index)):
+                if index[i][0] == cred.uid:
+                    index[i] = (cred.uid, cred.rp_id_hash, cred.seq)
+                    break
+            else:
+                index.append((cred.uid, cred.rp_id_hash, cred.seq))
         if cred.seq >= self._next_seq:
             self._next_seq = cred.seq + 1
 

@@ -32,6 +32,39 @@ HEADER_LEN = const(16)
 UID_LEN = const(8)
 SCHEMA = const(1)
 
+# The exclusive importer can lend its consumed ciphertext arena for one
+# synchronous record serialization. It is never enabled in NORMAL mode.
+_write_buffer = None
+_write_revision = 0
+
+
+def claim_write_buffer():
+    global _write_revision
+    _write_revision += 1
+    return _write_buffer
+
+
+def use_write_buffer(buffer):
+    global _write_buffer, _write_revision
+    previous = _write_buffer
+    if previous is not buffer:
+        _write_revision += 1
+    if previous is not None and previous is not buffer:
+        for offset in range(len(previous)):
+            previous[offset] = 0
+    _write_buffer = buffer
+    return previous
+
+
+def encode_payload(obj):
+    """Serialize a CBOR record into the importer's exclusive write arena."""
+    from . import cbor
+
+    if _write_buffer is not None:
+        claim_write_buffer()
+        return cbor.encode_into(obj, _write_buffer, HEADER_LEN)
+    return cbor.encode(obj)
+
 
 class Record:
     """Decoded record (header fields + payload)."""
@@ -196,8 +229,22 @@ class RecordStore:
             raise StorageFull("store full")
         slot = self._free_slot()
         gen = self._next_gen
-        raw = pack(self.rtype, flags, gen, uid, payload)
-        kv.set(self.app, self.key_offset + slot, raw, self.public)
+        if _write_buffer is None or HEADER_LEN + len(payload) > len(_write_buffer):
+            raw = pack(self.rtype, flags, gen, uid, payload)
+            kv.set(self.app, self.key_offset + slot, raw, self.public)
+        else:
+            claim_write_buffer()
+            if len(uid) != UID_LEN:
+                raise InvalidInput("uid length")
+            header = pack(self.rtype, flags, gen, uid, b"")
+            _write_buffer[:HEADER_LEN] = header
+            _write_buffer[HEADER_LEN : HEADER_LEN + len(payload)] = payload
+            raw = memoryview(_write_buffer)[: HEADER_LEN + len(payload)]
+            try:
+                kv.set(self.app, self.key_offset + slot, raw, self.public)
+            finally:
+                for offset in range(len(raw)):
+                    raw[offset] = 0
         self._next_gen = gen + 1
         idx[uid] = (slot, gen, flags)
         if old is not None:
@@ -246,14 +293,22 @@ class Blob:
     settings maps). Layout of each copy: ``generation(u32) || payload``.
     """
 
-    def __init__(self, app: int, key_a: int, key_b: int, max_len: int, public: bool = False) -> None:
+    def __init__(
+        self, app: int, key_a: int, key_b: int, max_len: int, public: bool = False, cache_head=False
+    ) -> None:
         self.app = app
         self.keys = (key_a, key_b)
         self.max_len = max_len
         self.public = public
+        # Opt-in for a single live writer (NORMAL largeBlobs). Generic blobs
+        # still rescan so independent instances observe one another's writes.
+        self.cache_head = cache_head
+        self._cached_head = None
 
     def _head(self):
         """Find the newest copy without retaining either large payload."""
+        if self.cache_head and self._cached_head is not None:
+            return self._cached_head
         best_gen = 0
         best_key = None
         for k in self.keys:
@@ -265,7 +320,10 @@ class Blob:
                 best_gen = gen
                 best_key = k
             raw = None
-        return best_gen, best_key
+        head = best_gen, best_key
+        if self.cache_head:
+            self._cached_head = head
+        return head
 
     def get_view(self):
         """Read a view of the newest payload, without a full-size slice copy.
@@ -305,10 +363,14 @@ class Blob:
     def _commit(self, data, gen, best_key):
         data[:4] = (gen + 1).to_bytes(4, "big")
         target = self.keys[1] if best_key == self.keys[0] else self.keys[0]
+        self._cached_head = None
         kv.set(self.app, target, data, self.public)
+        if self.cache_head:
+            self._cached_head = gen + 1, target
         # the older copy is left in place as a fallback; it is overwritten by
         # the next update (A/B alternation).
 
     def clear(self) -> None:
+        self._cached_head = None
         for k in self.keys:
             kv.delete(self.app, k, self.public)

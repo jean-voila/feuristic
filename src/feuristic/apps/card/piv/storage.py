@@ -41,6 +41,7 @@ uid (8 bytes)      payload (canonical CBOR map, integer keys)
 from micropython import const
 
 from ....core import cbor, namespaces
+from ....core import store as record_store
 from ....core.counters import RedundantCounter
 from ....core.errors import (
     InvalidInput,
@@ -220,7 +221,7 @@ class SlotData:
         if self.cert is not None:
             m[10] = self.cert
             m[11] = self.certinfo
-        return cbor.encode(m)
+        return record_store.encode_payload(m)
 
     @classmethod
     def decode(cls, payload: bytes) -> "SlotData":

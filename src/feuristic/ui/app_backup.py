@@ -117,6 +117,29 @@ async def _run(item_type=None, uid=None) -> None:
     if profile is None:
         return
     profile = frames.PROFILE_LARGE if profile == 0 else frames.PROFILE_DENSE
+    from ..fw import backup_providers, transports, usbmodes
+    from ..fw import session as fw_session
+
+    closing = False
+    try:
+        transports.suspend()
+        await transports.wait_suspended()
+        usbmodes.disconnect()
+        fw_session.release_import_modules(keep_backup=True)
+        gc.collect()
+        backup_providers.begin_export()
+        await _run_export(item_type, uid, profile)
+    except GeneratorExit:
+        closing = True
+        raise
+    finally:
+        backup_providers.end_export()
+        done = usbmodes.restore_normal()
+        if not closing:
+            await done
+
+
+async def _run_export(item_type, uid, profile) -> None:
     ui = InlineInteraction()
     session = None
     result = None

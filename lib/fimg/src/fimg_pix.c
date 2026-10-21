@@ -53,11 +53,19 @@ static uint32_t bin_radius(uint32_t dim) {
 
 static uint32_t sq8(uint32_t v) { return (v * v + 128u) >> 8; /* 0 .. 254 */ }
 
+static size_t pix_page_size(const fimg_config_t *cfg) {
+  // The small bitmap has at most 17 ring rows. Keep these separate from
+  // DEFLATE's larger pages so a repeated resume needs fewer 2 KiB holes.
+  return cfg->max_out_width <= 256u && cfg->max_out_height <= 256u
+             ? 512u
+             : fimg_page_size(cfg);
+}
+
 static size_t pix_block_sizes(const fimg_config_t *cfg, size_t *sizes,
                               int pad_pages) {
   uint32_t mw = cfg->max_out_width, mh = cfg->max_out_height;
   uint32_t k = 2u * bin_radius(mw > mh ? mw : mh) + 1u;
-  size_t page = fimg_page_size(cfg);
+  size_t page = pix_page_size(cfg);
   uint32_t rows = (uint32_t)(page / mw);
   size_t count = 0;
   while (k != 0) {
@@ -114,7 +122,7 @@ fimg_status_t fimg_pix_setup(fimg_ctx_t *ctx, uint32_t w, uint32_t h) {
   if ((size_t)p->stride * oh > ctx->bitmap_size) return FIMG_E_INTERNAL;
   p->r = bin_radius(ow > oh ? ow : oh);
   p->k = 2u * p->r + 1u;
-  p->ring_rows = (uint32_t)(fimg_page_size(&ctx->cfg) / ow);
+  p->ring_rows = (uint32_t)(pix_page_size(&ctx->cfg) / ow);
   uint32_t remaining = p->k;
   for (size_t i = 0; remaining != 0; i++) {
     uint32_t take = remaining < p->ring_rows ? remaining : p->ring_rows;

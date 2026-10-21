@@ -159,6 +159,34 @@ def test_roundtrip_full(fast_kdf):
     assert envelope.kind_name(99) == "?"
 
 
+def test_borrowed_plaintext_arena_is_wiped_and_never_aliases_returned_items(fast_kdf, monkeypatch):
+    from feuristic.core import store
+
+    key = _key()
+    item = dict(ITEM, secret=b"s" * 4096)
+    raw = bytearray(_seal(key, items=[item]))
+    original = bytes(raw)
+    arena = bytearray(5440)
+    previous = store.use_write_buffer(arena)
+
+    def no_full_plaintext_copy(*args):
+        raise AssertionError("borrowed open allocated a second plaintext")
+
+    monkeypatch.setattr(crypto, "aes256_gcm_decrypt", no_full_plaintext_copy)
+    try:
+        contents = envelope.open_with_key(raw, key)
+        assert contents.items == [item] and bytes(raw) == original and not any(arena)
+        raw[-1] ^= 1
+        with pytest.raises(AuthenticationFailed):
+            envelope.open_with_key(raw, key)
+        assert not any(arena) and contents.items == [item]
+        with pytest.raises(PlaintextError):
+            envelope.open_with_key(make_raw_envelope(key, SALT, b"\xff"), key)
+        assert not any(arena)
+    finally:
+        store.use_write_buffer(previous)
+
+
 def test_layout(fast_kdf):
     key = _key()
     env = _seal(key, backup_id=b"\xaa" * 8)

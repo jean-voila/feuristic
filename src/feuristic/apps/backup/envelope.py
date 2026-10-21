@@ -410,10 +410,19 @@ def open_with_key(envelope, key, header=None) -> Contents:
     """
     h = parse_header(envelope) if header is None else header
     off = h.body_offset
-    ct = bytes(envelope[off : len(envelope) - TAG_LEN])
-    tag = bytes(envelope[len(envelope) - TAG_LEN :])
+    view = memoryview(envelope)
+    ct = view[off : len(envelope) - TAG_LEN]
+    tag = view[len(envelope) - TAG_LEN :]
+    from ...core import store as record_store
+
+    buffer = record_store._write_buffer
+    borrowed = buffer is not None and len(buffer) >= len(ct)
     try:
-        pt = crypto.aes256_gcm_decrypt(bytes(key), h.nonce, ct, tag, h.aad)
+        if borrowed:
+            record_store.claim_write_buffer()
+            pt = crypto.aes256_gcm_decrypt_into(bytes(key), h.nonce, ct, tag, buffer, h.aad)
+        else:
+            pt = crypto.aes256_gcm_decrypt(bytes(key), h.nonce, ct, tag, h.aad)
     except crypto.AuthenticationError:
         raise AuthenticationFailed("authentication failed")
     # --- authenticated from here on ---
@@ -426,6 +435,9 @@ def open_with_key(envelope, key, header=None) -> Contents:
         )
     except cbor.CborError:
         raise PlaintextError("plaintext is not canonical CBOR")
+    finally:
+        if borrowed:
+            wipe(pt)
     items, seq, count, created = _validate_plaintext(obj, h.kind)
     return Contents(h, h.kind, items, seq, count, created)
 

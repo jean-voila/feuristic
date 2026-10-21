@@ -167,15 +167,60 @@ class ExportSession:
             self._key = None
 
 
-def _snapshot(providers) -> list:
-    entries = []
-    for p in providers:
+class _Snapshot:
+    """Public UID snapshot, packed in small pages rather than per-ID tuples."""
+
+    PAGE = 256
+
+    def __init__(self, providers):
+        self.providers = list(providers)
+        self.pages = []
+        self.size = 0
+        self.count = 0
+
+    def __len__(self):
+        return self.count
+
+    def append(self, provider_index, uid):
+        end = self.size + 3 + len(uid)
+        while len(self.pages) * self.PAGE < end:
+            self.pages.append(bytearray(self.PAGE))
+        encoded = provider_index.to_bytes(2, "big") + bytes((len(uid),)) + uid
+        for offset in range(len(encoded)):
+            at = self.size + offset
+            self.pages[at // self.PAGE][at % self.PAGE] = encoded[offset]
+        self.size = end
+        self.count += 1
+
+    def _byte(self, at):
+        return self.pages[at // self.PAGE][at % self.PAGE]
+
+    def __getitem__(self, index):
+        if index < 0:
+            index += self.count
+        if not 0 <= index < self.count:
+            raise IndexError(index)
+        at = 0
+        for _ in range(index):
+            at += 3 + self._byte(at + 2)
+        provider_index = self._byte(at) * 256 + self._byte(at + 1)
+        uid = bytearray(self._byte(at + 2))
+        for offset in range(len(uid)):
+            uid[offset] = self._byte(at + 3 + offset)
+        return self.providers[provider_index], bytes(uid), None
+
+
+def _snapshot(providers):
+    entries = _Snapshot(providers)
+    for provider_index in range(len(entries.providers)):
+        p = entries.providers[provider_index]
         iterate = getattr(p, "iter_uids", None)
         uids = iterate() if iterate is not None else registry.BackupProvider.iter_uids(p)
         for candidate in uids:
             uid = registry.check_uid(candidate)
-            registry.check_label(_identity_label(p, uid))
-            entries.append((p, uid, None))
+            # Labels are validated when built/displayed. Resolving one here
+            # would nest a second provider import inside the UID iterator.
+            entries.append(provider_index, uid)
             if len(entries) > envelope.MAX_SET_COUNT:
                 raise PolicyDenied("too many identities for one export")
     return entries

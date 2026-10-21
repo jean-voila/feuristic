@@ -238,6 +238,60 @@ def aes256_gcm_decrypt(key: bytes, nonce: bytes, ciphertext: bytes, tag: bytes, 
     return _h.gcm_decrypt(key, nonce, ciphertext, tag, aad)
 
 
+def aes256_gcm_decrypt_into(key, nonce, ciphertext, tag, buffer, aad=b""):
+    """Authenticate into an exclusive writable buffer, wiping it on failure."""
+    _check_gcm(key, nonce)
+    if len(tag) != GCM_TAG_SIZE or len(buffer) < len(ciphertext):
+        raise AuthenticationError
+    plaintext = memoryview(buffer)[: len(ciphertext)]
+    try:
+        if _backend.FIRMWARE:
+            from trezor.crypto import aesgcm_decrypt
+
+            ctx = aesgcm_decrypt(key, nonce)
+            if aad:
+                ctx.auth(aad)
+            plaintext[:] = ciphertext
+            ctx.decrypt_in_place(plaintext)
+            ctx.finish(tag)
+        else:
+            plaintext[:] = _h.gcm_decrypt(key, nonce, ciphertext, tag, aad)
+    except BaseException as exc:
+        _wipe(plaintext)
+        if isinstance(exc, MemoryError) or not isinstance(exc, Exception):
+            raise
+        raise AuthenticationError
+    return plaintext
+
+
+def aes256_gcm_verify(key: bytes, nonce: bytes, ciphertext, tag, aad=b"") -> None:
+    """Authenticate ciphertext while discarding bounded speculative plaintext."""
+    _check_gcm(key, nonce)
+    if len(tag) != GCM_TAG_SIZE:
+        raise AuthenticationError
+    if not _backend.FIRMWARE:
+        _h.gcm_decrypt(key, nonce, ciphertext, tag, aad)
+        return
+    from trezor.crypto import aesgcm_decrypt
+
+    ctx = aesgcm_decrypt(key, nonce)
+    if aad:
+        ctx.auth(aad)
+    view = memoryview(ciphertext)
+    for offset in range(0, len(view), 256):
+        block = bytearray(view[offset : offset + 256])
+        try:
+            ctx.decrypt_in_place(block)
+        finally:
+            _wipe(block)
+    try:
+        ctx.finish(tag)
+    except MemoryError:
+        raise
+    except Exception:
+        raise AuthenticationError
+
+
 def _check_gcm(key: bytes, nonce: bytes) -> None:
     if len(key) != 32:
         raise CryptoError("AES-256 key must be 32 bytes")
@@ -526,7 +580,7 @@ def rsa_mr_round(candidate: bytes, base: bytes) -> bool:
 
 
 def _wipe(buf) -> None:
-    if isinstance(buf, bytearray):
+    if isinstance(buf, (bytearray, memoryview)):
         for i in range(len(buf)):
             buf[i] = 0
 

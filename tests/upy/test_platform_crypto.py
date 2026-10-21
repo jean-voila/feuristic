@@ -17,6 +17,26 @@ def backend_is_firmware():
 
 
 @test
+def authenticate_large_blobs_in_bounded_chunks():
+    key, nonce, aad = b"k" * 32, b"n" * 12, b"blob ownership"
+    for size in (0, 1, 15, 16, 17, 255, 256, 257, 4070):
+        ciphertext, tag = crypto.aes256_gcm_encrypt(key, nonce, b"p" * size, aad)
+        view = memoryview(ciphertext)
+        assert crypto.aes256_gcm_verify(key, nonce, view, tag, aad) is None
+        raises(crypto.AuthenticationError, crypto.aes256_gcm_verify, key, nonce, view, tag, b"wrong")
+        changed = bytes((tag[0] ^ 1,)) + tag[1:]
+        raises(crypto.AuthenticationError, crypto.aes256_gcm_verify, key, nonce, view, changed, aad)
+        arena = bytearray(size + 8)
+        arena[size:] = b"TAILTAIL"
+        plaintext = crypto.aes256_gcm_decrypt_into(key, nonce, view, tag, arena, aad)
+        assert bytes(plaintext) == b"p" * size and arena[size:] == b"TAILTAIL"
+        raises(
+            crypto.AuthenticationError, crypto.aes256_gcm_decrypt_into, key, nonce, view, changed, arena, aad
+        )
+        assert not any(arena[:size]) and arena[size:] == b"TAILTAIL"
+
+
+@test
 def sha1_sha256_hmac():
     assert crypto.sha1(b"abc").hex() == "a9993e364706816aba3e25717850c26c9cd0d89d"
     assert crypto.sha256(b"abc").hex() == "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"

@@ -20,7 +20,7 @@ cryptographic use of the restored identities.
 | Long OTP URI | A standard `otpauth://` that exceeds the renderer limit takes the encrypted fragmented-backup path, including its own warning, passphrase and PIN checks. |
 | Complete identity before mutation | The collector accepts arbitrary frame order and identical duplicates. A missing frame cannot produce a restorable envelope. `StreamingRestore` authenticates and validates every item of the current envelope before writing any current item. |
 | Bounded device receiver | One active identity, at most 999 frames and 12 KiB ciphertext, using `PackedReassembler`. All maximal native identity exports fit this budget in both profiles. The generic format/parser retains its larger documented bounds. |
-| Explicit input backpressure | Decoder workspace/bitmap/payload are wiped and freed before passphrase/KDF/restore. A pause starts only at an image and BOT command boundary. New writes fail immediately with NOT READY 04/07, full unaccepted residue and an OUT halt. Reads, sense and eject still work. The host retries a refused copy after the next-identity invitation. |
+| Explicit input backpressure | Decoder buffers are wiped before passphrase/KDF/restore; the bitmap and shared QR reservation stay allocated until close to prevent fragmentation. A pause starts only at an image and BOT command boundary. New writes fail immediately with NOT READY 04/07, full unaccepted residue and an OUT halt. Reads, sense and eject still work. The host retries a refused copy after the next-identity invitation. |
 | Streaming full restore | One completed identity is consumed at a time; prior confirmed identities remain restored if a later identity is missing or damaged. A bounded key cache avoids repeated derivation for the same salt. Backup IDs, envelope hashes and full-set sequence bits reject conflicts and identify incomplete sets. Done requests explicit completion, with a warning for missing data. |
 | Cleanup and mode recovery | Mutable passphrase/key/cache and native image buffers are wiped. Session construction cleans partial allocations synchronously; an old finalizer cannot wipe a new context. Closing the actual import workflow closes its native owner and schedules independent recovery to NORMAL, including during GeneratorExit. |
 
@@ -41,7 +41,7 @@ exercise camera focus, physical USB host behavior or either physical device.
   timeout. A two-identity full restore verifies same-volume continuation,
   one phrase, an early-finish warning and final application entries.
 - [Native importer lifecycle](../../tests/upy/test_import_native.py):
-  decoder release of more than 100,000 bytes for the 512-pixel test profile,
+  decoder-page release, retained-reservation cleanup at close,
   failed writes with exact SCSI sense/residue, resume, allocation failures at
   two heap pressures followed by successful retry, exclusive native ownership,
   the unchanged 4096-byte README limit and closure/reopening of the real import

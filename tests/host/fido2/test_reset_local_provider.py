@@ -213,7 +213,7 @@ def test_large_blob_ownership_oom_aborts_before_any_mutation(
     def no_memory(*args):
         raise MemoryError
 
-    monkeypatch.setattr(largeblobs.crypto, "aes256_gcm_decrypt", no_memory)
+    monkeypatch.setattr(largeblobs.crypto, "aes256_gcm_verify", no_memory)
     try:
         with pytest.raises(MemoryError):
             if operation == "export":

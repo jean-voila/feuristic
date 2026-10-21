@@ -35,9 +35,11 @@ FIMG_STATIC_ASSERT(arithmetic_shift, ((-8) >> 1) == -4);
 #define FIMG_QR_REUSE_BYTES 12288u
 
 static inline size_t fimg_page_size(const fimg_config_t *cfg) {
+  if (cfg->max_out_width <= 256u && cfg->max_out_height <= 256u) return 1024u;
   return cfg->max_out_width <= 384u && cfg->max_out_height <= 384u ? 2048u
                                                                    : 4096u;
 }
+
 #define FIMG_INF_FAST_BITS 9u /**< First-level Huffman lookup bits. */
 #define FIMG_INF_MAXBITS 15u
 
@@ -66,7 +68,7 @@ typedef enum {
 
 /** Resumable zlib stream inflater state. */
 typedef struct {
-  uint8_t *win[16]; /**< Full 32 KiB history in 2 or 4 KiB logical pages. */
+  uint8_t *win[32]; /**< Full 32 KiB history in 1, 2 or 4 KiB logical pages. */
   uint32_t page_size;
   uint32_t wpos;   /**< Next write position in @ref win. */
   uint32_t total;  /**< Total bytes produced. */
@@ -93,7 +95,7 @@ void fimg_inflate_init(fimg_inflate_t *s, uint8_t *window);
 void fimg_inflate_init_paged(fimg_inflate_t *s, uint8_t *first,
                              uint8_t *second);
 
-/** Full 32 KiB history; page_size is 2048 or 4096, pages has
+/** Full 32 KiB history; page_size is 1024, 2048 or 4096, pages has
  * 32768/page_size disjoint buffers. The descriptor array is read during
  * initialization only. */
 void fimg_inflate_init_pages(fimg_inflate_t *s, uint8_t *const *pages,
@@ -158,6 +160,7 @@ typedef struct {
 /* ======================================================================== */
 
 #define FIMG_PNG_MAX_ROWBYTES (FIMG_MAX_DIM * 8u)
+#define FIMG_PNG_ROW_PAGE 128u
 
 typedef struct {
   uint32_t state; /**< Chunk parser state. */
@@ -178,7 +181,7 @@ typedef struct {
   uint8_t has_key;       /**< tRNS colour key for types 0 / 2. */
   uint16_t key[3];
   /* scanlines */
-  uint8_t *prev[4], *luma;
+  uint8_t *prev[FIMG_PNG_MAX_ROWBYTES / FIMG_PNG_ROW_PAGE], *luma;
   uint32_t page_size;
   uint8_t filter, prior_up[8];
   uint32_t row_fill; /**< Scanline position, including its filter byte. */
@@ -254,7 +257,7 @@ typedef struct {
   uint32_t mfound;  /**< 1 if a marker lies in [stg_pos, mscan). */
   uint32_t done_at; /**< stg index just after EOI. */
   /* output */
-  uint8_t *rowbuf[8]; /**< Luma band split only at row boundaries. */
+  uint8_t *rowbuf[16]; /**< Luma band split only at row boundaries. */
   uint32_t rowbuf_rows;
   uint32_t rowbuf_w;
   int32_t coef[64];
@@ -293,7 +296,7 @@ struct fimg_ctx {
   size_t heap_size, heap_used;
   fimg_block_t *blocks; /**< Caller descriptors, NULL for contiguous mode. */
   size_t block_count;
-  uint32_t blocks_used;
+  uint32_t blocks_used[4];
   fimg_pix_t pix;
   union {
     fimg_png_t png;

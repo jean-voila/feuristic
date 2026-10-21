@@ -204,6 +204,7 @@ def test_fragment_commit_reuses_reserved_pending_buffer(device, monkeypatch):
     blobs.handle({2: data[:100], 3: 0, 4: 4096})
     pending = blobs._pending
     assert len(pending) == 4100
+    assert pending.obj is blobs._buffer  # reserved before NORMAL applet churn
     original_commit = blobs.blob._commit
     original_head = blobs.blob._head
     committed = []

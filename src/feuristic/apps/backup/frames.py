@@ -238,9 +238,9 @@ class PackedReassembler(Reassembler):
     the general reassembler and all format limits remain available unchanged.
     """
 
-    def __init__(self, backup_id=None, max_frames=MAX_FRAMES, max_bytes=MAX_TOTAL_BYTES):
+    def __init__(self, backup_id=None, max_frames=MAX_FRAMES, max_bytes=MAX_TOTAL_BYTES, arena=None):
         super().__init__(backup_id, max_frames, max_bytes)
-        self._data = bytearray()
+        self._data = bytearray() if arena is None else arena
         self._index = None  # u16 offset + u16 length; length zero means absent
 
     def _entry(self, index):
@@ -275,7 +275,7 @@ class PackedReassembler(Reassembler):
             # entire 12 KiB for a 379-byte OTP. Unbalanced third-party frames
             # remain valid and may grow the bounded arena below.
             reserve = min(self.max_bytes, MAX_TOTAL_BYTES, frame.total * (len(frame.chunk) + 1))
-            arena = bytearray(reserve)
+            arena = self._data if len(self._data) >= reserve else bytearray(reserve)
             table = bytearray(4 * frame.total)
             self._data = arena
             self._index = table

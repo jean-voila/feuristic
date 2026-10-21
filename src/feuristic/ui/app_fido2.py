@@ -68,7 +68,7 @@ async def _services() -> None:
             return
         cur = await screens.menu(
             t("fido2.menu.services"),
-            [f"{rp} ({n})" for _, rp, n in rps],
+            rps.labels(),
             cur,
             close_others=False,
         )

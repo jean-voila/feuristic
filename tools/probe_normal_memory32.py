@@ -72,6 +72,7 @@ def rp(index):
     return prefix + "." + "b" * 56 + ".example"
 
 
+session.configure_gc()
 config.init()
 assert config.unlock("", None)
 session.register_strings()
@@ -89,7 +90,7 @@ if WARM_CARD:
 ui = Approve()
 auth = server.app.auth
 auth.ctx.ui = ui
-reserve = bytearray(RESERVE)
+reserve = [bytearray(min(256, RESERVE - offset)) for offset in range(0, RESERVE, 256)]
 checkpoint("ready")
 if PHASE == "populate":
     auth.pin.local_set_pin("123456")
@@ -172,8 +173,19 @@ else:
 assert auth.store.count() == 100
 from feuristic.apps.otp.accounts import OtpAccounts
 assert len(OtpAccounts()) == 32
-assert auth.large_blobs.entries() == [{1: b"z" * 4074}]
-assert len(auth.store.rps()) == (100 if DISTINCT else 1)
+entries = auth.large_blobs.entries()
+assert len(entries) == 1 and len(entries[0]) == 1 and len(entries[0][1]) == 4074
+for offset in range(0, 4074, 256):
+    assert bytes(entries[0][1][offset:offset+256]) == b"z" * min(256, 4074-offset)
+entries = None
+rps = auth.store.rps()
+assert len(rps) == (100 if DISTINCT else 1)
+previous = ""
+for name, digest, count in rps:
+    assert name >= previous and digest == crypto.sha256(name.encode())
+    assert count == (1 if DISTINCT else 100)
+    previous = name
+rps = None
 first = auth.store.for_rp(crypto.sha256(rp(0).encode()))[-1]
 assert first is not None
 original_id = first.cred_id
@@ -194,6 +206,14 @@ if not DISTINCT:
     assert len(auth.store.for_rp(crypto.sha256(rp(0).encode()))) == 100
 checkpoint("done")
 if EXPORT:
+    # Local export disconnects USB and releases NORMAL protocol sessions.
+    transports.suspend()
+    run(transports.wait_suspended())
+    server = card = auth = None
+    session.release_import_modules(keep_backup=True)
+    checkpoint("export-offline")
+    from feuristic.fw import backup_providers
+    backup_providers.begin_export()
     from feuristic.apps.backup.export import begin_full_export
 
     async def passphrase(request):
@@ -216,6 +236,7 @@ if EXPORT:
             export.close()
             export = None
         checkpoint("export-after-" + profile)
+    backup_providers.end_export()
 print("NORMAL_MEMORY_PROBE_OK", PHASE)
 """
 

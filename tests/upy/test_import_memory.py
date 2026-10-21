@@ -15,8 +15,8 @@ from feuristic.apps.importer.session import DEVICE_MAX_BACKUPS, DEVICE_MAX_BYTES
 
 
 @test
-def packed_native_identity_pauses_without_retaining_decoder_workspaces():
-    native = feuristic_import.Session(b"Import memory test", 512, 1)
+def packed_native_identity_pauses_and_releases_the_shared_reservation_on_close():
+    native = feuristic_import.Session(b"Import memory test", 256, 1)
     collector = ImportSession(DEVICE_MAX_BACKUPS, DEVICE_MAX_BYTES, compact=True)
     size = 5127  # maximum OpenPGP export measured by host provider regression
     count = frames.frame_count(size, frames.PROFILE_LARGE)
@@ -33,9 +33,9 @@ def packed_native_identity_pauses_without_retaining_decoder_workspaces():
     assert native.pause_decode()
     gc.collect()
     paused = gc.mem_alloc()
-    # The single-row PNG filter reduced scratch by 8 KiB; all image/QR
-    # buffers must still disappear together at the pause boundary.
-    assert active - paused >= 100_000
+    # Pause releases image pages, retaining the wiped bitmap and shared QR
+    # reservation to prevent fragmentation between identities.
+    assert active - paused >= 40_000
     raw = collector.take_complete()
     assert len(raw) == size and raw == b"x" * size
     assert collector.bytes_used() == 0 and collector.counts() == (0, 0)
@@ -43,7 +43,11 @@ def packed_native_identity_pauses_without_retaining_decoder_workspaces():
     gc.collect()
     assert native.resume_decode()
     assert native.pause_decode()
+    gc.collect()
+    paused = gc.mem_alloc()
     native.close()
+    gc.collect()
+    assert paused - gc.mem_alloc() >= 12288 + 8192
     collector.abort()
 
 
@@ -183,8 +187,10 @@ def card_select_loads_only_requested_applets_and_preserves_aes_session_policy():
         assert "feuristic.apps.card.piv.applet" not in sys.modules
         assert "feuristic.apps.card.aes.applet" not in sys.modules
         pgp._instance._verified[0] = True
+        previous_pgp = pgp._instance
         select(card, piv.AID)
-        assert not any(pgp._instance._verified)
+        assert pgp._instance is None
+        assert not any(previous_pgp._verified)
         assert aes._instance is None
         select(card, aes.AID)
         aes._instance._session_ok.add(7)

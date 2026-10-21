@@ -152,9 +152,13 @@ class LazyProvider(BackupProvider):
     def _call(self, name, *args):
         if not FIRMWARE:
             return getattr(self._factory(self.TYPE), name)(*args)
+        import sys
+
         from trezor import utils
 
-        modules = utils.unimport_begin()
+        # A compact immutable name snapshot suffices for membership checks;
+        # a hash set of every loaded module costs several KiB on the device.
+        modules = tuple(sys.modules)
         try:
             return getattr(self._factory(self.TYPE), name)(*args)
         finally:
@@ -169,13 +173,16 @@ class LazyProvider(BackupProvider):
         if not FIRMWARE:
             yield from self._factory(self.TYPE).iter_uids()
             return
+        import sys
+
         from trezor import utils
 
-        modules = utils.unimport_begin()
+        modules = tuple(sys.modules)
         try:
-            yield from self._factory(self.TYPE).iter_uids()
+            uids = list(self._factory(self.TYPE).iter_uids())
         finally:
             utils.unimport_end(modules)
+        yield from uids
 
     def identity_label(self, uid):
         return self._call("identity_label", uid)

@@ -49,7 +49,7 @@ from ...core.errors import InvalidInput, NotFound, PolicyDenied, StorageFull
 from ...platform import crypto
 from ..backup import provider as bp
 from . import credentials as cr
-from .largeblobs import MAX_SERIALIZED, entry_belongs_to, serialize
+from .largeblobs import MAX_SERIALIZED, encoded_length, entry_belongs_to
 
 SCHEMA_VERSION = const(1)
 MAX_LARGE_BLOB_ITEMS = const(64)
@@ -84,6 +84,16 @@ def _label(rp_id: str, account: str) -> str:
 
 def _is_int(v) -> bool:
     return isinstance(v, int) and not isinstance(v, bool)
+
+
+def _same_blob(entry, encoded):
+    view = memoryview(encoded)
+    offset = 0
+    for part in cbor.iter_encode(cbor.decode(entry, bytes_view=True), borrow_bytes=True):
+        if view[offset : offset + len(part)] != part:
+            return False
+        offset += len(part)
+    return offset == len(view)
 
 
 class Fido2BackupProvider(bp.BackupProvider):
@@ -192,7 +202,7 @@ class Fido2BackupProvider(bp.BackupProvider):
                 raise InvalidInput("fido2 large_blobs item")
             total += len(b)
             try:
-                e = cbor.decode(b, max_depth=1, max_items=16)
+                e = cbor.decode(b, max_depth=1, max_items=16, bytes_view=True)
             except cbor.CborError:
                 raise InvalidInput("fido2 large_blobs item")
             if not isinstance(e, dict) or 1 not in e or 2 not in e or 3 not in e:
@@ -256,20 +266,23 @@ class Fido2BackupProvider(bp.BackupProvider):
         # merged largeBlob array, checked before anything is written
         merged = None
         if obj["large_blobs"]:
-            current = self.auth.large_blobs.entries()
-            encoded = [cbor.encode(e) for e in current]
+            current = self.auth.large_blobs.encoded_entries()
+            seen = []
             changed = False
             for b in obj["large_blobs"]:
-                if b not in encoded:
-                    current.append(cbor.decode(b))
-                    encoded.append(b)
+                if b not in seen and not any(_same_blob(e, b) for e in current):
+                    current.append(b)
+                    seen.append(b)
                     changed = True
             if changed:
-                if len(serialize(current)) > MAX_SERIALIZED:
+                if encoded_length(current) > MAX_SERIALIZED:
                     raise StorageFull("largeBlob array full")
                 merged = current
         self.auth.state.raise_signature_counter(obj["sign_count"])
         if merged is not None:
-            self.auth.large_blobs.write_entries(merged)
+            self.auth.large_blobs.write_encoded_entries(merged)
+        # The decoded shared array is no longer needed. Do not retain up to
+        # 64 maps while encoding the credential and rebuilding its indexes.
+        merged = current = seen = None
         store.restore(cred, replace_uid)
         return cred.uid

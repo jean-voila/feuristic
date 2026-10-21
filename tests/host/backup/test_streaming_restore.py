@@ -199,7 +199,8 @@ def test_restore_limits_cannot_exceed_generic_format(limits):
         restore.StreamingRestore(ScriptedInteraction(), passphrases(PASSPHRASE), **limits)
 
 
-def test_exact_device_bounds_keep_all_receipt_counts(data):
+@pytest.mark.parametrize("reserve_ledger", [False, True])
+def test_exact_device_bounds_keep_all_receipt_counts(data, reserve_ledger):
     from feuristic.apps.importer.session import DEVICE_MAX_ENVELOPES, DEVICE_MAX_SETS
 
     source, destination, first, _, _, key = data
@@ -208,7 +209,9 @@ def test_exact_device_bounds_keep_all_receipt_counts(data):
         passphrases(*([PASSPHRASE] * 4)),
         max_envelopes=DEVICE_MAX_ENVELOPES,
         max_sets=DEVICE_MAX_SETS,
+        reserve_ledger=reserve_ledger,
     )
+    replays = []
     for index in range(DEVICE_MAX_ENVELOPES):
         salt = bytes((index % DEVICE_MAX_SETS,)) * 16
         raw = envelope.seal(
@@ -222,10 +225,20 @@ def test_exact_device_bounds_keep_all_receipt_counts(data):
         if not any(old_salt == salt for old_salt, _ in streamed._keys):
             streamed._keys.append((salt, bytearray(key)))
         run(streamed.restore_envelope(raw))
+        if index in (0, 5, 6, 95, 191):
+            replays.append(raw)
     assert len(streamed.report.restored) == DEVICE_MAX_ENVELOPES == 192
     assert len(streamed.report.restored.recent) == 4
     assert len(streamed._salts) == DEVICE_MAX_SETS == 4
     assert len(streamed._seen) == 192 * 40
+    for raw in replays:
+        run(streamed.restore_envelope(raw))
+        assert streamed.last_duplicate
+    assert len(destination.restored) == 192
+    changed = bytearray(replays[2])
+    changed[-1] ^= 1
+    with pytest.raises(FrameConflict):
+        run(streamed.restore_envelope(changed))
     raw = envelope.seal(key, b"z" * 16, envelope.KIND_IDENTITY, [source.export_identity(first)])
     with pytest.raises(PolicyDenied, match="finish and reopen"):
         run(streamed.restore_envelope(raw))

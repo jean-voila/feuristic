@@ -41,6 +41,25 @@ def test_put_get_replace_delete():
         s.flags(uid(1))
 
 
+def test_borrowed_record_buffer_is_wiped_and_does_not_change_copy_on_write():
+    from feuristic.core import cbor
+
+    records = make(max_payload=4000)
+    buffer = bytearray(5440)
+    previous = store.use_write_buffer(buffer)
+    try:
+        revision = store._write_revision
+        payload = store.encode_payload({1: b"private" * 500})
+        assert payload.obj is buffer and store._write_revision > revision
+        records.put(uid(1), payload)
+        assert not any(buffer[: store.HEADER_LEN + len(payload)])
+        assert cbor.decode(records.get(uid(1))) == {1: b"private" * 500}
+        records.put(uid(1), b"replacement")
+        assert records.get(uid(1)) == b"replacement"
+    finally:
+        store.use_write_buffer(previous)
+
+
 def test_capacity_and_spare_slot():
     s = make(capacity=2)
     s.put(uid(1), b"a")

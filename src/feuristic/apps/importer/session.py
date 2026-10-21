@@ -153,11 +153,18 @@ class Action:
 
 class ImportSession:
     def __init__(
-        self, max_backups: int = MAX_BACKUPS, max_bytes: int = MAX_SESSION_BYTES, compact=False
+        self,
+        max_backups: int = MAX_BACKUPS,
+        max_bytes: int = MAX_SESSION_BYTES,
+        compact=False,
+        reserve_bytes=0,
     ) -> None:
+        if reserve_bytes and (not compact or max_backups != 1 or not 0 <= reserve_bytes <= max_bytes):
+            raise ValueError("receiver reservation requires one compact identity")
         self.max_backups = max_backups
         self.max_bytes = max_bytes
         self.compact = compact
+        self._arena = bytearray(reserve_bytes) if reserve_bytes else None
         self._backups = []  # [frames.Reassembler] in arrival order
         self._otp = None  # bytearray
         self._finished = False
@@ -228,7 +235,7 @@ class ImportSession:
             if len(self._backups) >= self.max_backups:
                 return ImportEvent(REJECTED_LIMIT, backup_id=f.backup_id)
             reassembler = frames.PackedReassembler if self.compact else frames.Reassembler
-            r = reassembler(f.backup_id)
+            r = reassembler(f.backup_id, arena=self._arena) if self.compact else reassembler(f.backup_id)
         # remaining session budget for this sequence (duplicates are detected first)
         others = self.bytes_used() - (0 if is_new else r.bytes_received)
         budget = self.max_bytes - others
@@ -241,6 +248,8 @@ class ImportSession:
             return ImportEvent(REJECTED_TOTAL_MISMATCH, backup_id=f.backup_id, index=f.index, total=r.total)
         except FrameLimitExceeded:
             return ImportEvent(REJECTED_LIMIT, backup_id=f.backup_id, index=f.index, total=f.total)
+        if self._arena is not None:
+            self._arena = r._data  # Release an old reservation after bounded growth.
         if is_new:
             self._backups.append(r)
         if not added:
@@ -326,6 +335,9 @@ class ImportSession:
         return True
 
     def _purge(self) -> None:
+        if self._arena is not None:
+            wipe(self._arena)
+            self._arena = None
         if self._otp is not None:
             wipe(self._otp)
             self._otp = None

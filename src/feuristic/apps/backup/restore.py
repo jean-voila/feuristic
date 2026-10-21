@@ -286,6 +286,7 @@ class StreamingRestore:
         max_attempts: int = DEFAULT_MAX_ATTEMPTS,
         max_envelopes: int = MAX_ENVELOPES,
         max_sets: int = MAX_ENVELOPES,
+        reserve_ledger: bool = False,
     ) -> None:
         if not isinstance(max_envelopes, int) or not 1 <= max_envelopes <= MAX_ENVELOPES:
             raise InvalidInput("restore envelope limit")
@@ -304,13 +305,15 @@ class StreamingRestore:
         self.report.skipped = RecentReceipts()
         self._keys = []  # at most four (public salt, wipeable derived key)
         self._sets = []  # [salt, count, bitset of accepted envelope sequence numbers]
-        self._seen = bytearray()  # fixed-width public backup id(8) + envelope SHA-256(32)
+        self._seen = bytearray(max_envelopes * 40 if reserve_ledger else 0)
+        self._seen_bytes = 0  # backup id(8) + envelope SHA-256(32)
+        self._reserved_ledger = reserve_ledger
         self._closed = False
         self.last_duplicate = False
 
     def _already_seen(self, raw, header) -> bool:
         digest = crypto.sha256(raw)
-        for offset in range(0, len(self._seen), 40):
+        for offset in range(0, self._seen_bytes, 40):
             if self._seen[offset : offset + 8] == header.backup_id:
                 if self._seen[offset + 8 : offset + 40] != digest:
                     raise FrameConflict("completed backup id reused with different content")
@@ -385,7 +388,7 @@ class StreamingRestore:
         self.last_duplicate = self._already_seen(raw, header)
         if self.last_duplicate:
             return self.report
-        if len(self._seen) // 40 >= self.max_envelopes:
+        if self._seen_bytes // 40 >= self.max_envelopes:
             raise RestoreLimitExceeded("restore session limit reached; finish and reopen import")
         if header.salt not in self._salts and len(self._salts) >= self.max_sets:
             raise RestoreLimitExceeded("restore set limit reached; finish and reopen import")
@@ -452,8 +455,15 @@ class StreamingRestore:
         if self.report.failed is None:
             if header.salt not in self._salts:
                 self._salts.append(header.salt)
-            self._seen.extend(header.backup_id)
-            self._seen.extend(crypto.sha256(raw))
+            digest = crypto.sha256(raw)
+            if self._reserved_ledger:
+                offset = self._seen_bytes
+                self._seen[offset : offset + 8] = header.backup_id
+                self._seen[offset + 8 : offset + 40] = digest
+            else:
+                self._seen.extend(header.backup_id)
+                self._seen.extend(digest)
+            self._seen_bytes += 40
             if full_set is not None:
                 if full_set not in self._sets:
                     self._sets.append(full_set)

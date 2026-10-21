@@ -93,6 +93,7 @@ class CredentialManagement:
 
     def reset_state(self) -> None:
         self._rps = None  # remaining [(rpId, rpIdHash, count)]
+        self._rp_index = 0
         self._creds = None  # remaining [uid]
 
     # -- entry point -----------------------------------------------------------
@@ -160,14 +161,16 @@ class CredentialManagement:
             raise CtapError(CTAP2_ERR_NO_CREDENTIALS)
         resp = self._rp_response(rps[0])
         resp[R_TOTAL_RPS] = len(rps)
-        self._rps = rps[1:]
+        self._rps = rps
+        self._rp_index = 1
         return resp
 
     def _next_rp(self) -> dict:
-        if not self._rps:
+        if self._rps is None or self._rp_index >= len(self._rps):
             self._rps = None
             raise CtapError(CTAP2_ERR_NOT_ALLOWED)
-        rp = self._rps.pop(0)
+        rp = self._rps[self._rp_index]
+        self._rp_index += 1
         return self._rp_response(rp)
 
     # -- credential enumeration ------------------------------------------------

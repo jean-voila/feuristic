@@ -23,6 +23,16 @@ def start_normal() -> None:
         _started = True
 
 
+def disconnect() -> None:
+    """Close USB for a local secret-export session; switch(NORMAL) reconnects."""
+    if __debug__:
+        from trezor import utils
+
+        if utils.EMULATOR:
+            return  # Keep emulator debuglink buttons available; pollers are suspended.
+    _bus.close()
+
+
 async def switch(mode: int) -> None:
     """Detach, wait so the host notices, then re-enumerate in ``mode``."""
     global _started, _switching

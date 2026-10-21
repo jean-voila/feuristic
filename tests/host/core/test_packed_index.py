@@ -43,3 +43,14 @@ def test_record_index_delete_and_wipe_reuse_existing_arena():
     index.clear()
     assert not index and second not in index
     assert index.data is arena
+
+
+def test_rp_groups_count_interleaved_credentials_once():
+    index = CredentialIndex(5)
+    for number, service in enumerate((2, 1, 2, 3, 1)):
+        index.append((number.to_bytes(8, "big"), bytes((service,)) * 32, number))
+    assert list(index.rp_groups()) == [
+        ((0).to_bytes(8, "big"), 2),
+        ((1).to_bytes(8, "big"), 2),
+        ((3).to_bytes(8, "big"), 1),
+    ]
