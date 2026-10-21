@@ -90,7 +90,11 @@ contrôles avec `--raw` ou `--skip-check`.
 1. Noter le modèle, la version de bootloader, la révision du dépôt et le
    SHA-256 du binaire dans le journal de [recette](../acceptance/README.md).
 2. Démarrer en bootloader : débrancher puis reconnecter le Safe 3 en maintenant
-   le bouton gauche ; suivre l'écran du bootloader. Les indications affichées
+   le bouton gauche. Si le sous-menu propose « Factory Reset », « Exit menu »
+   et « Reboot Trezor », sélectionner « Exit menu » avec gauche/droite et valider
+   avec les deux boutons. Depuis l'écran principal du bootloader, choisir
+   « Init connection » à gauche pour activer l'USB ; avant cette action,
+   `trezorctl` peut ne détecter aucun appareil. Les indications affichées
    par l'appareil priment si son bootloader demande une autre séquence.
 3. Après lecture des conséquences ci-dessus, lancer :
 
@@ -101,6 +105,8 @@ contrôles avec `--raw` ou `--skip-check`.
    Confirmer physiquement le déverrouillage sur l'appareil. L'effacement est
    effectué par le bootloader. Annuler à l'écran permet de renoncer avant cet
    effacement, pas de restaurer les secrets après confirmation.
+   Lorsque « Bootloader unlocked / Please reconnect the device » apparaît,
+   débrancher/rebrancher puis reprendre l'étape 2, y compris « Init connection ».
 4. Toujours dans le bootloader, installer le fichier déjà vérifié :
 
    ```sh

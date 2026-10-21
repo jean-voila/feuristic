@@ -94,6 +94,7 @@ def ui(monkeypatch):
         "app_fido2",
         "app_openpgp",
         "app_piv",
+        "app_otp",
     ):
         monkeypatch.delitem(sys.modules, "feuristic.ui." + name, raising=False)
     monkeypatch.setitem(sys.modules, "feuristic.ui.screens", script)
@@ -139,8 +140,48 @@ def ui(monkeypatch):
         "app_fido2",
         "app_openpgp",
         "app_piv",
+        "app_otp",
     ):
         sys.modules.pop("feuristic.ui." + name, None)
+
+
+@pytest.mark.parametrize(
+    ("language", "expected"),
+    [
+        (i18n.EN, ["123456\n13 s left", "123456\n12 s left"]),
+        (i18n.FR, ["123456\nEncore 13 s", "123456\nEncore 12 s"]),
+    ],
+)
+def test_totp_countdown_is_formatted_on_each_refresh(ui, monkeypatch, language, expected):
+    from feuristic.apps.otp import strings
+
+    strings.register()
+    i18n.set_language(language)
+    cancelled = object()
+    api = SimpleNamespace(CANCELLED=cancelled, show_info=lambda **kwargs: kwargs)
+    monkeypatch.setitem(sys.modules, "trezorui_api", api)
+    otp = importlib.import_module("feuristic.ui.app_otp")
+    values = iter([("123456", 13), ("123456", 12)])
+    store = SimpleNamespace(
+        get=lambda _: SimpleNamespace(label=lambda: "Test TOTP"),
+        totp_code=lambda _: next(values),
+    )
+    monkeypatch.setattr(otp, "_store", lambda: store)
+    shown = []
+
+    async def show(layout, *args):
+        assert layout["title"] == "Test TOTP"
+        assert layout["time_ms"] == 1000
+        shown.append(layout["description"])
+        return cancelled if len(shown) == 1 else object()
+
+    async def sleep(_):
+        pass
+
+    monkeypatch.setattr(ui.script, "run", show, raising=False)
+    monkeypatch.setattr(otp.loop, "sleep", sleep, raising=False)
+    run(otp._show_totp(b"test"))
+    assert shown == expected
 
 
 def test_cancel_repeat_pin_does_not_save(ui):

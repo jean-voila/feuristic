@@ -29,7 +29,7 @@ async def _show_totp(uid) -> None:
         except TimeNotSynchronised:
             await screens.show_warning(t("otp.time_not_set"), t("otp.time_not_set.hint"))
             return
-        text = f"{code}\n{t('otp.remaining')}: {remaining} {t('otp.unit.seconds')}"
+        text = f"{code}\n{t('otp.remaining', remaining)}"
         res = await screens.run(
             trezorui_api.show_info(title=acc.label(), description=text, time_ms=1000), 0, False
         )
