@@ -15,7 +15,7 @@
   <meta name="twitter:title" content="{{ page.meta.title | default(page.title) | e }} — Feuristic">
   <meta name="twitter:description" content="{{ page_description | e }}">
   <meta name="twitter:image" content="{{ social_image | e }}">
-  {% if page.is_homepage %}
+  {% if project_home %}
     <script type="application/ld+json">{{ structured_data | safe }}</script>
   {% endif %}
   {% endif %}

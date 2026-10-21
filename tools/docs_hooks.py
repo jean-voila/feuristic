@@ -39,6 +39,7 @@ def on_page_context(context, page, config, nav):
         description = text[:180].rsplit(" ", 1)[0] or config.site_description
     page.meta["description"] = description
     context["page_description"] = description
+    context["project_home"] = page.file.src_uri in ("index.md", "index.fr.md")
     context["social_image"] = urljoin(config.site_url, "assets/social.png")
     context["structured_data"] = json.dumps(
         {
@@ -46,7 +47,7 @@ def on_page_context(context, page, config, nav):
             "@type": "SoftwareSourceCode",
             "name": "Feuristic",
             "description": config.site_description,
-            "url": config.site_url,
+            "url": page.canonical_url,
             "codeRepository": REPOSITORY,
             "license": "https://www.gnu.org/licenses/gpl-3.0.html",
             "programmingLanguage": ["MicroPython", "C", "Rust"],
