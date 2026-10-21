@@ -9,11 +9,12 @@ use_directory_urls: true
 strict: true
 exclude_docs: |
   developer/handoff.md
+  release-notes-template.md
 hooks:
   - tools/docs_hooks.py
 theme:
   name: material
-  custom_dir: docs/theme
+  custom_dir: theme
   logo: assets/mark.svg
   favicon: assets/mark.svg
   font: false
