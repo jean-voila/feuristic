@@ -24,6 +24,10 @@ dev = [
     "trezor",
     "clang-format==19.1.7",  # pinned so CI and developers format C identically
 ]
+docs = [
+    "mkdocs>=1.6,<2",
+    "mkdocs-material>=9.6,<10",
+]
 
 [tool.uv]
 package = false

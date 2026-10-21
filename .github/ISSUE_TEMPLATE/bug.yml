@@ -1,0 +1,37 @@
+# SPDX-License-Identifier: GPL-3.0-only
+name: Bug report
+description: Report a reproducible firmware, tool or documentation problem.
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: Do not include PINs, seeds, private keys or real backup images. Report vulnerabilities through SECURITY.md.
+  - type: input
+    id: version
+    attributes:
+      label: Version or commit
+    validations:
+      required: true
+  - type: dropdown
+    id: model
+    attributes:
+      label: Device or environment
+      options: [T2B1, T3B1, Emulator, Documentation or host tool]
+    validations:
+      required: true
+  - type: input
+    id: os
+    attributes:
+      label: Operating system and client versions
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Steps to reproduce
+    validations:
+      required: true
+  - type: textarea
+    id: result
+    attributes:
+      label: Expected and observed behavior
+    validations:
+      required: true

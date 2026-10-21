@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="1440px" height="600px" viewBox="0 0 1440 600" version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+    <title>usb-modes</title>
+    <defs>
+        <path d="M0,0 L1440,0 L1440,600 L0,600 L0,0 Z" id="path-1"></path>
+    </defs>
+    <g id="usb-modes" stroke="none" fill="none" xlink:href="#path-1">
+        <use fill="#FFFFFF" fill-rule="evenodd" xlink:href="#path-1"></use>
+        <rect id="Background" fill="#F3F3EB" fill-rule="evenodd" x="0" y="0" width="1440" height="600"></rect>
+        <text id="USB-interfaces" font-family="HelveticaNeue-Medium, Helvetica Neue" font-size="58" font-weight="400" line-spacing="72.5" fill="#102D23">
+            <tspan x="64" y="112">USB interfaces</tspan>
+        </text>
+        <rect id="Normal-accent" fill="#315E46" fill-rule="evenodd" x="64" y="230" width="54" height="7"></rect>
+        <text id="Normal" font-family="HelveticaNeue-Medium, Helvetica Neue" font-size="37" font-weight="400" line-spacing="46.25" fill="#102D23">
+            <tspan x="64" y="298">Normal</tspan>
+        </text>
+        <text id="FIDO-HID-+-CCID" font-family="HelveticaNeue, Helvetica Neue" font-size="28" font-weight="normal" line-spacing="35" fill="#102D23">
+            <tspan x="64" y="357">FIDO HID + CCID</tspan>
+        </text>
+        <text id="Passkeys-and-smart-c" font-family="HelveticaNeue, Helvetica Neue" font-size="22" font-weight="normal" line-spacing="27.5" fill="#607169">
+            <tspan x="64" y="411">Passkeys and smart card</tspan>
+        </text>
+        <rect id="Time-sync-accent" fill="#315E46" fill-rule="evenodd" x="540" y="230" width="54" height="7"></rect>
+        <text id="Time-sync" font-family="HelveticaNeue-Medium, Helvetica Neue" font-size="37" font-weight="400" line-spacing="46.25" fill="#102D23">
+            <tspan x="540" y="298">Time sync</tspan>
+        </text>
+        <text id="CDC-ACM" font-family="HelveticaNeue, Helvetica Neue" font-size="28" font-weight="normal" line-spacing="35" fill="#102D23">
+            <tspan x="540" y="357">CDC-ACM</tspan>
+        </text>
+        <text id="Serial-clock-synchro" font-family="HelveticaNeue, Helvetica Neue" font-size="22" font-weight="normal" line-spacing="27.5" fill="#607169">
+            <tspan x="540" y="411">Serial clock synchronisation</tspan>
+        </text>
+        <rect id="QR-import-accent" fill="#315E46" fill-rule="evenodd" x="1010" y="230" width="54" height="7"></rect>
+        <text id="QR-import" font-family="HelveticaNeue-Medium, Helvetica Neue" font-size="37" font-weight="400" line-spacing="46.25" fill="#102D23">
+            <tspan x="1010" y="298">QR import</tspan>
+        </text>
+        <text id="FAT12-mass-storage" font-family="HelveticaNeue, Helvetica Neue" font-size="28" font-weight="normal" line-spacing="35" fill="#102D23">
+            <tspan x="1010" y="357">FAT12 mass storage</tspan>
+        </text>
+        <text id="PNG-and-baseline-JPE" font-family="HelveticaNeue, Helvetica Neue" font-size="22" font-weight="normal" line-spacing="27.5" fill="#607169">
+            <tspan x="1010" y="411">PNG and baseline JPEG</tspan>
+        </text>
+        <text id="Temporary-modes-susp" font-family="HelveticaNeue, Helvetica Neue" font-size="25" font-weight="normal" line-spacing="31.25" fill="#315E46">
+            <tspan x="64" y="532">Temporary modes suspend FIDO and CCID; completion returns to Normal.</tspan>
+        </text>
+    </g>
+</svg>

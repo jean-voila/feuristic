@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% block extrahead %}
+  {{ super() }}
+  {% if page %}
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="Feuristic">
+  <meta property="og:title" content="{{ page.meta.title | default(page.title) | e }} — Feuristic">
+  <meta property="og:description" content="{{ page_description | e }}">
+  <meta property="og:url" content="{{ page.canonical_url | e }}">
+  <meta property="og:image" content="{{ social_image | e }}">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:image:alt" content="Feuristic custom firmware for Trezor Safe 3">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="{{ page.meta.title | default(page.title) | e }} — Feuristic">
+  <meta name="twitter:description" content="{{ page_description | e }}">
+  <meta name="twitter:image" content="{{ social_image | e }}">
+  {% if page.is_homepage %}
+    <script type="application/ld+json">{{ structured_data | safe }}</script>
+  {% endif %}
+  {% endif %}
+{% endblock %}

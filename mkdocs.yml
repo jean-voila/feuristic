@@ -1,0 +1,133 @@
+# SPDX-License-Identifier: GPL-3.0-only
+site_name: Feuristic
+site_url: https://jean-voila.github.io/feuristic/
+site_description: Custom firmware for Trezor Safe 3 with FIDO2 passkeys, OpenPGP, PIV, TOTP/HOTP and AES-GCM. Downloads, installation, protocols and hardware test results.
+repo_url: https://github.com/jean-voila/feuristic
+repo_name: jean-voila/feuristic
+edit_uri: edit/main/docs/
+use_directory_urls: true
+strict: true
+exclude_docs: |
+  developer/handoff.md
+hooks:
+  - tools/docs_hooks.py
+theme:
+  name: material
+  custom_dir: docs/theme
+  logo: assets/mark.svg
+  favicon: assets/mark.svg
+  font: false
+  palette:
+    - scheme: default
+      primary: custom
+      accent: custom
+      toggle:
+        icon: material/weather-night
+        name: Switch to dark mode
+    - scheme: slate
+      primary: custom
+      accent: custom
+      toggle:
+        icon: material/weather-sunny
+        name: Switch to light mode
+  features:
+    - navigation.tabs
+    - navigation.sections
+    - navigation.indexes
+    - navigation.top
+    - navigation.footer
+    - search.suggest
+    - search.highlight
+    - content.code.copy
+    - content.tabs.link
+plugins:
+  - search:
+      lang: [en, fr]
+markdown_extensions:
+  - admonition
+  - attr_list
+  - md_in_html
+  - tables
+  - toc:
+      permalink: true
+  - pymdownx.details
+  - pymdownx.superfences
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.tabbed:
+      alternate_style: true
+extra_css:
+  - stylesheets/feuristic.css
+extra:
+  generator: false
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/jean-voila/feuristic
+copyright: Copyright © 2026 Feuristic contributors · GPL-3.0-only
+validation:
+  nav:
+    omitted_files: info
+  links:
+    not_found: warn
+    unrecognized_links: warn
+    anchors: warn
+nav:
+  - Overview: index.md
+  - Get started:
+      - Installation: user/install.md
+      - Downloads: downloads.md
+      - Supported hardware: hardware.md
+      - Frequently asked questions: faq.md
+  - User guides:
+      - English: user/guide-en.md
+      - Français: user/guide-fr.md
+      - FIDO2 and passkeys: features/passkeys.md
+      - OpenPGP and SSH: features/openpgp.md
+      - PIV and certificates: features/piv.md
+      - TOTP and HOTP: features/otp.md
+      - AES-GCM and random bytes: features/aes.md
+      - Backup and restore: features/backup.md
+  - Protocols:
+      - FIDO2 / CTAP 2.1: protocols/fido2.md
+      - OpenPGP Card: protocols/openpgp.md
+      - PIV: protocols/piv.md
+      - CCID / smart card: protocols/ccid.md
+      - AES-GCM: protocols/aes-gcm-iso7816-v1.md
+      - Clock synchronisation: protocols/time-sync-v1.md
+      - OTP URI format: protocols/otpauth.md
+      - Encrypted backup format: protocols/backup-format-v1.md
+      - OTP backup: protocols/backup-otp.md
+      - OpenPGP backup: protocols/backup-openpgp.md
+      - PIV backup: protocols/backup-piv.md
+      - AES backup: protocols/backup-aes.md
+  - Development:
+      - Build from source: developer/building.md
+      - Tests: developer/testing.md
+      - Emulator: developer/emulator.md
+      - Architecture: architecture.md
+      - Upstream patches: developer/patches.md
+      - MicroPython: developer/micropython-compat.md
+      - Shared storage: developer/storage-budget.md
+      - Image import memory: developer/import-memory.md
+      - QR decoder: developer/lib-fqr.md
+      - Image decoder: developer/lib-fimg.md
+      - Mass storage: developer/lib-fmsc.md
+      - RSA: developer/rsa.md
+      - Backup validation: developer/backup-readiness.md
+      - Hardware candidates: developer/hardware-candidate.md
+      - Releases: developer/release.md
+      - Documentation and artwork: developer/documentation.md
+      - Contributing: contributing.md
+      - Decisions:
+          - Upstream integration: adr/0001-upstream-integration.md
+          - USB modes: adr/0002-exclusive-usb-modes.md
+          - Streaming import: adr/0003-streaming-image-import.md
+          - Backup envelope: adr/0004-backup-envelope.md
+  - Security and testing:
+      - Security policy: security.md
+      - Threat model: threat-model.md
+      - Security history: security-history.md
+      - Hardware acceptance: acceptance/README.md
+      - Physical T2B1 results: acceptance/campaign-2026-10-21-T2B1-macos.md
+      - Release checklist: release-checklist.md
+      - Specification: spec/cahier-des-charges-v1.0.md

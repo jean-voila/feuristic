@@ -1,51 +1,62 @@
-# Contributing to feuristic
+# Contributing to Feuristic
 
-Thank you for your interest! feuristic is security-sensitive firmware, so
-contributions are held to a high bar of clarity, tests and review.
+Feuristic accepts focused fixes, documentation, hardware test results and
+protocol improvements. Check existing issues before beginning a large change.
+For vulnerabilities, use [the private reporting procedure](SECURITY.md).
 
-## Ground rules
+## Before you start
 
-* Licence: contributions are accepted under **GPL-3.0-only**. Every new
-  file starts with `SPDX-License-Identifier: GPL-3.0-only` and a copyright
-  line (`tools/check_spdx.py` checks it).
-* Never weaken a security property silently: anything touching keys, PINs,
-  confirmations, USB parsing or storage needs a rationale in the commit
-  message and tests demonstrating the property.
-* No cryptocurrency features, no telemetry, no network services, no
-  companion application requirement (spec §1).
+Read the [architecture](docs/architecture.md), [threat model](docs/threat-model.md)
+and the relevant protocol. Install the [build environment](docs/developer/building.md).
+Documentation-only work needs just `uv sync --frozen --only-group docs`.
 
-## Workflow
+Contributions are GPL-3.0-only. You must have the right to contribute the code
+and preserve upstream notices. New owned source files need the SPDX header and
+copyright line checked by `tools/check_spdx.py`. No contributor license agreement
+is required.
 
-1. `make setup`, then create a branch.
-2. Code + tests (see below). Keep commits focused; write descriptive
-   messages (what and **why**).
-3. `make lint test` locally (and `make emu test-functional` for anything
-   that touches firmware behaviour).
-4. Open a pull request. CI must be green: lint, host tests (coverage gate),
-   C tests with sanitizers, fuzzing, firmware builds for both models,
-   emulator functional tests.
+## Pull request review
 
-## Where code goes
+1. Describe a concrete problem and the resulting behavior. Link its issue where
+   available. Keep unrelated changes in separate pull requests.
+2. Explain effects on PINs, physical consent, USB parsing, storage, keys or
+   recovery. A security property must not be weakened silently.
+3. Include the checks actually executed, model/OS and evidence. Label skipped
+   hardware tests explicitly; emulator results are not physical results.
+4. Add a regression test when behavior changes. User-facing strings need English
+   and French; run the translation generator if tables change.
+5. A maintainer reviews correctness, security, licenses and test coverage. All
+   required automated checks must pass before merge. At least one approving
+   maintainer review is expected for code changes; security-sensitive changes
+   need a reviewer familiar with the affected protocol.
 
-| Change | Location | Tests |
-|---|---|---|
-| protocol / application logic | `src/feuristic/apps`, `src/feuristic/core` (shared code, MicroPython rules: [docs/developer/micropython-compat.md](docs/developer/micropython-compat.md)) | `tests/host` (+ `tests/upy` for platform behaviour) |
-| device UI, boot, USB glue | `src/feuristic/ui`, `src/feuristic/fw` | `tests/functional` |
-| image/QR/FAT/RSA C code | `lib/` (freestanding C99, no malloc) | `tests/c` + a fuzz target in `tests/fuzz` |
-| kernel USB classes, MicroPython C modules | `firmware/` | emulator + functional tests |
-| changes to upstream files | commit inside `upstream/trezor-firmware` on `feuristic/patched`, then `make patches-export` | — |
+Do not include PINs, seeds, private keys, real QR backups, personal device IDs or
+unrelated environment dumps. Use disposable identities in reproductions.
 
-Upstream changes must stay small and be explained in the patch commit
-message with a `Feuristic-Rationale:` trailer. The superproject always
-pins an **unmodified** upstream commit (`make patches-check`).
+## Checks by change type
 
-## Style
+| Change | Run |
+|---|---|
+| Documentation | `uv run --group docs mkdocs build --strict` |
+| Python logic | `make test-host` and `make lint` |
+| Device UI / USB / boot | Host checks and the affected functional tests on both model emulators |
+| C parsers / crypto / USB | `make test-c`, ARM cross checks and the relevant fuzz targets |
+| Firmware candidate | Both builds, required CI and the applicable physical acceptance procedures |
 
-* Python: `ruff check` / `ruff format` (line length 110).
-* C: `clang-format` (upstream `.clang-format`), `-Wall -Wextra -Werror`.
-* Documentation in English; user-facing strings in English **and** French
-  (`strings.py` next to each application).
+See [testing](docs/developer/testing.md). Run the affected checks first; reviewers
+may request additional evidence. Hardware reports belong in `docs/acceptance/`.
 
-## Code of conduct
+## Upstream changes
 
-Participation is governed by the [Code of Conduct](CODE_OF_CONDUCT.md).
+Keep upstream modifications small, documented in `patches/`, with a
+`Feuristic-Rationale:` trailer. Do not stage the patched submodule gitlink.
+Use the [patch guide](docs/developer/patches.md); do not reset another prepared
+working tree as a routine repair.
+
+## Scope and style
+
+No cryptocurrency features, telemetry, required companion service or network
+account. Python follows Ruff and MicroPython compatibility rules; C follows
+clang-format and warning-as-error checks. Keep code and commits descriptive.
+
+Participation follows the [Code of Conduct](CODE_OF_CONDUCT.md).

@@ -1,0 +1,3 @@
+User-agent: *
+Allow: /feuristic/
+Sitemap: https://jean-voila.github.io/feuristic/sitemap.xml

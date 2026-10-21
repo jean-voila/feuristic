@@ -5,9 +5,12 @@ users safe.
 
 ## Reporting a vulnerability
 
-**Do not open a public issue.** Report privately through GitHub's
-*Security → Report a vulnerability* (private vulnerability reporting) on
-this repository. Include:
+**Do not open a public issue or discussion with vulnerability details.**
+When this repository becomes public, maintainers will enable GitHub's
+*Security → Report a vulnerability* for private reports. While the repository
+remains private, collaborators can use a restricted repository issue.
+Do not assume that an external contact address or reporting form is active.
+A report should include:
 
 * affected version / commit and model (T2B1, T3B1, emulator);
 * a description of the issue and its impact;

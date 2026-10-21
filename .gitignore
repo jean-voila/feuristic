@@ -26,3 +26,6 @@ timeout-*
 .idea/
 .vscode/
 *.swp
+
+# documentation output
+/site/

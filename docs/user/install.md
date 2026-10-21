@@ -3,17 +3,31 @@
 
 # Installation pour essais matériels / Hardware test installation
 
-**Candidat de développement, non qualifié sur matériel.** Les deux binaires sont
-séparés : T2B1 (rév. A) et T3B1 (rév. B). Aucun lien de téléchargement ni aucune
-release publiée n'est garanti par ce document. Construire depuis une révision
-identifiée avec le [guide de construction](../developer/building.md), ou obtenir
-l'artefact et ses empreintes auprès du responsable de la campagne.
+**Development firmware for Trezor Safe 3 T2B1 and T3B1.** A first physical
+T2B1/macOS campaign passed the core workflows; full qualification remains pending.
+Read the [hardware results](../acceptance/campaign-2026-10-21-T2B1-macos.md).
 
-**Development candidate, not hardware qualified.** Use a spare Safe 3 of the
-exact model shown by the bootloader. Installing third-party firmware erases
-storage and irreversibly removes the original device authentication capability.
-Reinstalling official firmware does not restore that capability. Follow the
-steps below, then the [English guide](guide-en.md) and [acceptance plan](../acceptance/README.md).
+## Quick installation
+
+1. **Download and verify** the `.bin` for the internal model reported by
+   `trezorctl get-features` from [Releases](https://github.com/jean-voila/feuristic/releases).
+   Follow [checksum verification](../downloads.md). Back up the existing wallet.
+2. **Unlock and upload.** Enter the bootloader with the left button held while
+   reconnecting. Activate **Init connection**, unlock once with
+   `trezorctl device unlock-bootloader`, and confirm the irreversible erase on
+   the device. Reconnect in bootloader mode. In Trezor Suite, open
+   **Settings → Device → Danger Area → Install custom firmware** and select or
+   drag the `.bin` into the upload box. Confirm the device prompts. The detailed
+   CLI route below was tested on T2B1 with bootloader 2.1.16.
+3. **Start Feuristic.** Accept the third-party warning, choose a language and
+   create a test PIN. Continue with the [English](guide-en.md) or
+   [French](guide-fr.md) guide.
+
+Installing erases the wallet and irreversibly removes original manufacturer
+attestation. Reinstalling official firmware does not restore it. Upload the
+binary through the bootloader; the OTP import drive does not install firmware.
+
+The detailed procedure below is in French. Commands are the same in either language.
 
 ## Conséquences à accepter avant toute manipulation
 

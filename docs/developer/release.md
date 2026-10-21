@@ -3,8 +3,8 @@
 
 # Candidate and release procedure
 
-**Current classification: development candidate, hardware acceptance not
-executed.** No stable release is permitted until [R01–R16](../acceptance/README.md)
+**Current classification: development candidate.** Core T2B1 workflows passed
+a first macOS hardware campaign; full qualification remains pending. No stable release is permitted until [R01–R16](../acceptance/README.md)
 pass for both T2B1 and T3B1, including every specified OS combination. An
 unexecuted test, a skip and a model-only proof are not a pass.
 
@@ -77,12 +77,21 @@ source with required submodule revisions and patches, build instructions,
 security policy, release notes and signed/protected provenance.
 
 The tag workflow `.github/workflows/release.yml` checks that `v<VERSION>`
-matches `src/feuristic/version.py`, builds both models, generates the SBOM and
-creates a **draft pre-release**. It does not run every acceptance test and is
-not evidence that all CI jobs succeeded for the tag. Keep it draft until the
-checks and artifacts have been reviewed. Rewrite
-[release notes](../release-notes-template.md) for the actual candidate and list
-unexecuted hardware gates explicitly. Public promotion is a separate action.
+matches `src/feuristic/version.py` and invokes the full CI workflow for that
+exact commit. Host/C/emulator/interop tests, fuzzing, both firmware builds and
+two additional clean builds per model must pass before packaging starts.
+`tools/package_release.py` verifies firmware model headers, signatures and
+code hashes with pinned trezorlib, checks sidecars and compares each image
+against its repeated builds. It includes corresponding tracked sources,
+licenses, SBOM, a provenance manifest and an aggregate checksum file.
+
+The resulting GitHub release is a **draft pre-release**. Review artifacts and
+actual test results before removing draft status. Hardware acceptance remains
+a separate gate; automated build success does not make a stable release.
+The provenance JSON records the commit, upstream base, patch hashes and CI URL;
+it is not an independent signed attestation. The corresponding source archive
+omits Git history and build caches. Clone the recorded commit to reconstruct
+the identical Git/Nix build context.
 
 ## Debug exclusion and security review
 

@@ -6,6 +6,14 @@ on:
     branches: [main]
   pull_request:
   workflow_dispatch:
+  workflow_call:
+    inputs:
+      ref:
+        type: string
+        required: true
+      release:
+        type: boolean
+        default: false
   schedule:
     - cron: "17 3 * * 1"  # weekly: long fuzzing + reproducibility
 
@@ -26,6 +34,8 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.ref || github.sha }}
       - uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
       - run: sudo apt-get update && sudo apt-get install -y clang-format shellcheck
       - name: Python deps (without the upstream trezorlib)
@@ -44,6 +54,8 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.ref || github.sha }}
       - uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
       - run: uv sync --no-install-package trezor
       - run: uv run --no-sync pytest -q tests/host --cov --cov-report=xml --cov-report=term-missing:skip-covered
@@ -61,6 +73,8 @@ jobs:
         cc: [clang, gcc]
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.ref || github.sha }}
       - run: sudo apt-get update && sudo apt-get install -y cmake dosfstools
       - run: cmake -S tests/c -B build/c -DFEURISTIC_SANITIZE=ON -DCMAKE_BUILD_TYPE=Debug -DCMAKE_C_COMPILER=${{ matrix.cc }}
       - run: cmake --build build/c -j"$(nproc)"
@@ -71,6 +85,8 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.ref || github.sha }}
       - run: sudo apt-get update && sudo apt-get install -y gcc-arm-none-eabi libnewlib-arm-none-eabi
       - run: tools/ci/arm-cross-check.sh
 
@@ -79,6 +95,8 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.ref || github.sha }}
       - run: sudo apt-get update && sudo apt-get install -y clang zlib1g-dev
       - name: Fuzz each target (60 s on push, 30 min weekly)
         run: CLANG=clang tools/fuzz.sh ${{ github.event_name == 'schedule' && 1800 || 60 }}
@@ -97,11 +115,13 @@ jobs:
         model: [T2B1, T3B1]
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.ref || github.sha }}
       - uses: cachix/install-nix-action@448cde739abec1eaf0646249e3d25bb8d9bc7702 # v31.11.2
       - uses: DeterminateSystems/magic-nix-cache-action@84c0677f58dcedf3b91f8223ce36a9ea5b3c84b7 # v15
       - run: tools/ci/fetch-upstream.sh
       - name: Build
-        run: tools/ci/nix-build.sh firmware "$(echo ${{ matrix.model }} | tr A-Z a-z)"
+        run: tools/ci/nix-build.sh firmware "$(echo ${{ matrix.model }} | tr '[:upper:]' '[:lower:]')"
       - name: Collect artifact
         run: tools/ci/collect-firmware.sh ${{ matrix.model }}
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
@@ -121,11 +141,13 @@ jobs:
       FEURISTIC_EMU_FROZEN: "1"
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.ref || github.sha }}
       - uses: cachix/install-nix-action@448cde739abec1eaf0646249e3d25bb8d9bc7702 # v31.11.2
       - uses: DeterminateSystems/magic-nix-cache-action@84c0677f58dcedf3b91f8223ce36a9ea5b3c84b7 # v15
       - uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
       - run: tools/ci/fetch-upstream.sh
-      - run: tools/ci/nix-build.sh emulator "$(echo ${{ matrix.model }} | tr A-Z a-z)" --frozen --pyopt=false
+      - run: tools/ci/nix-build.sh emulator "$(echo ${{ matrix.model }} | tr '[:upper:]' '[:lower:]')" --frozen --pyopt=false
       - run: uv sync
       - name: MicroPython compatibility (with mpy-cross)
         run: uv run --no-sync python tools/check_upy_compat.py
@@ -149,7 +171,7 @@ jobs:
 
   reproducibility:
     name: Reproducible build check (${{ matrix.model }})
-    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    if: inputs.release == true || github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-24.04
     strategy:
       fail-fast: false
@@ -157,15 +179,24 @@ jobs:
         model: [T2B1, T3B1]
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.ref || github.sha }}
       - uses: cachix/install-nix-action@448cde739abec1eaf0646249e3d25bb8d9bc7702 # v31.11.2
       - run: tools/ci/fetch-upstream.sh
       - run: tools/ci/reproducible.sh ${{ matrix.model }}
+      - run: tools/ci/collect-firmware.sh ${{ matrix.model }} -repro
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: repro-${{ matrix.model }}
+          path: dist/
 
   sbom:
     name: SBOM
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.ref || github.sha }}
       - run: tools/ci/fetch-upstream.sh
       - run: python3 tools/sbom.py --output dist/feuristic.spdx.json
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2

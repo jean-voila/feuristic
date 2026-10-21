@@ -1,0 +1,9 @@
+# SPDX-License-Identifier: GPL-3.0-only
+blank_issues_enabled: false
+contact_links:
+  - name: Security reporting
+    url: https://github.com/jean-voila/feuristic/blob/main/SECURITY.md
+    about: Read the private vulnerability reporting procedure before sharing details.
+  - name: Questions and setup help
+    url: https://github.com/jean-voila/feuristic/discussions
+    about: Ask about installation, client setup and usage.

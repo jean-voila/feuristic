@@ -1,0 +1,21 @@
+# SPDX-License-Identifier: GPL-3.0-only
+name: Feature proposal
+description: Propose a protocol, usability or documentation improvement.
+labels: [enhancement]
+body:
+  - type: textarea
+    id: need
+    attributes:
+      label: Problem or use case
+    validations:
+      required: true
+  - type: textarea
+    id: change
+    attributes:
+      label: Proposed behavior and alternatives
+    validations:
+      required: true
+  - type: textarea
+    id: constraints
+    attributes:
+      label: Hardware, memory, protocol and security considerations
