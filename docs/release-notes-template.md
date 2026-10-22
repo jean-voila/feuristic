@@ -22,3 +22,6 @@ licenses; the SPDX SBOM records included components. Review the linked workflow
 run for the exact automated results and the
 [hardware report](https://jean-voila.github.io/feuristic/acceptance/campaign-2026-10-21-T2B1-macos/)
 for the physical test scope.
+
+For vulnerabilities, use [private reporting](https://github.com/jean-voila/feuristic/security/advisories/new)
+and read the current [security policy](https://github.com/jean-voila/feuristic/security/policy).

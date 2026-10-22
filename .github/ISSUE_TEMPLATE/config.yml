@@ -2,8 +2,8 @@
 blank_issues_enabled: false
 contact_links:
   - name: Security reporting
-    url: https://github.com/jean-voila/feuristic/blob/main/SECURITY.md
-    about: Read the private vulnerability reporting procedure before sharing details.
+    url: https://github.com/jean-voila/feuristic/security/advisories/new
+    about: Report a vulnerability privately; do not post sensitive details in a public issue.
   - name: Questions and setup help
     url: https://github.com/jean-voila/feuristic/discussions
     about: Ask about installation, client setup and usage.

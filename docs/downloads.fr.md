@@ -13,8 +13,8 @@ description: "Télécharger les binaires feuristic T2B1 et T3B1, vérifier leurs
 Utilisez une **préversion de développement étiquetée** tant que la recette
 matérielle reste incomplète. Les préversions ne figurent pas forcément derrière
 le lien `/releases/latest` de GitHub : ouvrez la liste des versions et choisissez
-la version explicitement. Tant que le dépôt est privé, un compte autorisé est
-nécessaire pour télécharger ses fichiers.
+la version explicitement. Les fichiers publiés sont téléchargeables librement,
+sans compte GitHub.
 
 | Modèle interne | Fichier |
 |---|---|

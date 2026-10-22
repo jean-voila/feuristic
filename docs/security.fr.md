@@ -11,10 +11,10 @@ description: Signaler une vulnérabilité feuristic en privé, comprendre le pé
 ## Signaler une vulnérabilité
 
 **Ne publiez pas les détails d’une vulnérabilité dans une issue ou une discussion
-publique.** Lors du passage du dépôt en public, les responsables activeront
-**Security → Report a vulnerability** pour les signalements privés. Tant que le
-dépôt reste privé, ses collaborateurs peuvent utiliser une issue à accès
-restreint. Ne supposez pas qu’une adresse externe ou un formulaire soit actif.
+publique.** Utilisez le [signalement privé GitHub](https://github.com/jean-voila/feuristic/security/advisories/new)
+(**Security → Report a vulnerability**) pour contacter les responsables en privé.
+Le dépôt est public, mais les signalements de vulnérabilité restent privés.
+Ne joignez ni secrets de production, ni PIN, ni sauvegardes réelles.
 
 Un signalement doit indiquer :
 

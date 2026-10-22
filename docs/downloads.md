@@ -12,8 +12,8 @@ description: Download feuristic firmware binaries for Trezor Safe 3 T2B1 and T3B
 
 Use a **tagged development pre-release** while hardware acceptance is unfinished.
 Pre-releases may not appear behind GitHub's `/releases/latest` link; open the
-release list and choose the version explicitly. While the repository is private,
-you must be signed in with repository access to download its assets.
+release list and choose the version explicitly. Published firmware assets are
+public downloads and do not require a GitHub account.
 
 | Your internal model | Download |
 |---|---|

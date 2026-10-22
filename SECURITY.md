@@ -6,10 +6,10 @@ users safe.
 ## Reporting a vulnerability
 
 **Do not open a public issue or discussion with vulnerability details.**
-When this repository becomes public, maintainers will enable GitHub's
-*Security → Report a vulnerability* for private reports. While the repository
-remains private, collaborators can use a restricted repository issue.
-Do not assume that an external contact address or reporting form is active.
+Use [GitHub private vulnerability reporting](https://github.com/jean-voila/feuristic/security/advisories/new)
+(**Security → Report a vulnerability**) to contact the maintainers privately.
+The repository is public, but submitted vulnerability reports are private.
+Do not include production secrets, PINs or real identity backups.
 A report should include:
 
 * affected version / commit and model (T2B1, T3B1, emulator);

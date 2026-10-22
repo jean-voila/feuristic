@@ -13,7 +13,7 @@ uv run --no-sync mkdocs build --strict
 
 The Documentation workflow builds every change and deploys `main` through
 GitHub Actions to GitHub Pages. Pull requests build without deployment rights.
-The source repository can remain private while its Pages site is public.
+The source repository, published release assets and Pages site are public.
 
 Page titles and descriptions belong in Markdown front matter. Repository-file
 references are resolved by `tools/docs_hooks.py`; internal documentation links
