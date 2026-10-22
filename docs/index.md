@@ -25,7 +25,7 @@ standard clients handle authentication and cryptography.
     complete acceptance matrix are still in progress. Keep a second way to sign
     in to important accounts.
 
-![Five feuristic screens: lock screen, passkey approval, saved passkeys, a TOTP code and an encrypted backup QR code](assets/screens.svg){ width="1600" height="840" }
+![Five feuristic screens: lock screen, passkey approval, saved passkeys, a TOTP code and an encrypted backup QR code](assets/screens.svg){ loading=lazy width="1600" height="840" }
 
 ## What it supports
 
@@ -54,7 +54,7 @@ It explains the irreversible effects, exact button sequence and recovery path.
 
 ## Interfaces and controls
 
-![feuristic USB modes: FIDO and smart card, serial time sync, and QR import](assets/usb-modes.svg){ width="1440" height="600" }
+![feuristic USB modes: FIDO and smart card, serial time sync, and QR import](assets/usb-modes.svg){ loading=lazy width="1440" height="600" }
 
 Normal operation exposes FIDO HID and a CCID smart-card reader. Time sync uses a
 temporary serial port; QR import uses a temporary FAT12 drive. These modes are

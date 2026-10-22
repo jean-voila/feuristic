@@ -1,3 +1,8 @@
+---
+title: Guide d’utilisation sur Trezor Safe 3
+description: "Utiliser feuristic au quotidien sur Trezor Safe 3 : PIN, deux boutons, passkeys, codes TOTP, OpenPGP, PIV, AES et sauvegardes QR chiffrées."
+---
+
 <!-- SPDX-License-Identifier: GPL-3.0-only -->
 <!-- Copyright (C) 2026 The feuristic contributors -->
 

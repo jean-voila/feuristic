@@ -1,5 +1,6 @@
 ---
-title: Design specification — original French document
+title: Cahier des charges de conception v1.0
+description: "Cahier des charges de conception de feuristic, firmware cryptographique alternatif pour Trezor Safe 3 : FIDO2, OpenPGP, PIV, OTP, AES-GCM et sauvegarde QR."
 content_language: fr
 ---
 

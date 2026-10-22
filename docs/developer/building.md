@@ -1,3 +1,8 @@
+---
+title: Build feuristic from source
+description: Build feuristic firmware for Trezor Safe 3 T2B1 and T3B1 from source on a pinned trezor-firmware release with the feuristic patch series.
+---
+
 <!-- SPDX-License-Identifier: GPL-3.0-only -->
 <!-- Copyright (C) 2026 The feuristic contributors -->
 

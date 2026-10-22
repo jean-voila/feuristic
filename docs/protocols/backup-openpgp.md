@@ -1,3 +1,8 @@
+---
+title: Backup schema for OpenPGP card keys
+description: Normative schema of the OpenPGP card identity inside the feuristic encrypted QR backup, version 1.
+---
+
 <!-- SPDX-License-Identifier: GPL-3.0-only -->
 <!-- Copyright (C) 2026 The feuristic contributors -->
 

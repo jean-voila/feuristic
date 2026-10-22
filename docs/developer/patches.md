@@ -1,3 +1,8 @@
+---
+title: Upstream trezor-firmware patch series
+description: "How feuristic maintains its ordered patch series on an unmodified trezor-firmware commit: USB modes, UI, translations, frozen modules and bindings."
+---
+
 <!-- SPDX-License-Identifier: GPL-3.0-only -->
 <!-- Copyright (C) 2026 The feuristic contributors -->
 

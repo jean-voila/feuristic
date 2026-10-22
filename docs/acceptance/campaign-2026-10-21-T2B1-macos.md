@@ -1,3 +1,8 @@
+---
+title: Trezor Safe 3 T2B1 hardware test on macOS
+description: "Partial physical test of feuristic on a real Trezor Safe 3 T2B1 with macOS: signatures, AES-GCM, OTP image import, clock sync and update persistence."
+---
+
 <!-- SPDX-License-Identifier: GPL-3.0-only -->
 <!-- Copyright (C) 2026 The feuristic contributors -->
 

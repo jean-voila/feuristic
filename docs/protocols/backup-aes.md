@@ -1,3 +1,8 @@
+---
+title: Backup schema for AES-256-GCM keys
+description: Normative schema of AES-256-GCM keys and their counters inside the feuristic encrypted QR backup, version 1.
+---
+
 <!-- SPDX-License-Identifier: GPL-3.0-only -->
 <!-- Copyright (C) 2026 The feuristic contributors -->
 

@@ -1,3 +1,8 @@
+---
+title: Candidats aux essais matériels
+description: Sélection des images de développement T2B1 et T3B1 pour les essais matériels, avec SHA-256, SBOM et provenance issus d’un même commit propre.
+---
+
 <!-- SPDX-License-Identifier: GPL-3.0-only -->
 <!-- Copyright (C) 2026 The feuristic contributors -->
 

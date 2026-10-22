@@ -310,6 +310,7 @@ module.exports = function (root) {
     const hero = banner("overview", 0, 0, 1600, 800);
     const social = banner("social", 1740, 0, 1200, 630);
     const heroFr = banner("overview.fr", 0, 2000, 1600, 800);
+    const socialFr = banner("social.fr", 1740, 2000, 1200, 630);
     const ui = board("interface", 0, 1000, 1600, 900);
     text(ui, "Title", "On-device interface", 70, 50, 1000, 58, C.ink, 6);
     text(
@@ -392,7 +393,7 @@ module.exports = function (root) {
     logo.background.enabled = false;
     logo.background.includedInExport = false;
     mark(logo, 0, 0, 128);
-    [hero, heroFr, social, ui, tour, usb, logo].forEach((b) => {
+    [hero, heroFr, social, socialFr, ui, tour, usb, logo].forEach((b) => {
         // Keep editable text in Sketch, but freeze the wordmark geometry in SVG.
         // Browser font substitution otherwise exposes the original i dot below lime.
         const exported = b.duplicate();
@@ -403,7 +404,7 @@ module.exports = function (root) {
         }
         sketch.export(exported, {
             output,
-            formats: b.name === "social" ? "png" : "svg",
+            formats: b.name.startsWith("social") ? "png" : "svg",
             scales: "1",
             overwriting: true,
             "save-for-web": true,

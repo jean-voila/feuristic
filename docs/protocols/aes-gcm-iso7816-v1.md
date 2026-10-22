@@ -1,3 +1,8 @@
+---
+title: AES-256-GCM and RNG over ISO 7816 APDUs
+description: "Normative feuristic profile for AES-256-GCM encryption and hardware random bytes over ISO/IEC 7816 APDUs: key selection and session parameters."
+---
+
 <!-- SPDX-License-Identifier: GPL-3.0-only -->
 <!-- Copyright (C) 2026 The feuristic contributors -->
 

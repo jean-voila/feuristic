@@ -1,3 +1,8 @@
+---
+title: Security history
+description: Security-relevant fixes in feuristic releases, with dates, severity and credit.
+---
+
 <!-- SPDX-License-Identifier: GPL-3.0-only -->
 # Security history
 

@@ -1,3 +1,8 @@
+---
+title: Image import and restore memory
+description: Memory budget and measurement procedure for QR image import and backup restoration over the temporary USB mass-storage volume.
+---
+
 <!-- SPDX-License-Identifier: GPL-3.0-only -->
 <!-- Copyright (C) 2026 The feuristic contributors -->
 

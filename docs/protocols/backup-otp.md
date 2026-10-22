@@ -1,3 +1,8 @@
+---
+title: Backup schema for TOTP and HOTP accounts
+description: Normative schema of TOTP and HOTP accounts inside the feuristic encrypted QR backup, version 1.
+---
+
 <!-- SPDX-License-Identifier: GPL-3.0-only -->
 <!-- Copyright (C) 2026 The feuristic contributors -->
 

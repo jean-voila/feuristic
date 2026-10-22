@@ -1,3 +1,8 @@
+---
+title: Threat model
+description: What feuristic protects on Trezor Safe 3, against which attackers and scenarios, its trust boundaries, assumptions and explicit non-goals.
+---
+
 <!-- SPDX-License-Identifier: GPL-3.0-only -->
 <!-- Copyright (C) 2026 The feuristic contributors -->
 

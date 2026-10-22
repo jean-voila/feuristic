@@ -1,3 +1,8 @@
+---
+title: FIDO2, CTAP 2.1 and U2F protocol notes
+description: "Protocol notes for the feuristic FIDO2 authenticator on Trezor Safe 3: CTAP 2.1 commands, U2F, clientPIN, credential management and extensions."
+---
+
 <!-- SPDX-License-Identifier: GPL-3.0-only -->
 <!-- Copyright (C) 2026 The feuristic contributors -->
 

@@ -1,3 +1,8 @@
+---
+title: Shared storage budget (R04)
+description: How passkeys, OTP accounts, largeBlob and card keys share the 64 KiB storage sector on Trezor Safe 3, and the R04 capacity regression test.
+---
+
 <!-- SPDX-License-Identifier: GPL-3.0-only -->
 <!-- Copyright (C) 2026 The feuristic contributors -->
 

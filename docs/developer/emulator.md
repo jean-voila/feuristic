@@ -1,3 +1,8 @@
+---
+title: Emulator and standard host tools
+description: Build and run the feuristic emulator for T2B1 or T3B1 and connect it to PC/SC tools such as OpenSC through a virtual reader bridge.
+---
+
 <!-- SPDX-License-Identifier: GPL-3.0-only -->
 <!-- Copyright (C) 2026 The feuristic contributors -->
 

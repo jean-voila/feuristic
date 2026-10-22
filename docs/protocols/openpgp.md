@@ -1,3 +1,8 @@
+---
+title: OpenPGP Card 3.4 application
+description: "Normative feuristic OpenPGP Card 3.4 application: Ed25519 and optional RSA-2048 keys, commands, data objects, PINs, confirmation and GnuPG use."
+---
+
 <!-- SPDX-License-Identifier: GPL-3.0-only -->
 <!-- Copyright (C) 2026 The feuristic contributors -->
 

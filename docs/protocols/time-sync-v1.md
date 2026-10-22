@@ -1,3 +1,8 @@
+---
+title: Clock synchronisation protocol v1
+description: feuristic clock synchronisation over a temporary USB serial port for TOTP codes, with host examples for Linux, macOS, Windows and Python.
+---
+
 <!-- SPDX-License-Identifier: GPL-3.0-only -->
 <!-- Copyright (C) 2026 The feuristic contributors -->
 

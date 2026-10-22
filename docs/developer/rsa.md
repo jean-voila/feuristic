@@ -1,3 +1,8 @@
+---
+title: RSA-2048 for PIV and OpenPGP
+description: How feuristic adds RSA-2048 to Trezor Safe 3 for PIV slots and an optional OpenPGP profile with a small vendored BearSSL i31 core.
+---
+
 <!-- SPDX-License-Identifier: GPL-3.0-only -->
 <!-- Copyright (C) 2026 The feuristic contributors -->
 

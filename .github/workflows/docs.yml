@@ -16,6 +16,8 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0 # sitemap dates come from the last commit of each page
       - uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
         with:
           python-version: '3.13'
@@ -35,7 +37,26 @@ jobs:
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
+    outputs:
+      page_url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - name: Deploy
         id: deployment
         uses: actions/deploy-pages@d6db90164ac5ed86f2b6aed7e0febac5b3c0c03e # v4
+  indexnow:
+    name: Notify search engines
+    needs: deploy
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          sparse-checkout: tools/indexnow.py
+          sparse-checkout-cone-mode: false
+      - name: Submit modified pages to IndexNow
+        continue-on-error: true # a notification failure must not fail the deployment
+        env:
+          SITE_URL: ${{ needs.deploy.outputs.page_url }}
+          ALL: ${{ github.event_name == 'workflow_dispatch' && '--all' || '' }}
+        run: |
+          curl -fsS "${SITE_URL}sitemap.xml?${GITHUB_SHA}" -o sitemap.xml
+          python3 tools/indexnow.py "$SITE_URL" --sitemap sitemap.xml $ALL

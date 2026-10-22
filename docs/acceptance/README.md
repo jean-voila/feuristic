@@ -1,3 +1,8 @@
+---
+title: Hardware acceptance tests R01–R16
+description: The R01–R16 hardware acceptance procedures for feuristic on Trezor Safe 3 T2B1 and T3B1, and which results come from real devices.
+---
+
 <!-- SPDX-License-Identifier: GPL-3.0-only -->
 <!-- Copyright (C) 2026 The feuristic contributors -->
 

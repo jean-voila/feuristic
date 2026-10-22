@@ -1,3 +1,8 @@
+---
+title: Code for CPython and Trezor MicroPython
+description: Rules for feuristic shared code that is unit-tested on CPython and frozen into the Trezor MicroPython firmware with a reduced standard library.
+---
+
 <!-- SPDX-License-Identifier: GPL-3.0-only -->
 <!-- Copyright (C) 2026 The feuristic contributors -->
 

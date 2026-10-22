@@ -1,3 +1,8 @@
+---
+title: Recette matérielle R01–R16
+description: Les procédures de recette matérielle R01–R16 de feuristic sur Trezor Safe 3 T2B1 et T3B1, et les résultats obtenus sur des appareils réels.
+---
+
 <!-- SPDX-License-Identifier: GPL-3.0-only -->
 <!-- Copyright (C) 2026 The feuristic contributors -->
 

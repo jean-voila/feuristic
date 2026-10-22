@@ -1,3 +1,8 @@
+---
+title: Embedded QR code decoder in C (lib/fqr)
+description: "lib/fqr detects and decodes QR Model 2 versions 1–40 from a monochrome bitmap: freestanding C99, caller-owned buffers, no allocation or recursion."
+---
+
 <!-- SPDX-License-Identifier: GPL-3.0-only -->
 <!-- Copyright (C) 2026 The feuristic contributors -->
 

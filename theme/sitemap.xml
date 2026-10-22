@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:xhtml="http://www.w3.org/1999/xhtml">
+{%- for locale, i18n_files in i18n_alternates.items() %}
+{%- for file in i18n_files %}
+{%- set page = file.page %}
+{%- if page and not page.is_link and not page.meta.duplicate and "noindex" not in page.meta.robots | default("") %}
+    <url>
+        <loc>{{ page.canonical_url | e }}</loc>
+        <lastmod>{{ page.update_date }}</lastmod>
+    {%- for code, url in page.meta.hreflang.items() %}
+        <xhtml:link rel="alternate" hreflang="{{ code }}" href="{{ url | e }}"/>
+    {%- endfor %}
+    </url>
+{%- endif %}
+{%- endfor %}
+{%- endfor %}
+</urlset>

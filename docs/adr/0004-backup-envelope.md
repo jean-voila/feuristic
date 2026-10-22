@@ -1,3 +1,8 @@
+---
+title: "ADR 0004: encrypted QR backup envelope"
+description: "Design of the feuristic backup envelope: canonical CBOR, AES-256-GCM and QR framing for a full encrypted export of device identities."
+---
+
 <!-- SPDX-License-Identifier: GPL-3.0-only -->
 <!-- Copyright (C) 2026 The feuristic contributors -->
 

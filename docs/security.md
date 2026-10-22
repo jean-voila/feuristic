@@ -1,3 +1,8 @@
+---
+title: Security policy
+description: Report a feuristic vulnerability privately, check the reporting scope and see which releases receive security fixes.
+---
+
 <!-- SPDX-License-Identifier: GPL-3.0-only -->
 <!-- Copyright (C) 2026 The feuristic contributors -->
 

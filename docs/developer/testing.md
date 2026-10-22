@@ -1,3 +1,8 @@
+---
+title: Testing and evidence
+description: Run feuristic host, emulator and firmware tests, and record commits, environments, results and artifact hashes as acceptance evidence.
+---
+
 <!-- SPDX-License-Identifier: GPL-3.0-only -->
 <!-- Copyright (C) 2026 The feuristic contributors -->
 

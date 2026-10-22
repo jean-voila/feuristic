@@ -1,3 +1,8 @@
+---
+title: Firmware architecture
+description: "How feuristic is organized on Trezor Safe 3: repository layout, upstream integration, memory budget, USB modes, storage and key domain separation."
+---
+
 <!-- SPDX-License-Identifier: GPL-3.0-only -->
 <!-- Copyright (C) 2026 The feuristic contributors -->
 

@@ -1,3 +1,8 @@
+---
+title: "otpauth:// URIs for TOTP and HOTP"
+description: "The subset of Google Authenticator otpauth:// URIs that feuristic imports from QR images and exports for TOTP and HOTP accounts, with limits."
+---
+
 <!-- SPDX-License-Identifier: GPL-3.0-only -->
 <!-- Copyright (C) 2026 The feuristic contributors -->
 

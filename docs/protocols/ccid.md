@@ -1,3 +1,8 @@
+---
+title: USB CCID smart card reader
+description: How feuristic exposes a USB CCID reader and an ISO 7816-4 card on Trezor Safe 3 for the OpenPGP, PIV and AES applications over PC/SC.
+---
+
 <!-- SPDX-License-Identifier: GPL-3.0-only -->
 <!-- Copyright (C) 2026 The feuristic contributors -->
 

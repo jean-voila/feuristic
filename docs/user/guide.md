@@ -1,3 +1,8 @@
+---
+title: Trezor Safe 3 security key user guide
+description: "Use feuristic day to day on Trezor Safe 3: device PIN, two-button controls, passkeys, TOTP codes, OpenPGP, PIV, AES and encrypted QR backups."
+---
+
 <!-- SPDX-License-Identifier: GPL-3.0-only -->
 <!-- Copyright (C) 2026 The feuristic contributors -->
 

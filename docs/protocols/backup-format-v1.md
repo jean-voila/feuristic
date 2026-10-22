@@ -1,3 +1,8 @@
+---
+title: Encrypted QR backup format v1
+description: "Normative feuristic QR backup format: CBOR container, AES-256-GCM encryption, key derivation and QR framing for identity export and restore."
+---
+
 <!-- SPDX-License-Identifier: GPL-3.0-only -->
 <!-- Copyright (C) 2026 The feuristic contributors -->
 

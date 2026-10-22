@@ -1,3 +1,8 @@
+---
+title: "ADR 0001: pinned upstream and patch series"
+description: Why feuristic pins an unmodified trezor-firmware release and applies a reviewable patch series instead of forking the boot chain, HAL and UI.
+---
+
 <!-- SPDX-License-Identifier: GPL-3.0-only -->
 <!-- Copyright (C) 2026 The feuristic contributors -->
 

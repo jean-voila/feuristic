@@ -1,3 +1,8 @@
+---
+title: Backup readiness audit (R13, R14)
+description: Software audit of the encrypted QR backup and restore paths before the physical R13 and R14 acceptance tests on Trezor Safe 3.
+---
+
 <!-- SPDX-License-Identifier: GPL-3.0-only -->
 <!-- Copyright (C) 2026 The feuristic contributors -->
 

@@ -27,7 +27,7 @@ clients standard sur l’ordinateur.
     complète sont en cours. Gardez un second moyen de connexion pour vos comptes
     importants.
 
-![Cinq écrans feuristic : verrouillage, validation d’une passkey, passkeys enregistrées, code TOTP et QR de sauvegarde chiffrée](assets/screens.svg){ width="1600" height="840" }
+![Cinq écrans feuristic : verrouillage, validation d’une passkey, passkeys enregistrées, code TOTP et QR de sauvegarde chiffrée](assets/screens.svg){ loading=lazy width="1600" height="840" }
 
 ## Fonctions disponibles
 
@@ -56,7 +56,7 @@ effets irréversibles, la séquence des boutons et le chemin de récupération.
 
 ## Interfaces et commandes
 
-![Modes USB feuristic : FIDO et carte à puce, synchronisation série, import QR](assets/usb-modes.svg){ width="1440" height="600" }
+![Modes USB feuristic : FIDO et carte à puce, synchronisation série, import QR](assets/usb-modes.svg){ loading=lazy width="1440" height="600" }
 
 Le mode normal expose FIDO HID et un lecteur de carte CCID. La synchronisation
 utilise temporairement un port série ; l’import QR utilise un volume FAT12.

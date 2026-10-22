@@ -1,3 +1,8 @@
+---
+title: "ADR 0003: streaming PNG and JPEG import"
+description: Decision to decode QR images while the host writes them to the temporary USB drive, keeping image import within a fixed memory budget.
+---
+
 <!-- SPDX-License-Identifier: GPL-3.0-only -->
 <!-- Copyright (C) 2026 The feuristic contributors -->
 

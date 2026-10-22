@@ -1,3 +1,8 @@
+---
+title: Documentation and artwork
+description: Build and preview the feuristic documentation site, maintain English and French pages, and regenerate artwork and emulator screen captures.
+---
+
 <!-- SPDX-License-Identifier: GPL-3.0-only -->
 <!-- Copyright (C) 2026 The feuristic contributors -->
 
@@ -44,3 +49,16 @@ in each file’s front matter; navigation labels live in `mkdocs.yml`.
 The original design specification is retained in French and explicitly labelled.
 The strict build checks both languages. Verify language switching, canonical
 URLs, alternate-language links and search before merging documentation changes.
+
+## Search engines
+
+Every page needs a `title` and a `description` of at most 160 characters in its
+front matter. Fallback copies of untranslated pages point their canonical URL
+to the page in its content language and stay out of the sitemap and `hreflang`
+links. Add `robots: noindex, follow` to pages that should not appear in search
+results, such as acceptance procedures not yet executed; remove it once results
+are recorded. Sitemap dates come from the last commit of each page.
+
+After each deployment, the Documentation workflow submits recently modified
+pages to IndexNow (Bing and other engines). Run the workflow manually to submit
+every page. `social.png` and `social.fr.png` are the link previews.

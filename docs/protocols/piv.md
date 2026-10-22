@@ -1,3 +1,8 @@
+---
+title: PIV card application
+description: "Normative feuristic PIV application: P-256 and RSA-2048 key slots, PIN, PUK, management key and examples with OpenSC and yubico-piv-tool."
+---
+
 <!-- SPDX-License-Identifier: GPL-3.0-only -->
 <!-- Copyright (C) 2026 The feuristic contributors -->
 

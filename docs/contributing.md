@@ -1,3 +1,8 @@
+---
+title: Contribute to feuristic
+description: Propose fixes, documentation, hardware test results or protocol improvements to feuristic, and prepare a pull request with the right checks.
+---
+
 <!-- SPDX-License-Identifier: GPL-3.0-only -->
 <!-- Copyright (C) 2026 The feuristic contributors -->
 

@@ -1,3 +1,8 @@
+---
+title: Hardware test candidates
+description: How T2B1 and T3B1 development images are selected for hardware testing, with SHA-256, SBOM and provenance from one clean source commit.
+---
+
 <!-- SPDX-License-Identifier: GPL-3.0-only -->
 <!-- Copyright (C) 2026 The feuristic contributors -->
 

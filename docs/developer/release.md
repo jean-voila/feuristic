@@ -1,3 +1,8 @@
+---
+title: Release procedure
+description: "How feuristic builds, signs and publishes candidates and 0.x releases: provenance, vendor identity, distribution gates and debug exclusion."
+---
+
 <!-- SPDX-License-Identifier: GPL-3.0-only -->
 <!-- Copyright (C) 2026 The feuristic contributors -->
 

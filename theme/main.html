@@ -2,20 +2,34 @@
 {% block extrahead %}
   {{ super() }}
   {% if page %}
-  <meta property="og:type" content="website">
+  {% if page.meta.robots %}
+  <meta name="robots" content="{{ page.meta.robots | e }}">
+  {% endif %}
+  {% for code, url in page.meta.hreflang.items() %}
+  <link rel="alternate" hreflang="{{ code }}" href="{{ url | e }}">
+  {% endfor %}
+  <meta property="og:type" content="{{ 'website' if project_home else 'article' }}">
   <meta property="og:site_name" content="feuristic">
+  <meta property="og:locale" content="{{ og_locale }}">
+  {% for alternate in og_locale_alternates %}
+  <meta property="og:locale:alternate" content="{{ alternate }}">
+  {% endfor %}
   <meta property="og:title" content="{{ page.meta.title | default(page.title) | e }} — feuristic">
   <meta property="og:description" content="{{ page_description | e }}">
   <meta property="og:url" content="{{ page.canonical_url | e }}">
   <meta property="og:image" content="{{ social_image | e }}">
   <meta property="og:image:width" content="1200">
   <meta property="og:image:height" content="630">
+  {% if i18n_page_locale == 'fr' %}
+  <meta property="og:image:alt" content="feuristic, firmware personnalisé pour Trezor Safe 3">
+  {% else %}
   <meta property="og:image:alt" content="feuristic custom firmware for Trezor Safe 3">
+  {% endif %}
   <meta name="twitter:card" content="summary_large_image">
   <meta name="twitter:title" content="{{ page.meta.title | default(page.title) | e }} — feuristic">
   <meta name="twitter:description" content="{{ page_description | e }}">
   <meta name="twitter:image" content="{{ social_image | e }}">
-  {% if project_home %}
+  {% if structured_data %}
     <script type="application/ld+json">{{ structured_data | safe }}</script>
   {% endif %}
   {% endif %}
@@ -27,11 +41,14 @@
       <p class="admonition-title">Original French document</p>
       <p>This is the original design specification. The installation, user guides and acceptance procedures are available in English.</p>
     </div>
+    <div lang="fr">{{ super() }}</div>
   {% elif i18n_page_locale == 'fr' and i18n_file_locale != 'fr' and page.meta.content_language != 'fr' %}
     <div class="admonition note" lang="fr">
       <p class="admonition-title">Référence en anglais</p>
       <p>Cette page technique est disponible en anglais. Les guides d’utilisation et d’installation sont traduits en français.</p>
     </div>
+    <div lang="en">{{ super() }}</div>
+  {% else %}
+    {{ super() }}
   {% endif %}
-  {{ super() }}
 {% endblock %}

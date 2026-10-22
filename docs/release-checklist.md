@@ -1,3 +1,8 @@
+---
+title: Release checklist
+description: Source, build, verification and distribution gates checked before each feuristic release for Trezor Safe 3 T2B1 and T3B1.
+---
+
 <!-- SPDX-License-Identifier: GPL-3.0-only -->
 <!-- Copyright (C) 2026 The feuristic contributors -->
 

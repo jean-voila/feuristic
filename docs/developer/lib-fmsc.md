@@ -1,3 +1,8 @@
+---
+title: USB mass storage for QR import (lib/fmsc)
+description: lib/fmsc implements the temporary USB mass-storage mode and FAT12 volume that receives PNG and JPEG QR images on Trezor Safe 3.
+---
+
 <!-- SPDX-License-Identifier: GPL-3.0-only -->
 <!-- Copyright (C) 2026 The feuristic contributors -->
 

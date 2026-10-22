@@ -1,3 +1,8 @@
+---
+title: "ADR 0002: exclusive USB modes"
+description: Why FIDO HID and CCID, serial time sync and the FAT12 QR import drive run as exclusive USB modes within the Trezor Safe 3 memory budget.
+---
+
 <!-- SPDX-License-Identifier: GPL-3.0-only -->
 <!-- Copyright (C) 2026 The feuristic contributors -->
 

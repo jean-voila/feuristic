@@ -1,3 +1,8 @@
+---
+title: Streaming PNG and JPEG decoder (lib/fimg)
+description: lib/fimg decodes PNG and baseline JPEG images that arrive in pieces over USB mass storage into a bounded 1-bit bitmap for the QR decoder.
+---
+
 <!-- SPDX-License-Identifier: GPL-3.0-only -->
 <!-- Copyright (C) 2026 The feuristic contributors -->
 
