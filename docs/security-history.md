@@ -8,6 +8,20 @@ Security-relevant fixes, by release. Report vulnerabilities as described in
 |---|---|---|---|---|
 | — | — | No security advisories yet (pre-release). | — | — |
 
+## Host tooling dependency — 22 October 2026
+
+`uv.lock` now pins certifi 2026.10.19, addressing
+[GHSA-6q48-6c7w-9gw2](https://github.com/certifi/python-certifi/security/advisories/GHSA-6q48-6c7w-9gw2).
+The affected CA bundle belongs to Python host tooling, not the embedded firmware.
+The compromised emSign ECC Root CA - G3 is absent from the updated bundle;
+an HTTPS request with certificate verification and the documentation build pass.
+
+Published `v0.1.0-dev` firmware images are unchanged. Their source archive
+retains its historical lockfile. For host-side development, use current `main`,
+or update the old checkout with `uv lock --upgrade-package certifi` followed by
+`uv sync --frozen`. This changes that checkout's host dependency lockfile;
+it does not rewrite the original release's build record.
+
 ## Development hardening — October 2026
 
 These fixes are in the development candidate; they are not a published

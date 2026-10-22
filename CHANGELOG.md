@@ -25,6 +25,10 @@ All notable changes to this project are documented here. The format follows
 - Test suites: CPython unit tests, C unit tests with sanitizers, libFuzzer
   targets, MicroPython tests on the emulator, end-to-end functional tests.
 
+### Security
+- Updated the Python host tooling CA bundle to certifi 2026.10.19 for
+  GHSA-6q48-6c7w-9gw2. The package is not part of the embedded firmware.
+
 ### Known limitations
 - Full hardware acceptance R01–R16 remains pending on both revisions. An initial
   physical T2B1/macOS campaign passed core FIDO, OpenPGP, PIV, AES and OTP
