@@ -47,3 +47,11 @@ hardware builds, both emulator models, compatibility and relevant tests.
 An upstream upgrade is a deliberate base change: review storage, cryptography,
 USB endpoints/syscalls, UI APIs, licenses and build inputs; regenerate and
 review every patch, then repeat R01–R16 on both revisions.
+
+## Host CA bundle
+
+The certifi patch updates the upstream host lockfile to 2026.10.19 for
+[GHSA-6q48-6c7w-9gw2](https://github.com/certifi/python-certifi/security/advisories/GHSA-6q48-6c7w-9gw2).
+Upstream normally delays newly released Python packages by 30 days. Only certifi
+is exempted so the CA security fix can be selected. The frozen version and hashes
+remain recorded in `uv.lock`; firmware application code is not changed.

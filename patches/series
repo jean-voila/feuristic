@@ -10,3 +10,4 @@
 0008-Support-bounded-128-byte-on-device-backup-passphrase.patch
 0009-Require-both-buttons-for-device-confirmations.patch
 0010-Keep-the-T2B1-interpreter-value-stack-in-non-DMA-CCM.patch
+0011-Update-host-CA-bundle-for-compromised-emSign-interme.patch

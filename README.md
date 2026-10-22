@@ -108,6 +108,6 @@ and [security reporting](SECURITY.md). Editable artwork is in
 ## License and upstream
 
 GPL-3.0-only. Built on [trezor-firmware](https://github.com/trezor/trezor-firmware)
-`core/v2.12.5` with ten exported patches. Upstream components retain their own
+`core/v2.12.5` with the exported patch series in `patches/`. Upstream components retain their own
 licenses; see [LICENSE](LICENSE), [NOTICE](NOTICE) and each release's SBOM and
 corresponding source archive.
