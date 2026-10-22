@@ -93,7 +93,7 @@ pas de protocole SSH propriétaire ni de calcul de défi saisi dans ce menu.
    dimensions ≤ **1024 × 1024**. JPEG progressif et image HEIC ne conviennent pas.
 2. Sélectionner **Authentification → OTP → Ajouter QR par USB**. Le volume
    temporaire d'import apparaît ; HID FIDO et CCID sont suspendus.
-3. Copier l'image sur le volume FAT12 de Feuristic. Copier un fichier à la fois
+3. Copier l'image sur le volume FAT12 de feuristic. Copier un fichier à la fois
    et attendre l'analyse. Le volume n'est pas un disque de sauvegarde : relire
    les images peut renvoyer des zéros, elles ne sont pas conservées.
 4. Vérifier service, compte, type et paramètres sur l'appareil. Confirmer
@@ -229,7 +229,7 @@ une chaîne supposée aléatoire.
 Toute photo d'un QR OTP non chiffré permet de reproduire ses codes. Les QR
 chiffrés d'identité contiennent les clés privées : photos **et** phrase suffisent
 pour les restaurer. Photographier hors de la vue de tiers et maîtriser toute
-synchronisation cloud de la caméra. Aucune phrase n'est récupérable par Feuristic.
+synchronisation cloud de la caméra. Aucune phrase n'est récupérable par feuristic.
 
 Pour un OTP individuel, son menu Sauvegarder QR montre un `otpauth://` standard
 après PIN et avertissement. Si l'URI ne tient pas à l'écran, suivre le repli en

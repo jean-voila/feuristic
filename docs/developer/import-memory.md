@@ -217,7 +217,7 @@ optimization levels 0, 1 and 2. Earlier frozen probe logs made before this
 correction are **not complete behavioral evidence**. Allocation failures
 observed before their first check still expose real allocation constraints.
 
-The isolated preparation also invalidates generated Feuristic `.i`/`.mpy`
+The isolated preparation also invalidates generated feuristic `.i`/`.mpy`
 cache files and uses fresh source mtimes. Restoring a snapshot must not reuse
 bytecode from a later diagnostic variant. Only the isolated `build/emu32-arm`
 Python cache is affected. Frozen drivers restrict `sys.path` to `.frozen` so

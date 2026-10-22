@@ -1,6 +1,6 @@
 ---
 title: TOTP and HOTP codes on Trezor Safe 3
-description: Import otpauth QR images over USB and display TOTP and HOTP codes on Trezor Safe 3 with Feuristic. Supports PNG, baseline JPEG and serial clock sync.
+description: Import otpauth QR images over USB and display TOTP and HOTP codes on Trezor Safe 3 with feuristic. Supports PNG, baseline JPEG and serial clock sync.
 ---
 
 <!-- SPDX-License-Identifier: GPL-3.0-only -->

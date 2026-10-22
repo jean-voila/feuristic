@@ -1,6 +1,6 @@
 ---
 title: FIDO2 passkeys and security keys on Trezor Safe 3
-description: Use Feuristic as a FIDO2 and WebAuthn security key on Trezor Safe 3, with CTAP 2.1, discoverable passkeys, U2F and OpenSSH security-key clients.
+description: Use feuristic as a FIDO2 and WebAuthn security key on Trezor Safe 3, with CTAP 2.1, discoverable passkeys, U2F and OpenSSH security-key clients.
 ---
 
 <!-- SPDX-License-Identifier: GPL-3.0-only -->

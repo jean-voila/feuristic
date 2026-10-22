@@ -1,6 +1,6 @@
-<p align="center"><img src="docs/assets/overview.svg" alt="Feuristic custom firmware for Trezor Safe 3 with FIDO2, OpenPGP, PIV, OTP and AES-GCM" width="1200"></p>
+<p align="center"><img src="docs/assets/overview.svg" alt="feuristic custom firmware for Trezor Safe 3 with FIDO2, OpenPGP, PIV, OTP and AES-GCM" width="1200"></p>
 
-# Feuristic — custom firmware for Trezor Safe 3
+# feuristic — custom firmware for Trezor Safe 3
 
 [Documentation](https://jean-voila.github.io/feuristic/) · [Download firmware](https://github.com/jean-voila/feuristic/releases) · [Installation](docs/user/install.md) · [Français](docs/user/guide.fr.md)
 
@@ -8,7 +8,7 @@
 [![Documentation](https://github.com/jean-voila/feuristic/actions/workflows/docs.yml/badge.svg)](https://jean-voila.github.io/feuristic/)
 [![License: GPL-3.0-only](https://img.shields.io/badge/license-GPL--3.0--only-315b46)](LICENSE)
 
-Feuristic replaces the wallet application on a **Trezor Safe 3** with a USB
+feuristic replaces the wallet application on a **Trezor Safe 3** with a USB
 security key and smart card: **FIDO2 passkeys, OpenPGP, PIV, TOTP/HOTP,
 AES-256-GCM and encrypted QR backups**. Configure it on the two buttons and use
 standard clients on your computer. No companion account or cloud service.
@@ -21,7 +21,7 @@ standard clients on your computer. No companion account or cloud service.
 > attestation.** Back up the wallet first. This independent project is not made,
 > endorsed or signed by Trezor Company / SatoshiLabs. The bootloader's
 > `UNSAFE, DO NOT USE!` warning remains. There is no cryptocurrency wallet or
-> seed migration in Feuristic.
+> seed migration in feuristic.
 
 ## Install in three steps
 
@@ -37,7 +37,7 @@ standard clients on your computer. No companion account or cloud service.
    create a device PIN and follow the [user guide](docs/user/guide.md).
 
 A firmware binary is uploaded through the **bootloader**, not copied onto the
-Feuristic OTP import drive. Check the model and SHA-256 before installing.
+feuristic OTP import drive. Check the model and SHA-256 before installing.
 Pre-releases are listed under [all releases](https://github.com/jean-voila/feuristic/releases).
 
 ## Features
@@ -58,7 +58,7 @@ every client. See the [protocol references](docs/index.md) and [acceptance regis
 
 ## On-device interface
 
-![Feuristic emulator screens in editable Safe 3 illustrations](docs/assets/interface.svg)
+![feuristic emulator screens in editable Safe 3 illustrations](docs/assets/interface.svg)
 
 Actual emulator captures, with disposable identities. The device shells are
 illustrations. Left/right navigates, both buttons confirms, and holding left

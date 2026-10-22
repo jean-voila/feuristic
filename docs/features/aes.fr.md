@@ -1,6 +1,6 @@
 ---
 title: "Chiffrement AES-GCM et nombres aléatoires matériels"
-description: "Profil AES-256-GCM et GET CHALLENGE ISO 7816 de Feuristic, avec nonces générés sur l’appareil et consentement physique."
+description: "Profil AES-256-GCM et GET CHALLENGE ISO 7816 de feuristic, avec nonces générés sur l’appareil et consentement physique."
 ---
 
 <!-- SPDX-License-Identifier: GPL-3.0-only -->
@@ -8,7 +8,7 @@ description: "Profil AES-256-GCM et GET CHALLENGE ISO 7816 de Feuristic, avec no
 
 # AES-GCM et nombres aléatoires
 
-Feuristic propose **AES-256-GCM** par APDU ISO 7816, avec des nonces générés
+feuristic propose **AES-256-GCM** par APDU ISO 7816, avec des nonces générés
 par l’appareil. Le profil accepte jusqu’à **3 584 octets** de message et
 **256 octets** de données associées (AAD).
 

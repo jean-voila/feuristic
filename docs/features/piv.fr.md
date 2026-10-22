@@ -1,6 +1,6 @@
 ---
 title: "Carte PIV et certificats sur Trezor Safe 3"
-description: "Emplacements PIV 9A, 9C, 9D, 9E, clés P-256/RSA-2048 et interface CCID/PC/SC dans le firmware Feuristic."
+description: "Emplacements PIV 9A, 9C, 9D, 9E, clés P-256/RSA-2048 et interface CCID/PC/SC dans le firmware feuristic."
 ---
 
 <!-- SPDX-License-Identifier: GPL-3.0-only -->
@@ -8,7 +8,7 @@ description: "Emplacements PIV 9A, 9C, 9D, 9E, clés P-256/RSA-2048 et interface
 
 # PIV et certificats
 
-Feuristic propose PIV sur CCID/PC/SC, avec des clés **P-256 et RSA-2048**.
+feuristic propose PIV sur CCID/PC/SC, avec des clés **P-256 et RSA-2048**.
 Les emplacements sont **9A** (authentification), **9C** (signature),
 **9D** (accord de clé) et **9E** (authentification de la carte).
 

@@ -1,6 +1,6 @@
 ---
 title: "Codes TOTP et HOTP sur Trezor Safe 3"
-description: "Importer des QR otpauth en PNG/JPEG, synchroniser l’heure par USB et afficher des codes TOTP/HOTP avec Feuristic sur Trezor Safe 3."
+description: "Importer des QR otpauth en PNG/JPEG, synchroniser l’heure par USB et afficher des codes TOTP/HOTP avec feuristic sur Trezor Safe 3."
 ---
 
 <!-- SPDX-License-Identifier: GPL-3.0-only -->
@@ -8,7 +8,7 @@ description: "Importer des QR otpauth en PNG/JPEG, synchroniser l’heure par US
 
 # TOTP et HOTP
 
-Feuristic gère jusqu’à **32 comptes OTP**, avec SHA1, SHA256 ou SHA512.
+feuristic gère jusqu’à **32 comptes OTP**, avec SHA1, SHA256 ou SHA512.
 Les comptes s’importent depuis des images QR contenant une URI `otpauth://`.
 Utilisez d’abord un secret public de test.
 

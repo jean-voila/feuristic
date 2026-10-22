@@ -7,7 +7,7 @@
 identities. Read [installation](install.md) before the irreversible bootloader
 unlock, which erases storage and removes original manufacturer attestation.
 [R01–R16](../acceptance/README.md) must pass on **both** T2B1 and T3B1 before a
-stable release. Feuristic has no cryptocurrency or wallet-seed migration.
+stable release. feuristic has no cryptocurrency or wallet-seed migration.
 
 ## First boot and two-button controls
 
@@ -205,7 +205,7 @@ checks and rate limiting. Health failure must refuse output.
 Anyone photographing an unencrypted OTP QR can reproduce its codes. Encrypted
 identity backups contain private keys: images plus passphrase suffice to
 restore them. Photograph privately and control camera cloud synchronization.
-Feuristic cannot recover a lost passphrase.
+feuristic cannot recover a lost passphrase.
 
 An OTP account's QR export shows a standard `otpauth://` after PIN and warning.
 If its URI does not fit, the UI offers encrypted multi-frame backup instead.

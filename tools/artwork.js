@@ -26,7 +26,7 @@ module.exports = function (root) {
     };
     const doc = new Document();
     const page = doc.pages[0];
-    page.name = "Feuristic";
+    page.name = "feuristic";
     function rect(parent, name, x, y, w, h, fill, radius = 0, border = null) {
         const a = new ShapePath({
             parent,
@@ -88,31 +88,15 @@ module.exports = function (root) {
     }
     function mark(parent, x, y, s) {
         rect(parent, "Mark background", x, y, s, s, C.ink, s * 0.2);
-        rect(
+        // Rounded shoulder and a crossbar on both sides distinguish the lowercase f.
+        path(
             parent,
-            "F stem",
-            x + s * 0.26,
-            y + s * 0.24,
-            s * 0.13,
-            s * 0.54,
-            C.lime,
-        );
-        rect(
-            parent,
-            "F top",
-            x + s * 0.26,
-            y + s * 0.24,
-            s * 0.49,
-            s * 0.13,
-            C.lime,
-        );
-        rect(
-            parent,
-            "F middle",
-            x + s * 0.26,
-            y + s * 0.47,
-            s * 0.35,
-            s * 0.12,
+            "Lowercase f",
+            "M 49 101 V 61 H 34 V 47 H 49 V 43 C 49 24 60 17 77 17 C 84 17 90 18 96 21 L 92 36 C 88 34 85 33 80 33 C 71 33 66 37 66 45 V 47 H 88 V 61 H 66 V 101 Z",
+            x + (34 / 128) * s,
+            y + (17 / 128) * s,
+            (62 / 128) * s,
+            (84 / 128) * s,
             C.lime,
         );
     }
@@ -381,20 +365,31 @@ module.exports = function (root) {
         4,
     );
     const logo = board("mark", 3120, 0, 128, 128, "#00000000");
+    logo.background.enabled = false;
+    logo.background.includedInExport = false;
     mark(logo, 0, 0, 128);
     [hero, heroFr, social, ui, usb, logo].forEach((b) => {
-        sketch.export(b, {
+        // Keep editable text in Sketch, but freeze the wordmark geometry in SVG.
+        // Browser font substitution otherwise exposes the original i dot below lime.
+        const exported = b.duplicate();
+        const word = exported.layers.find((layer) => layer.type === "Text" && layer.text === "feuristic");
+        if (word) {
+            const outlines = sketch.fromNative(word.sketchObject.layersByConvertingToOutlines()[0]);
+            exported.layers = exported.layers.map((layer) => layer.id === word.id ? outlines : layer);
+        }
+        sketch.export(exported, {
             output,
             formats: b.name === "social" ? "png" : "svg",
             scales: "1",
             overwriting: true,
             "save-for-web": true,
         });
+        exported.remove();
     });
     const fiber = sketch.Async.createFiber();
     doc.save(root + "/assets/design/feuristic.sketch", {}, (err) => {
         fiber.cleanup();
         if (err) throw err;
-        console.log("Saved editable Feuristic artwork.");
+        console.log("Saved editable feuristic artwork.");
     });
 };

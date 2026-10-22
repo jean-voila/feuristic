@@ -1,28 +1,28 @@
 ---
 title: Custom firmware for Trezor Safe 3
-description: Feuristic is open-source Trezor Safe 3 firmware for FIDO2 passkeys, OpenPGP, PIV, TOTP/HOTP, AES-GCM and encrypted QR backups. Install, use and build it.
+description: feuristic is open-source Trezor Safe 3 firmware for FIDO2 passkeys, OpenPGP, PIV, TOTP/HOTP, AES-GCM and encrypted QR backups. Install, use and build it.
 ---
 
 <!-- SPDX-License-Identifier: GPL-3.0-only -->
 <!-- Copyright (C) 2026 The feuristic contributors -->
 
-# Feuristic — custom firmware for Trezor Safe 3
+# feuristic — custom firmware for Trezor Safe 3
 
-![Feuristic firmware for Trezor Safe 3: FIDO2, OpenPGP, PIV, OTP and AES-GCM](assets/overview.svg){ .project-overview width="1600" height="800" }
+![feuristic firmware for Trezor Safe 3: FIDO2, OpenPGP, PIV, OTP and AES-GCM](assets/overview.svg){ .project-overview width="1600" height="800" }
 
-Feuristic replaces the wallet application on a **Trezor Safe 3** with a USB
+feuristic replaces the wallet application on a **Trezor Safe 3** with a USB
 security key, smart card and one-time password device. It runs on **T2B1 and
 T3B1** hardware. Configuration and confirmations happen on the two buttons;
 standard clients handle authentication and cryptography.
 
-[Install Feuristic](user/install.md){ .md-button .md-button--primary }
+[Install feuristic](user/install.md){ .md-button .md-button--primary }
 [Download firmware](downloads.md){ .md-button }
 
 !!! warning "Development firmware"
     A first physical campaign passed core workflows on T2B1/macOS. The complete
     two-model acceptance matrix is unfinished. Use disposable test identities.
     Installation erases the wallet and permanently removes original manufacturer
-    attestation. Feuristic is independent of Trezor Company and SatoshiLabs.
+    attestation. feuristic is independent of Trezor Company and SatoshiLabs.
 
 ## What it supports
 
@@ -51,7 +51,7 @@ It explains the irreversible effects, exact button sequence and recovery path.
 
 ## Interfaces and controls
 
-![Feuristic USB modes: FIDO and smart card, serial time sync, and QR import](assets/usb-modes.svg){ width="1440" height="600" }
+![feuristic USB modes: FIDO and smart card, serial time sync, and QR import](assets/usb-modes.svg){ width="1440" height="600" }
 
 Normal operation exposes FIDO HID and a CCID smart-card reader. Time sync uses a
 temporary serial port; QR import uses a temporary FAT12 drive. These modes are

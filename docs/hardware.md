@@ -1,6 +1,6 @@
 ---
 title: Supported Trezor hardware
-description: Check Trezor Safe 3 T2B1 and T3B1 firmware compatibility. Safe 5, Safe 7, Model T and Model One are not supported by Feuristic.
+description: Check Trezor Safe 3 T2B1 and T3B1 firmware compatibility. Safe 5, Safe 7, Model T and Model One are not supported by feuristic.
 ---
 
 <!-- SPDX-License-Identifier: GPL-3.0-only -->
@@ -8,7 +8,7 @@ description: Check Trezor Safe 3 T2B1 and T3B1 firmware compatibility. Safe 5, S
 
 # Supported Trezor hardware
 
-| Device | Internal model | Feuristic |
+| Device | Internal model | feuristic |
 |---|---|---|
 | Trezor Safe 3, revision A | **T2B1** · STM32F427 | Build target; first physical T2B1/macOS campaign completed |
 | Trezor Safe 3, revision B | **T3B1** · STM32U585 | Build and emulator target; physical acceptance incomplete |
@@ -18,7 +18,7 @@ description: Check Trezor Safe 3 T2B1 and T3B1 firmware compatibility. Safe 5, S
 
 Two devices sold as Safe 3 can require different binaries. Read `internal_model`
 with `trezorctl get-features` while the official firmware or bootloader is
-running. After installing Feuristic, use **Settings → Hardware / version**.
+running. After installing feuristic, use **Settings → Hardware / version**.
 
 ```sh
 trezorctl get-features
@@ -29,7 +29,7 @@ The installer must report the exact model before uploading.
 
 ## What changes when you install it?
 
-The Safe 3 becomes a security key and smart card. Feuristic does not implement
+The Safe 3 becomes a security key and smart card. feuristic does not implement
 Bitcoin wallets, signing cryptocurrency transactions, wallet-seed recovery or
 migration from Trezor Suite. The official bootloader remains the recovery path.
 

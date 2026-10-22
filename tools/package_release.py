@@ -113,7 +113,7 @@ def package(inputs: Path, output: Path) -> None:
         shutil.copy2(ROOT / name, output / name)
     source_archive(output / f"feuristic-{version.VERSION}-source.tar.gz", f"feuristic-{version.VERSION}")
     (output / "BUILDING.txt").write_text(
-        "Feuristic development firmware for Trezor Safe 3\n\n"
+        "feuristic development firmware for Trezor Safe 3\n\n"
         f"Source commit: {revision}\n"
         "The source archive includes modified upstream sources, dependency licenses, patches and lockfiles.\n"
         "For the identical Git/Nix build context, clone the repository and check out this commit.\n"

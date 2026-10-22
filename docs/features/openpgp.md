@@ -1,6 +1,6 @@
 ---
 title: OpenPGP and GnuPG on Trezor Safe 3
-description: Use Feuristic's OpenPGP Card 3.4 with GnuPG for Ed25519 signatures, X25519 decryption and RSA-2048 on Trezor Safe 3.
+description: Use feuristic's OpenPGP Card 3.4 with GnuPG for Ed25519 signatures, X25519 decryption and RSA-2048 on Trezor Safe 3.
 ---
 
 <!-- SPDX-License-Identifier: GPL-3.0-only -->
@@ -8,7 +8,7 @@ description: Use Feuristic's OpenPGP Card 3.4 with GnuPG for Ed25519 signatures,
 
 # OpenPGP with GnuPG
 
-Feuristic exposes an **OpenPGP Card 3.4** over the native CCID smart-card
+feuristic exposes an **OpenPGP Card 3.4** over the native CCID smart-card
 interface. It supports Ed25519 signing/authentication, X25519 decryption and
 RSA-2048. No trezor-agent is required.
 

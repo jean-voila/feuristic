@@ -18,6 +18,6 @@ if __name__ == "__main__":
         text=True,
         check=True,
     )
-    if "Saved editable Feuristic artwork." not in result.stdout:
+    if "Saved editable feuristic artwork." not in result.stdout:
         raise RuntimeError(result.stdout + result.stderr)
     print(result.stdout.strip())

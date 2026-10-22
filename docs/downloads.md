@@ -1,12 +1,12 @@
 ---
 title: Download Trezor Safe 3 firmware
-description: Download Feuristic firmware binaries for Trezor Safe 3 T2B1 and T3B1, verify SHA-256 checksums and follow the custom firmware installation guide.
+description: Download feuristic firmware binaries for Trezor Safe 3 T2B1 and T3B1, verify SHA-256 checksums and follow the custom firmware installation guide.
 ---
 
 <!-- SPDX-License-Identifier: GPL-3.0-only -->
 <!-- Copyright (C) 2026 The feuristic contributors -->
 
-# Download Feuristic firmware
+# Download feuristic firmware
 
 [Open GitHub Releases](https://github.com/jean-voila/feuristic/releases){ .md-button .md-button--primary }
 

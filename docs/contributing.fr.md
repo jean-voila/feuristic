@@ -1,12 +1,12 @@
 ---
-title: Contribuer à Feuristic
-description: Proposer un correctif, documenter des essais matériels et préparer une pull request Feuristic avec les vérifications adaptées.
+title: Contribuer à feuristic
+description: Proposer un correctif, documenter des essais matériels et préparer une pull request feuristic avec les vérifications adaptées.
 ---
 
 <!-- SPDX-License-Identifier: GPL-3.0-only -->
 <!-- Copyright (C) 2026 The feuristic contributors -->
 
-# Contribuer à Feuristic
+# Contribuer à feuristic
 
 Les correctifs ciblés, la documentation, les résultats matériels et les
 améliorations de protocole sont bienvenus. Consultez les issues avant un gros

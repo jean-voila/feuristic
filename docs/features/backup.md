@@ -1,6 +1,6 @@
 ---
 title: Encrypted QR backup and restore
-description: Back up Feuristic identities as encrypted QR sequences on Trezor Safe 3 and restore from PNG or JPEG images through temporary USB mass storage.
+description: Back up feuristic identities as encrypted QR sequences on Trezor Safe 3 and restore from PNG or JPEG images through temporary USB mass storage.
 ---
 
 <!-- SPDX-License-Identifier: GPL-3.0-only -->
@@ -8,7 +8,7 @@ description: Back up Feuristic identities as encrypted QR sequences on Trezor Sa
 
 # Encrypted QR backup and restore
 
-Feuristic displays encrypted identity backups as QR sequences. Capture every
+feuristic displays encrypted identity backups as QR sequences. Capture every
 frame, keep the backup phrase separately and test restoration with disposable
 identities before relying on it. The phrase must be 12–128 printable ASCII
 characters and differ from the device PIN.

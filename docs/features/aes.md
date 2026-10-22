@@ -1,6 +1,6 @@
 ---
 title: AES-GCM encryption and hardware random bytes
-description: Use Feuristic's AES-256-GCM smart-card profile and ISO 7816 GET CHALLENGE on Trezor Safe 3, with device-generated nonces and physical consent.
+description: Use feuristic's AES-256-GCM smart-card profile and ISO 7816 GET CHALLENGE on Trezor Safe 3, with device-generated nonces and physical consent.
 ---
 
 <!-- SPDX-License-Identifier: GPL-3.0-only -->

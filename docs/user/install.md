@@ -1,12 +1,12 @@
 ---
 title: Install custom firmware on Trezor Safe 3
-description: Install Feuristic on Trezor Safe 3 T2B1 or T3B1 using the official bootloader, Trezor Suite or trezorctl. Model checks, irreversible unlock, updates and recovery.
+description: Install feuristic on Trezor Safe 3 T2B1 or T3B1 using the official bootloader, Trezor Suite or trezorctl. Model checks, irreversible unlock, updates and recovery.
 ---
 
 <!-- SPDX-License-Identifier: GPL-3.0-only -->
 <!-- Copyright (C) 2026 The feuristic contributors -->
 
-# Install Feuristic on Trezor Safe 3
+# Install feuristic on Trezor Safe 3
 
 **Development firmware for T2B1 and T3B1.** Core workflows passed an initial
 physical T2B1/macOS campaign; full qualification remains pending. Read the
@@ -24,22 +24,22 @@ physical T2B1/macOS campaign; full qualification remains pending. Read the
    → Install custom firmware** and select or drag the `.bin` into the upload box.
    Confirm the device prompts. The detailed CLI route below was tested on
    T2B1 with bootloader 2.1.16.
-3. **Start Feuristic.** Accept the third-party warning, choose English or French
+3. **Start feuristic.** Accept the third-party warning, choose English or French
    and create a test PIN. Continue with the [user guide](guide.md).
 
-A firmware binary is uploaded through the bootloader. The temporary Feuristic
+A firmware binary is uploaded through the bootloader. The temporary feuristic
 OTP drive imports QR images; it does not install firmware.
 
 ## Understand the irreversible effects
 
 Use a dedicated test device without funds or production identities. Keep its
-existing wallet backup elsewhere. Feuristic cannot restore a Trezor seed and
+existing wallet backup elsewhere. feuristic cannot restore a Trezor seed and
 does not migrate wallets.
 
 **Unlocking permanently erases storage and the secrets used for original
 manufacturer attestation.** Reinstalling official firmware does not restore
 those secrets. The original authenticity proof and FIDO attestation are no
-longer usable. Feuristic continues with the remaining storage protections and
+longer usable. feuristic continues with the remaining storage protections and
 uses its own FIDO attestation profile, without manufacturer certification.
 
 The pinned upstream sources document these effects:
@@ -127,7 +127,7 @@ errors before flashing; do not bypass checks with `--raw` or `--skip-check`.
 
 The [official Trezor procedure](https://trezor.io/support/troubleshooting/device-issues/install-custom-firmware-on-trezor-safe-3)
 describes file upload through Suite and bootloader confirmations. It does not
-validate Feuristic. The CLI procedure above uses the pinned upstream tools.
+validate feuristic. The CLI procedure above uses the pinned upstream tools.
 
 ## Updates and recovery
 

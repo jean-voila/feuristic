@@ -1,29 +1,29 @@
 ---
 title: "Firmware personnalisé pour Trezor Safe 3"
-description: "Feuristic transforme un Trezor Safe 3 en clé FIDO2, carte OpenPGP/PIV et générateur TOTP/HOTP. Téléchargements, installation, protocoles et essais."
+description: "feuristic transforme un Trezor Safe 3 en clé FIDO2, carte OpenPGP/PIV et générateur TOTP/HOTP. Téléchargements, installation, protocoles et essais."
 ---
 
 <!-- SPDX-License-Identifier: GPL-3.0-only -->
 <!-- Copyright (C) 2026 The feuristic contributors -->
 
-# Feuristic — firmware personnalisé pour Trezor Safe 3
+# feuristic — firmware personnalisé pour Trezor Safe 3
 
-![Feuristic pour Trezor Safe 3 : FIDO2, OpenPGP, PIV, OTP et AES-GCM](assets/overview.svg){ .project-overview width="1600" height="800" }
+![feuristic pour Trezor Safe 3 : FIDO2, OpenPGP, PIV, OTP et AES-GCM](assets/overview.svg){ .project-overview width="1600" height="800" }
 
-Feuristic remplace l’application de portefeuille d’un **Trezor Safe 3** par une
+feuristic remplace l’application de portefeuille d’un **Trezor Safe 3** par une
 clé de sécurité USB, une carte à puce et un générateur de codes à usage unique.
 Il prend en charge les révisions **T2B1 et T3B1**. La configuration et les
 confirmations utilisent les deux boutons ; les opérations passent par des
 clients standard sur l’ordinateur.
 
-[Installer Feuristic](user/install.md){ .md-button .md-button--primary }
+[Installer feuristic](user/install.md){ .md-button .md-button--primary }
 [Télécharger le firmware](downloads.md){ .md-button }
 
 !!! warning "Firmware de développement"
     Une première campagne physique a validé les opérations principales sur
     T2B1/macOS. La recette complète des deux révisions reste à effectuer.
     Utilisez des identités jetables. L’installation efface le portefeuille et
-    supprime définitivement l’attestation constructeur d’origine. Feuristic est
+    supprime définitivement l’attestation constructeur d’origine. feuristic est
     indépendant de Trezor Company et de SatoshiLabs.
 
 ## Fonctions disponibles
@@ -53,7 +53,7 @@ effets irréversibles, la séquence des boutons et le chemin de récupération.
 
 ## Interfaces et commandes
 
-![Modes USB Feuristic : FIDO et carte à puce, synchronisation série, import QR](assets/usb-modes.svg){ width="1440" height="600" }
+![Modes USB feuristic : FIDO et carte à puce, synchronisation série, import QR](assets/usb-modes.svg){ width="1440" height="600" }
 
 Le mode normal expose FIDO HID et un lecteur de carte CCID. La synchronisation
 utilise temporairement un port série ; l’import QR utilise un volume FAT12.

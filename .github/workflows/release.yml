@@ -89,5 +89,5 @@ jobs:
           RELEASE_TAG: ${{ needs.preflight.outputs.tag }}
         run: |
           gh release create "$RELEASE_TAG" dist/* --draft --prerelease \
-            --verify-tag --title "Feuristic $RELEASE_TAG" \
+            --verify-tag --title "feuristic $RELEASE_TAG" \
             --notes-file docs/release-notes-template.md

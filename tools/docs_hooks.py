@@ -45,7 +45,7 @@ def on_page_context(context, page, config, nav):
         {
             "@context": "https://schema.org",
             "@type": "SoftwareSourceCode",
-            "name": "Feuristic",
+            "name": "feuristic",
             "description": config.site_description,
             "url": page.canonical_url,
             "codeRepository": REPOSITORY,

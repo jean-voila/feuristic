@@ -1,6 +1,6 @@
 ---
 title: "OpenPGP et GnuPG sur Trezor Safe 3"
-description: "Signatures Ed25519, déchiffrement X25519 et RSA-2048 avec le profil OpenPGP Card 3.4 de Feuristic et GnuPG sur Trezor Safe 3."
+description: "Signatures Ed25519, déchiffrement X25519 et RSA-2048 avec le profil OpenPGP Card 3.4 de feuristic et GnuPG sur Trezor Safe 3."
 ---
 
 <!-- SPDX-License-Identifier: GPL-3.0-only -->
@@ -8,7 +8,7 @@ description: "Signatures Ed25519, déchiffrement X25519 et RSA-2048 avec le prof
 
 # OpenPGP et SSH
 
-Feuristic implémente **OpenPGP Card 3.4** sur CCID/PC/SC, avec **Ed25519,
+feuristic implémente **OpenPGP Card 3.4** sur CCID/PC/SC, avec **Ed25519,
 X25519 et RSA-2048**. Les identités se gèrent sous
 **Cryptographie → OpenPGP → Identités**.
 

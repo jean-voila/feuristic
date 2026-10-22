@@ -1,9 +1,9 @@
 <!-- SPDX-License-Identifier: GPL-3.0-only -->
 <!-- Copyright (C) 2026 The feuristic contributors -->
 
-# Contributing to Feuristic
+# Contributing to feuristic
 
-Feuristic accepts focused fixes, documentation, hardware test results and
+feuristic accepts focused fixes, documentation, hardware test results and
 protocol improvements. Check existing issues before beginning a large change.
 For vulnerabilities, use [the private reporting procedure](security.md).
 

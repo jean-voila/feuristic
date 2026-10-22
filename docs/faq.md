@@ -8,9 +8,9 @@ description: Answers about installing custom firmware on Trezor Safe 3, Safe 5 c
 
 # Trezor custom firmware questions
 
-## What is Feuristic?
+## What is feuristic?
 
-Feuristic is independent, GPL-3.0-only custom firmware for the Trezor Safe 3.
+feuristic is independent, GPL-3.0-only custom firmware for the Trezor Safe 3.
 It replaces the wallet application with FIDO2 passkeys, OpenPGP, PIV, OTP,
 AES-GCM and encrypted identity backups. It is not made or endorsed by Trezor.
 
@@ -21,14 +21,14 @@ Model One require other hardware support. Do not flash a Safe 3 image onto them.
 
 ## Can I still use it as a Bitcoin wallet?
 
-No. Feuristic has no wallet application and cannot restore a Trezor recovery
+No. feuristic has no wallet application and cannot restore a Trezor recovery
 seed. Back up any existing wallet before the irreversible installation.
 
 ## Can I install it by copying a .bin onto a USB drive?
 
 No. Download the exact model's binary, then upload it through the bootloader
 using Trezor Suite's custom firmware option or `trezorctl`. The temporary
-Feuristic USB drive accepts QR images for OTP and backup import only.
+feuristic USB drive accepts QR images for OTP and backup import only.
 
 ## Does installation erase the device?
 

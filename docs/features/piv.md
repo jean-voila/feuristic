@@ -1,6 +1,6 @@
 ---
 title: PIV smart card and certificates on Trezor Safe 3
-description: Feuristic provides PIV slots 9A, 9C, 9D and 9E, P-256 and RSA-2048, native CCID and PC/SC for standard PIV and PKCS#11 clients.
+description: feuristic provides PIV slots 9A, 9C, 9D and 9E, P-256 and RSA-2048, native CCID and PC/SC for standard PIV and PKCS#11 clients.
 ---
 
 <!-- SPDX-License-Identifier: GPL-3.0-only -->
@@ -8,7 +8,7 @@ description: Feuristic provides PIV slots 9A, 9C, 9D and 9E, P-256 and RSA-2048,
 
 # PIV smart card and certificates
 
-Feuristic implements PIV over CCID/PC/SC with **P-256 and RSA-2048** keys.
+feuristic implements PIV over CCID/PC/SC with **P-256 and RSA-2048** keys.
 Slots are 9A (authentication), 9C (signature), 9D (key agreement) and 9E
 (card authentication). Use standard PIV/OpenSC clients where compatible.
 

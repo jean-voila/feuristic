@@ -1,6 +1,6 @@
 ---
 title: "Matériel Trezor compatible"
-description: "Identifier les révisions T2B1 et T3B1 du Trezor Safe 3 et choisir le bon binaire Feuristic. Safe 5, Safe 7, Model T et Model One ne sont pas pris en charge."
+description: "Identifier les révisions T2B1 et T3B1 du Trezor Safe 3 et choisir le bon binaire feuristic. Safe 5, Safe 7, Model T et Model One ne sont pas pris en charge."
 ---
 
 <!-- SPDX-License-Identifier: GPL-3.0-only -->
@@ -8,7 +8,7 @@ description: "Identifier les révisions T2B1 et T3B1 du Trezor Safe 3 et choisir
 
 # Matériel compatible
 
-| Appareil | Modèle interne | Feuristic |
+| Appareil | Modèle interne | feuristic |
 |---|---|---|
 | Trezor Safe 3, révision A | **T2B1** · STM32F427 | Compilation et émulateur ; première campagne physique T2B1/macOS réalisée |
 | Trezor Safe 3, révision B | **T3B1** · STM32U585 | Compilation et émulateur ; qualification physique à effectuer |
@@ -18,7 +18,7 @@ description: "Identifier les révisions T2B1 et T3B1 du Trezor Safe 3 et choisir
 
 Deux appareils vendus sous le nom Safe 3 peuvent nécessiter des binaires
 différents. Lisez `internal_model` avec `trezorctl get-features` sous le firmware
-officiel ou le bootloader. Dans Feuristic, ouvrez **Réglages → Matériel / version**.
+officiel ou le bootloader. Dans feuristic, ouvrez **Réglages → Matériel / version**.
 
 ```sh
 trezorctl get-features
@@ -29,7 +29,7 @@ binaire. L’installateur doit identifier le modèle exact avant le transfert.
 
 ## Ce que change l’installation
 
-Le Safe 3 devient une clé de sécurité et une carte à puce. Feuristic ne propose
+Le Safe 3 devient une clé de sécurité et une carte à puce. feuristic ne propose
 ni portefeuille Bitcoin, ni signature de transactions en cryptomonnaies, ni
 restauration d’une seed Trezor, ni migration depuis Suite. Le bootloader
 officiel reste le chemin de récupération.

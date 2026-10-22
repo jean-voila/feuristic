@@ -1,7 +1,7 @@
 <!-- SPDX-License-Identifier: GPL-3.0-only -->
 <!-- Copyright (C) 2026 The feuristic contributors -->
 
-# Building Feuristic
+# Building feuristic
 
 Status: development candidate. Passing builds and emulator tests do not qualify
 real Safe 3 hardware. Hardware gates are [R01–R16](../acceptance/README.md).
@@ -10,7 +10,7 @@ Run commands from the repository root unless a block explicitly changes it.
 ## Inputs and checkout policy
 
 The superproject pins `upstream/trezor-firmware` to unmodified `core/v2.12.5`.
-Feuristic changes live in [patches/series](../../patches/series); application
+feuristic changes live in [patches/series](../../patches/series); application
 sources are symlinked into that tree. Keep `uv.lock`, the upstream lockfiles,
 the Git submodule reference and patch hashes with the build record.
 

@@ -1,6 +1,6 @@
 ---
 title: "Sauvegarde et restauration par QR chiffrés"
-description: "Sauvegarder les identités Feuristic en séquences QR chiffrées et les restaurer depuis des images PNG/JPEG sur Trezor Safe 3."
+description: "Sauvegarder les identités feuristic en séquences QR chiffrées et les restaurer depuis des images PNG/JPEG sur Trezor Safe 3."
 ---
 
 <!-- SPDX-License-Identifier: GPL-3.0-only -->
@@ -8,7 +8,7 @@ description: "Sauvegarder les identités Feuristic en séquences QR chiffrées e
 
 # Sauvegarde et restauration
 
-Feuristic exporte les identités sous forme de **séquences QR chiffrées**.
+feuristic exporte les identités sous forme de **séquences QR chiffrées**.
 L’enveloppe utilise CBOR canonique, PBKDF2-HMAC-SHA256 et AES-256-GCM ; les
 trames sont encodées en Base45. Le [format public](../protocols/backup-format-v1.md)
 décrit les paramètres et les règles de validation.

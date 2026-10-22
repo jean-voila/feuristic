@@ -1,6 +1,6 @@
 ---
 title: Politique de sécurité
-description: Signaler une vulnérabilité Feuristic en privé, comprendre le périmètre des signalements et les versions recevant des correctifs.
+description: Signaler une vulnérabilité feuristic en privé, comprendre le périmètre des signalements et les versions recevant des correctifs.
 ---
 
 <!-- SPDX-License-Identifier: GPL-3.0-only -->
@@ -28,7 +28,7 @@ active) et un crédit pour les personnes qui le souhaitent. Les correctifs sont
 distribués dans de nouvelles versions et dans l’[historique](security-history.md).
 
 Les défauts des composants amont doivent aussi être signalés à leurs responsables ;
-la coordination s’effectue lorsqu’ils touchent Feuristic.
+la coordination s’effectue lorsqu’ils touchent feuristic.
 
 ## Périmètre
 

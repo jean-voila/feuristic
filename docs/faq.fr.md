@@ -1,6 +1,6 @@
 ---
-title: "Questions fréquentes sur Feuristic"
-description: "Réponses sur la compatibilité Trezor Safe 3, le déverrouillage, les mises à jour, les avertissements et les clients compatibles avec Feuristic."
+title: "Questions fréquentes sur feuristic"
+description: "Réponses sur la compatibilité Trezor Safe 3, le déverrouillage, les mises à jour, les avertissements et les clients compatibles avec feuristic."
 ---
 
 <!-- SPDX-License-Identifier: GPL-3.0-only -->
@@ -10,13 +10,13 @@ description: "Réponses sur la compatibilité Trezor Safe 3, le déverrouillage,
 
 ## Est-ce un firmware officiel Trezor ?
 
-Non. Feuristic est un projet indépendant, sans approbation ni signature de
+Non. feuristic est un projet indépendant, sans approbation ni signature de
 Trezor Company ou SatoshiLabs. Le bootloader affiche toujours son avertissement
 tiers obligatoire.
 
 ## Puis-je conserver mon portefeuille Bitcoin ?
 
-Feuristic remplace l’application de portefeuille. Il ne migre ni les seeds ni
+feuristic remplace l’application de portefeuille. Il ne migre ni les seeds ni
 les comptes et ne signe pas de transactions en cryptomonnaies. Sauvegardez le
 portefeuille avant le déverrouillage et utilisez un appareil de test dédié.
 
@@ -40,7 +40,7 @@ développement et l’identité USB provisoire sont aussi des limites de distrib
 
 ## Faut-il un compte ou une application compagnon ?
 
-Feuristic ne demande ni compte ni service cloud. Il emploie FIDO HID, CCID/PC/SC,
+feuristic ne demande ni compte ni service cloud. Il emploie FIDO HID, CCID/PC/SC,
 un port série temporaire et un volume temporaire pour les images QR. Les fonctions
 utilisent des clients standard, avec les limites d’interopérabilité documentées.
 
@@ -51,7 +51,7 @@ Ne les présentez pas comme des clés matériellement non exportables.
 
 ## Peut-on installer en copiant le binaire sur le volume USB ?
 
-Non. Le volume Feuristic sert aux images QR. Le firmware s’installe via le
+Non. Le volume feuristic sert aux images QR. Le firmware s’installe via le
 bootloader avec Suite ou `trezorctl`. Consultez l’[installation](user/install.md).
 
 ## Pourquoi l’heure TOTP doit-elle être remise après un démarrage ?

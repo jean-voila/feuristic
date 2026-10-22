@@ -1,6 +1,6 @@
 ---
 title: Installer un firmware personnalisé sur Trezor Safe 3
-description: Installer Feuristic sur T2B1 ou T3B1 avec le bootloader officiel, Suite ou trezorctl. Vérification, déverrouillage irréversible, mises à jour et récupération.
+description: Installer feuristic sur T2B1 ou T3B1 avec le bootloader officiel, Suite ou trezorctl. Vérification, déverrouillage irréversible, mises à jour et récupération.
 ---
 
 <!-- SPDX-License-Identifier: GPL-3.0-only -->
@@ -25,7 +25,7 @@ complète reste à effectuer. Consultez le [rapport](../acceptance/campaign-2026
    Danger Area → Install custom firmware**. Sélectionnez ou glissez le `.bin`
    dans la zone de téléchargement et confirmez sur l’appareil. La procédure
    CLI détaillée ci-dessous a été testée sur T2B1 avec le bootloader 2.1.16.
-3. **Démarrer Feuristic.** Acceptez l’avertissement tiers, choisissez la langue
+3. **Démarrer feuristic.** Acceptez l’avertissement tiers, choisissez la langue
    et créez un PIN de test. Continuez avec le [guide d’utilisation](guide.md).
 
 L’installation efface le portefeuille et supprime définitivement l’attestation
@@ -35,14 +35,14 @@ d’import OTP ne sert pas à installer un firmware.
 ## Conséquences à accepter avant toute manipulation
 
 Utiliser un appareil dédié aux essais, sans fonds ni identités de production.
-Conserver les sauvegardes existantes hors de cet appareil. Feuristic ne restaure
+Conserver les sauvegardes existantes hors de cet appareil. feuristic ne restaure
 aucune phrase Trezor et ne migre aucun portefeuille.
 
 Le déverrouillage du bootloader est **irréversible**. Il efface le stockage et
 les secrets d'appairage Optiga ; la preuve d'authenticité constructeur et
 l'attestation FIDO d'origine ne sont plus utilisables. Le firmware continue
 avec les protections restantes du stockage, mais ne revendique pas la même
-configuration d'attestation qu'un appareil d'origine. Feuristic emploie une
+configuration d'attestation qu'un appareil d'origine. feuristic emploie une
 attestation FIDO propre à son profil, sans certification constructeur.
 
 Preuves dans la base épinglée :
@@ -139,12 +139,12 @@ contrôles avec `--raw` ou `--skip-check`.
 
 La [procédure officielle Trezor](https://trezor.io/support/troubleshooting/device-issues/install-custom-firmware-on-trezor-safe-3)
 décrit l'installation d'un fichier via Suite et les confirmations du bootloader.
-Elle ne constitue pas une validation de Feuristic. La procédure ci-dessus
+Elle ne constitue pas une validation de feuristic. La procédure ci-dessus
 utilise les commandes standard disponibles dans le code amont épinglé.
 
 ## Mise à jour et récupération
 
-Avant une mise à jour Feuristic, exporter les identités et effectuer un essai
+Avant une mise à jour feuristic, exporter les identités et effectuer un essai
 réel de restauration sur un autre appareil de test. La conservation du stockage
 entre versions non qualifiées n'est pas une garantie. Vérifier à nouveau
 modèle et empreinte, démarrer en bootloader et réutiliser `firmware update

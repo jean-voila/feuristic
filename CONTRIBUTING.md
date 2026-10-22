@@ -1,6 +1,6 @@
-# Contributing to Feuristic
+# Contributing to feuristic
 
-Feuristic accepts focused fixes, documentation, hardware test results and
+feuristic accepts focused fixes, documentation, hardware test results and
 protocol improvements. Check existing issues before beginning a large change.
 For vulnerabilities, use [the private reporting procedure](SECURITY.md).
 

@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: GPL-3.0-only
-site_name: Feuristic
+site_name: feuristic
 site_url: https://jean-voila.github.io/feuristic/
 site_description: Custom firmware for Trezor Safe 3 with FIDO2 passkeys, OpenPGP, PIV, TOTP/HOTP and AES-GCM. Downloads, installation, protocols and hardware test results.
 repo_url: https://github.com/jean-voila/feuristic
@@ -133,7 +133,7 @@ extra:
   social:
     - icon: fontawesome/brands/github
       link: https://github.com/jean-voila/feuristic
-copyright: Copyright © 2026 Feuristic contributors · GPL-3.0-only
+copyright: Copyright © 2026 feuristic contributors · GPL-3.0-only
 validation:
   nav:
     omitted_files: info

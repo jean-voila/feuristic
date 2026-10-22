@@ -1,12 +1,12 @@
 ---
 title: "Télécharger le firmware Trezor Safe 3"
-description: "Télécharger les binaires Feuristic T2B1 et T3B1, vérifier leurs empreintes SHA-256 et installer le firmware personnalisé sur un Trezor Safe 3."
+description: "Télécharger les binaires feuristic T2B1 et T3B1, vérifier leurs empreintes SHA-256 et installer le firmware personnalisé sur un Trezor Safe 3."
 ---
 
 <!-- SPDX-License-Identifier: GPL-3.0-only -->
 <!-- Copyright (C) 2026 The feuristic contributors -->
 
-# Télécharger Feuristic
+# Télécharger feuristic
 
 [Ouvrir les versions GitHub](https://github.com/jean-voila/feuristic/releases){ .md-button .md-button--primary }
 

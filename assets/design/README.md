@@ -1,4 +1,4 @@
-# Feuristic artwork
+# feuristic artwork
 
 `feuristic.sketch` contains editable text, vector shapes, device illustrations
 and interface compositions. Exports are committed under `docs/assets/`.

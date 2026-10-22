@@ -1,5 +1,5 @@
 <!-- SPDX-License-Identifier: GPL-3.0-only -->
-## Feuristic development candidate
+## feuristic development candidate
 
 Custom firmware for **Trezor Safe 3 T2B1 and T3B1**. Independent project,
 not made or signed by Trezor Company / SatoshiLabs. Installing requires an
