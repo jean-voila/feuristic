@@ -23,6 +23,8 @@ from ..aio import run
 
 
 class Script:
+    AnyButtonLayout = object
+
     def __init__(self):
         self.menus = deque()
         self.pins = deque()

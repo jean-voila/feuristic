@@ -127,6 +127,28 @@ def test_import_otp_png(ready, emu):
     ready.wait_for(lambda screen: "Sync over USB" in screen.text())
 
 
+def test_totp_code_view_closes_on_a_short_press(ready, emu):
+    import time
+
+    from test_timesync import _open_timesync, _send
+
+    _open_timesync(ready)
+    now = int(time.time())
+    assert _send(emu, f"TIME 1 {now}\n".encode()).startswith(b"OK")
+    for title in ("TOTP time", "Settings", "feuristic"):
+        ready.wait_title(title, timeout=20)
+        if title != "feuristic":
+            ready.hold_left()
+    _import_otp(ready, emu, qr_png(URI), "QR.PNG")
+    ready.both()
+    ready.select("View code")
+    ready.wait_for(lambda screen: "s left" in screen.text())
+    # The view refreshes every second; a press must close it, not refresh it.
+    ready.left()
+    ready.wait_for(lambda screen: "s left" not in screen.text(), timeout=3)
+    assert "View code" in ready.screen().text()
+
+
 def test_import_otp_jpeg(ready, emu):
     _import_otp(ready, emu, qr_jpeg(URI), "QR.JPG")
     assert "Example" in ready.screen().text()

@@ -86,6 +86,19 @@ class NavLayout(ui.Layout):
         super().stop(_close_all)
 
 
+class AnyButtonLayout(NavLayout):
+    """Layout closed by a fresh press of any button (refreshing info screens).
+
+    Caesar's timed ``show_info`` has no buttons and returns CANCELLED on expiry,
+    which would make a long press indistinguishable from a refresh.
+    """
+
+    def _event(self, event_call, *args):
+        if len(args) == 2 and args[0] == io.BUTTON_PRESSED:
+            self._emit_message(trezorui_api.CONFIRMED)
+        return super()._event(event_call, *args)
+
+
 _TIMEOUT = object()
 
 

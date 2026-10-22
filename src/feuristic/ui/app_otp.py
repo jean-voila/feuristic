@@ -31,10 +31,13 @@ async def _show_totp(uid) -> None:
             return
         text = f"{code}\n{t('otp.remaining', remaining)}"
         res = await screens.run(
-            trezorui_api.show_info(title=acc.label(), description=text, time_ms=1000), 0, False
+            trezorui_api.show_info(title=acc.label(), description=text, time_ms=1000),
+            0,
+            False,
+            screens.AnyButtonLayout,
         )
         # show_info with time_ms returns CANCELLED on timeout: refresh; any
-        # other result means the user pressed a button
+        # button press closes the view with another result
         if res is not trezorui_api.CANCELLED:
             return
         await loop.sleep(0)
