@@ -19,12 +19,15 @@ clients standard sur l’ordinateur.
 [Installer feuristic](user/install.md){ .md-button .md-button--primary }
 [Télécharger le firmware](downloads.md){ .md-button }
 
-!!! warning "Firmware de développement"
-    Une première campagne physique a validé les opérations principales sur
-    T2B1/macOS. La recette complète des deux révisions reste à effectuer.
-    Utilisez des identités jetables. L’installation efface le portefeuille et
-    supprime définitivement l’attestation constructeur d’origine. feuristic est
-    indépendant de Trezor Company et de SatoshiLabs.
+!!! warning "Avant d’installer"
+    L’installation efface le portefeuille et supprime définitivement
+    l’attestation constructeur d’origine. feuristic est indépendant de Trezor
+    Company et de SatoshiLabs. Une campagne physique a validé les opérations
+    principales sur T2B1/macOS ; les essais matériels T3B1 et la recette
+    complète sont en cours. Gardez un second moyen de connexion pour vos comptes
+    importants.
+
+![Cinq écrans feuristic : verrouillage, validation d’une passkey, passkeys enregistrées, code TOTP et QR de sauvegarde chiffrée](assets/screens.svg){ width="1600" height="840" }
 
 ## Fonctions disponibles
 

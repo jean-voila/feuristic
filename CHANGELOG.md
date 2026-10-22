@@ -6,6 +6,21 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.1.0] - 2026-10-23
+
+First public release. Optimized firmware builds without debuglink for both
+Trezor Safe 3 revisions.
+
+### Fixed
+- Any button now closes the refreshing TOTP code screen. Previously a long
+  press was taken for a refresh, so the view stayed open until auto-lock.
+
+### Changed
+- README and release notes written for everyday users, with a new screen tour
+  (`docs/assets/screens.svg`) captured by `tools/capture_screens.py`.
+- Release workflow publishes plain version tags as regular releases; suffixed
+  tags stay pre-releases.
+
 ### Added
 - First implementation of the feuristic firmware for the Trezor Safe 3
   (T2B1 and T3B1), based on trezor-firmware `core/v2.12.5`.
@@ -30,6 +45,7 @@ All notable changes to this project are documented here. The format follows
   GHSA-6q48-6c7w-9gw2. The package is not part of the embedded firmware.
 
 ### Known limitations
+- TOTP needs the clock set over USB after each power-up.
 - Full hardware acceptance R01–R16 remains pending on both revisions. An initial
   physical T2B1/macOS campaign passed core FIDO, OpenPGP, PIV, AES and OTP
   workflows, persistence checks and two UI fixes; see the hardware report.

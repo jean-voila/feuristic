@@ -33,9 +33,10 @@ Consultez les conséquences dans l’[installation](user/install.md).
 
 ## Le firmware est-il prêt pour des identités de production ?
 
-Il reste classé candidat de développement. Une première campagne physique
+La version 0.1.0 est la première version publique : images optimisées, sans
+debuglink. Elle n’est pas encore qualifiée sur matériel. Une première campagne physique
 T2B1/macOS a validé les opérations principales, mais la recette complète des
-deux révisions et des OS prévus reste à effectuer. Les clés de signature de
+deux révisions et des OS prévus reste à effectuer avant la 1.0. Les clés de signature de
 développement et l’identité USB provisoire sont aussi des limites de distribution.
 
 ## Faut-il un compte ou une application compagnon ?

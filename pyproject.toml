@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: GPL-3.0-only
 [project]
 name = "feuristic-dev"
-version = "0.1.0.dev0"
+version = "0.1.0"
 description = "Host-side tooling and test-suite for the feuristic firmware (Trezor Safe 3)"
 license = "GPL-3.0-only"
 requires-python = ">=3.11"

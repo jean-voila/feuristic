@@ -2,5 +2,5 @@
 # Copyright (C) 2026 The feuristic contributors
 """feuristic firmware version (semantic versioning)."""
 
-VERSION = "0.1.0-dev"
+VERSION = "0.1.0"
 VERSION_TUPLE = (0, 1, 0)

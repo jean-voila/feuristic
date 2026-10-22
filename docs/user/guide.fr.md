@@ -3,11 +3,11 @@
 
 # Guide utilisateur — français
 
-**Version candidate pour essais, non validée sur matériel réel.** Employer des
-identités de test. L'installation efface les données et dégrade irréversiblement
+**Version 0.x, pas encore entièrement validée sur matériel réel.** Gardez un
+second moyen de connexion pour vos comptes importants. L'installation efface les données et dégrade irréversiblement
 l'attestation constructeur : lire [installation](install.md). Les critères
-[R01–R16](../acceptance/README.md) doivent passer sur T2B1 **et** T3B1 avant une
-release stable. Il n'existe aucune fonction portefeuille ni migration de seed.
+[R01–R16](../acceptance/README.md) doivent passer sur T2B1 **et** T3B1 avant la
+version 1.0. Il n'existe aucune fonction portefeuille ni migration de seed.
 
 ## Première utilisation et navigation
 

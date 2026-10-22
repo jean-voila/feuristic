@@ -18,11 +18,14 @@ standard clients handle authentication and cryptography.
 [Install feuristic](user/install.md){ .md-button .md-button--primary }
 [Download firmware](downloads.md){ .md-button }
 
-!!! warning "Development firmware"
-    A first physical campaign passed core workflows on T2B1/macOS. The complete
-    two-model acceptance matrix is unfinished. Use disposable test identities.
+!!! warning "Before you install"
     Installation erases the wallet and permanently removes original manufacturer
     attestation. feuristic is independent of Trezor Company and SatoshiLabs.
+    Core workflows passed a physical T2B1/macOS campaign; T3B1 hardware and the
+    complete acceptance matrix are still in progress. Keep a second way to sign
+    in to important accounts.
+
+![Five feuristic screens: lock screen, passkey approval, saved passkeys, a TOTP code and an encrypted backup QR code](assets/screens.svg){ width="1600" height="840" }
 
 ## What it supports
 

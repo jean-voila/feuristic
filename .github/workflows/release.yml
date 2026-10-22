@@ -83,11 +83,14 @@ jobs:
           name: release-bundle
           path: dist/
           if-no-files-found: error
-      - name: Create draft pre-release
+      - name: Create draft release
         env:
           GH_TOKEN: ${{ github.token }}
           RELEASE_TAG: ${{ needs.preflight.outputs.tag }}
         run: |
-          gh release create "$RELEASE_TAG" dist/* --draft --prerelease \
+          # Suffixed tags (v0.2.0-rc.1) stay pre-releases; plain versions are regular releases.
+          prerelease=()
+          [[ "$RELEASE_TAG" == *-* ]] && prerelease=(--prerelease)
+          gh release create "$RELEASE_TAG" dist/* --draft "${prerelease[@]}" \
             --verify-tag --title "feuristic $RELEASE_TAG" \
             --notes-file docs/release-notes-template.md

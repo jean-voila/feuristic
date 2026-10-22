@@ -3,8 +3,9 @@
 
 # Candidate and release procedure
 
-**Current classification: development candidate.** Core T2B1 workflows passed
-a first macOS hardware campaign; full qualification remains pending. No stable release is permitted until [R01–R16](../acceptance/README.md)
+**Current classification: public 0.x release, not hardware qualified.** Core
+T2B1 workflows passed a first macOS hardware campaign; full qualification
+remains pending. No stable 1.0 release is permitted until [R01–R16](../acceptance/README.md)
 pass for both T2B1 and T3B1, including every specified OS combination. An
 unexecuted test, a skip and a model-only proof are not a pass.
 
@@ -85,8 +86,9 @@ code hashes with pinned trezorlib, checks sidecars and compares each image
 against its repeated builds. It includes corresponding tracked sources,
 licenses, SBOM, a provenance manifest and an aggregate checksum file.
 
-The resulting GitHub release is a **draft pre-release**. Review artifacts and
-actual test results before removing draft status. Hardware acceptance remains
+The resulting GitHub release is a **draft**: a regular release for a plain
+`vX.Y.Z` tag, a pre-release for a suffixed tag such as `v0.2.0-rc.1`. Review
+artifacts and actual test results before removing draft status. Hardware acceptance remains
 a separate gate; automated build success does not make a stable release.
 The provenance JSON records the commit, upstream base, patch hashes and CI URL;
 it is not an independent signed attestation. The corresponding source archive

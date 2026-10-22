@@ -8,8 +8,8 @@ description: Install feuristic on Trezor Safe 3 T2B1 or T3B1 using the official 
 
 # Install feuristic on Trezor Safe 3
 
-**Development firmware for T2B1 and T3B1.** Core workflows passed an initial
-physical T2B1/macOS campaign; full qualification remains pending. Read the
+**Release 0.x for T2B1 and T3B1.** Core workflows passed an initial
+physical T2B1/macOS campaign; full hardware qualification remains in progress. Read the
 [hardware results](../acceptance/campaign-2026-10-21-T2B1-macos.md).
 
 ## Install in three steps

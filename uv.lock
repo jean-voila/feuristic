@@ -671,7 +671,7 @@ wheels = [
 
 [[package]]
 name = "feuristic-dev"
-version = "0.1.0.dev0"
+version = "0.1.0"
 source = { virtual = "." }
 
 [package.dev-dependencies]

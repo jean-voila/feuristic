@@ -8,13 +8,13 @@ description: "Télécharger les binaires feuristic T2B1 et T3B1, vérifier leurs
 
 # Télécharger feuristic
 
-[Ouvrir les versions GitHub](https://github.com/jean-voila/feuristic/releases){ .md-button .md-button--primary }
+[Télécharger la dernière version](https://github.com/jean-voila/feuristic/releases/latest){ .md-button .md-button--primary }
+[Toutes les versions](https://github.com/jean-voila/feuristic/releases){ .md-button }
 
-Utilisez une **préversion de développement étiquetée** tant que la recette
-matérielle reste incomplète. Les préversions ne figurent pas forcément derrière
-le lien `/releases/latest` de GitHub : ouvrez la liste des versions et choisissez
-la version explicitement. Les fichiers publiés sont téléchargeables librement,
-sans compte GitHub.
+La dernière version contient des images optimisées, sans debuglink. Les
+éventuelles versions candidates sont marquées comme préversions dans la liste
+complète. Les fichiers publiés sont téléchargeables librement, sans compte
+GitHub.
 
 | Modèle interne | Fichier |
 |---|---|

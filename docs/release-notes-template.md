@@ -1,27 +1,45 @@
 <!-- SPDX-License-Identifier: GPL-3.0-only -->
-## feuristic development candidate
+## feuristic: a security key for your Trezor Safe 3
 
-Custom firmware for **Trezor Safe 3 T2B1 and T3B1**. Independent project,
-not made or signed by Trezor Company / SatoshiLabs. Installing requires an
-irreversible bootloader unlock and erases the wallet and manufacturer attestation.
+Open-source firmware that turns a **Trezor Safe 3 (T2B1 or T3B1)** into a USB
+security key. These are optimized release builds without debuglink, verified
+against three reproducible Nix builds per model.
 
-- FIDO2 passkeys, OpenPGP, PIV, TOTP/HOTP, AES-GCM and encrypted QR backups.
-- Visible FEURISTIC welcome screen and corrected TOTP countdown.
-- Initial physical T2B1/macOS campaign: FIDO, OpenPGP, PIV, AES, OTP and persistence.
-- Full R01–R16, T3B1 hardware and remaining host combinations are **not qualified**.
-- Public development signing keys and provisional USB identity remain in use.
+- **Passkeys you can back up.** Unlike a YubiKey, you can save your passkeys in
+  an encrypted QR backup and restore them onto a Safe 3 running feuristic.
+- **See what you approve.** The screen names the site before you confirm.
+- **2FA codes on the device.** TOTP/HOTP accounts imported from a QR image.
+- **SSH, Git and email.** OpenSSH `ed25519-sk` keys, OpenPGP card for GnuPG,
+  PIV, AES-256-GCM. Menus in English and French.
 
-Download the image matching the internal model, verify `SHA256SUMS`, then follow
-[installation](https://jean-voila.github.io/feuristic/user/install/).
-Do not use production identities. The bootloader warning remains.
+### Which file do I need?
 
-This workflow runs the complete CI suite and compares three Nix builds per
-model before creating the draft. `PROVENANCE.json` records source and build
-references. The source archive includes patched upstream sources and dependency
-licenses; the SPDX SBOM records included components. Review the linked workflow
-run for the exact automated results and the
-[hardware report](https://jean-voila.github.io/feuristic/acceptance/campaign-2026-10-21-T2B1-macos/)
-for the physical test scope.
+Run `trezorctl get-features` and read the internal model:
 
-For vulnerabilities, use [private reporting](https://github.com/jean-voila/feuristic/security/advisories/new)
-and read the current [security policy](https://github.com/jean-voila/feuristic/security/policy).
+| Internal model | Download |
+|---|---|
+| **T2B1** | `feuristic-<version>-T2B1-<commit>.bin` |
+| **T3B1** | `feuristic-<version>-T3B1-<commit>.bin` |
+
+Verify `SHA256SUMS`, then follow the
+[installation guide](https://jean-voila.github.io/feuristic/user/install/).
+
+### Before you install
+
+- Installing **erases the wallet**. Back up your recovery seed first.
+- The bootloader unlock is **one-time and irreversible**. It removes Trezor's
+  genuine-device attestation, and the standard `UNSAFE, DO NOT USE!` boot
+  warning appears.
+- This independent project is not made or signed by Trezor Company / SatoshiLabs.
+- Core features passed a [physical T2B1/macOS campaign](https://jean-voila.github.io/feuristic/acceptance/campaign-2026-10-21-T2B1-macos/).
+  T3B1 hardware, Windows/Linux and camera restores are still being tested.
+  Keep a second way to sign in to important accounts.
+
+### Release contents
+
+Both images, SHA-256 sidecars, `SHA256SUMS`, an SPDX SBOM, `PROVENANCE.json`
+and the corresponding source archive with dependency licenses. The images use
+upstream's public development signing keys and the provisional USB identity
+1209:0001. See the [changelog](https://github.com/jean-voila/feuristic/blob/main/CHANGELOG.md)
+for changes and the [security policy](https://github.com/jean-voila/feuristic/security/policy)
+for private vulnerability reporting.

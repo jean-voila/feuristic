@@ -3,8 +3,8 @@
 
 # Release checklist
 
-Classification: **development candidate; all real-hardware R01–R16 results
-remain NON EXÉCUTÉ until evidence is recorded**. Unchecked items are explicit
+Classification: **public 0.x release, not hardware qualified; real-hardware
+R01–R16 results remain NON EXÉCUTÉ until evidence is recorded**. Unchecked items are explicit
 release gates, not instructions to remove requirements. A stable release needs
 every applicable item below and the complete two-model acceptance matrix.
 
@@ -40,9 +40,10 @@ every applicable item below and the complete two-model acceptance matrix.
 - [ ] Installation states irreversible bootloader/attestation effects and exact model selection.
 - [ ] Guides FR/EN describe actual menus, shared storage, QR limitations, defaults and recovery consequences.
 - [ ] Threat model/security history/release notes reflect actual remaining issues and all test skips.
-- [ ] Tag equals source VERSION; release workflow artifacts reviewed as a draft pre-release before any deliberate publication.
+- [ ] Tag equals source VERSION; release workflow artifacts reviewed as a draft before any deliberate publication.
 
 The [acceptance register](acceptance/README.md) and
 [release procedure](developer/release.md) define the required evidence. A
 candidate can be distributed privately for these tests with unmet hardware
-gates clearly stated; it must not be labelled stable or hardware qualified.
+gates clearly stated, and 0.x releases may be published with those gates listed;
+neither may be labelled stable (1.0) or hardware qualified.

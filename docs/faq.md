@@ -56,9 +56,10 @@ listed as backup identities. Read the [FIDO2 protocol](protocols/fido2.md).
 
 ## Is there a stable release?
 
-The current firmware is a development candidate. A first T2B1/macOS campaign
-passed core workflows; the full two-model and operating-system acceptance
-matrix is incomplete. See [test results](acceptance/campaign-2026-10-21-T2B1-macos.md).
+Version 0.1.0 is the first public release: optimized images without debuglink.
+It is not yet hardware qualified. A first T2B1/macOS campaign passed core
+workflows; the full two-model and operating-system acceptance matrix, required
+for 1.0, is incomplete. See [test results](acceptance/campaign-2026-10-21-T2B1-macos.md).
 
 ## Can I report a vulnerability publicly?
 

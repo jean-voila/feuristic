@@ -8,12 +8,13 @@ description: Download feuristic firmware binaries for Trezor Safe 3 T2B1 and T3B
 
 # Download feuristic firmware
 
-[Open GitHub Releases](https://github.com/jean-voila/feuristic/releases){ .md-button .md-button--primary }
+[Download the latest release](https://github.com/jean-voila/feuristic/releases/latest){ .md-button .md-button--primary }
+[All releases](https://github.com/jean-voila/feuristic/releases){ .md-button }
 
-Use a **tagged development pre-release** while hardware acceptance is unfinished.
-Pre-releases may not appear behind GitHub's `/releases/latest` link; open the
-release list and choose the version explicitly. Published firmware assets are
-public downloads and do not require a GitHub account.
+The latest release contains optimized firmware images without debuglink.
+Release candidates, when they exist, are marked as pre-releases in the full
+list. Published firmware assets are public downloads and do not require a
+GitHub account.
 
 | Your internal model | Download |
 |---|---|

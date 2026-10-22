@@ -97,7 +97,8 @@ def package(inputs: Path, output: Path) -> None:
     repository = os.environ.get("GITHUB_REPOSITORY", "jean-voila/feuristic")
     run_id = os.environ.get("GITHUB_RUN_ID", "local")
     provenance = {
-        "classification": "development candidate; not a stable or manufacturer-signed release",
+        "classification": ("development candidate" if "-" in version.VERSION else "public 0.x release")
+        + "; independent, not manufacturer-signed, not hardware qualified",
         "version": version.VERSION,
         "source": {"repository": "https://github.com/jean-voila/feuristic", "commit": revision},
         "upstream_base": git("ls-tree", "HEAD", "upstream/trezor-firmware").split()[2],
@@ -113,7 +114,7 @@ def package(inputs: Path, output: Path) -> None:
         shutil.copy2(ROOT / name, output / name)
     source_archive(output / f"feuristic-{version.VERSION}-source.tar.gz", f"feuristic-{version.VERSION}")
     (output / "BUILDING.txt").write_text(
-        "feuristic development firmware for Trezor Safe 3\n\n"
+        f"feuristic {version.VERSION} firmware for Trezor Safe 3\n\n"
         f"Source commit: {revision}\n"
         "The source archive includes modified upstream sources, dependency licenses, patches and lockfiles.\n"
         "For the identical Git/Nix build context, clone the repository and check out this commit.\n"

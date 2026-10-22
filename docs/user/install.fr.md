@@ -8,9 +8,9 @@ description: Installer feuristic sur T2B1 ou T3B1 avec le bootloader officiel, S
 
 # Installation pour essais matériels / Hardware test installation
 
-**Firmware de développement pour T2B1 et T3B1.** Les opérations principales
-ont été vérifiées lors d’une première campagne physique T2B1/macOS. La recette
-complète reste à effectuer. Consultez le [rapport](../acceptance/campaign-2026-10-21-T2B1-macos.md).
+**Version 0.x pour T2B1 et T3B1.** Les opérations principales ont été
+vérifiées lors d’une première campagne physique T2B1/macOS. La recette
+matérielle complète est en cours. Consultez le [rapport](../acceptance/campaign-2026-10-21-T2B1-macos.md).
 
 ## Installer en trois étapes
 

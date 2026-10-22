@@ -3,11 +3,11 @@
 
 # User guide — English
 
-**Development candidate for hardware testing, not hardware qualified.** Use test
-identities. Read [installation](install.md) before the irreversible bootloader
+**Release 0.x, not yet fully hardware qualified.** Keep a second way to sign
+in to important accounts. Read [installation](install.md) before the irreversible bootloader
 unlock, which erases storage and removes original manufacturer attestation.
-[R01–R16](../acceptance/README.md) must pass on **both** T2B1 and T3B1 before a
-stable release. feuristic has no cryptocurrency or wallet-seed migration.
+[R01–R16](../acceptance/README.md) must pass on **both** T2B1 and T3B1 before
+version 1.0. feuristic has no cryptocurrency or wallet-seed migration.
 
 ## First boot and two-button controls
 
