@@ -8,7 +8,11 @@ the tapered body, glossy upper face and single split two-button bar. It is an
 independent illustration, not a manufacturer photograph. Screen images are
 actual T2B1 emulator captures with disposable test identities.
 
-With Sketch installed, regenerate from the repository root:
+To refresh the screen captures, build the T2B1 emulator (`make emu MODEL=T2B1`)
+and run `uv run python tools/capture_screens.py`. It drives a disposable
+emulator profile through each screen and updates `docs/assets/screens/` and
+`screen-pixels.json`. With Sketch installed, regenerate the artwork from the
+repository root:
 
 ```sh
 python3 tools/export_artwork.py

@@ -341,6 +341,30 @@ module.exports = function (root) {
             5,
         );
     });
+    const tour = board("screens", 0, 3000, 1600, 840);
+    text(tour, "Title", "Everyday use", 70, 50, 1000, 58, C.ink, 6);
+    text(
+        tour,
+        "Context",
+        "Emulator captures · disposable test identities",
+        74,
+        134,
+        1100,
+        28,
+        C.green,
+        4,
+    );
+    [
+        ["lock-en", "Locked", "PIN on the device", 90],
+        ["passkey-create-en", "Approve", "See the site first", 390],
+        ["passkeys-en", "Passkeys", "Listed per service", 690],
+        ["otp-code-en", "2FA codes", "TOTP and HOTP", 990],
+        ["backup-qr-en", "Backup", "Encrypted QR codes", 1290],
+    ].forEach((v) => {
+        device(tour, v[3], 230, 220, v[0]);
+        text(tour, "Caption " + v[0], v[1], v[3] - 10, 668, 260, 30, C.ink, 6);
+        text(tour, "Detail " + v[0], v[2], v[3] - 10, 714, 260, 22, C.mute, 4);
+    });
     const usb = board("usb-modes", 1740, 1000, 1440, 600);
     text(usb, "Title", "USB interfaces", 64, 55, 1100, 58, C.ink, 6);
     [
@@ -368,7 +392,7 @@ module.exports = function (root) {
     logo.background.enabled = false;
     logo.background.includedInExport = false;
     mark(logo, 0, 0, 128);
-    [hero, heroFr, social, ui, usb, logo].forEach((b) => {
+    [hero, heroFr, social, ui, tour, usb, logo].forEach((b) => {
         // Keep editable text in Sketch, but freeze the wordmark geometry in SVG.
         // Browser font substitution otherwise exposes the original i dot below lime.
         const exported = b.duplicate();
