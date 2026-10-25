@@ -52,6 +52,13 @@ The pinned upstream sources document these effects:
 The warning appears at startup. Removing it or presenting the firmware as
 manufacturer trusted is not part of installation.
 
+**Recommended: start official firmware once before unlocking.** The first time
+official Trezor firmware starts with empty storage, it permanently locks the
+secure-element objects that limit PIN guesses. feuristic keeps using those
+objects but never performs this irreversible lock itself. Most devices have
+already run official firmware; a brand-new device unlocked straight away
+keeps them unlocked. See [hardware security](../hardware-security.md).
+
 ## Prepare the binary and host tools
 
 The commands below run from a prepared repository checkout. Follow
@@ -131,13 +138,42 @@ validate feuristic. The CLI procedure above uses the pinned upstream tools.
 
 ## Updates and recovery
 
-Before updating, export identities and test restoration on another test device.
-Storage preservation across development versions is not guaranteed. Recheck
-the model and checksum, enter the bootloader and reuse `firmware update
---filename`. Do not unlock an already unlocked bootloader again.
+**Updating feuristic keeps your data.** Every feuristic image carries the
+same bootloader vendor header and firmware header version, so the bootloader
+keeps the storage when you install another feuristic image over it. Because
+the header version does not increase, the bootloader asks you to confirm on the
+device. Before updating:
 
-If the application fails to start, use the official bootloader: hold left while
-connecting and upload a known-good image for the exact model. Do not replace the
-boardloader or bootloader and do not use SWD/DFU commands meant for blank boards.
-Follow current manufacturer instructions to return to official firmware; this
-does not recover erased identities or factory attestation.
+1. Export your identities to an encrypted QR backup and keep the passphrase
+   separately.
+2. Recheck the model and checksum of the new image.
+3. Enter the bootloader and run `firmware update --filename` again. Do not
+   unlock an already unlocked bootloader again.
+
+Releases after 0.1.0 refuse at startup, before the PIN, any storage
+written by a newer storage format. If you go back to an older release after
+such a change, the device shows **Data from a newer feuristic**: reinstall
+the newer image, or wipe the device and restore your backup.
+
+**Other firmware may keep your data too.** The bootloader keeps the storage
+for any image under the same `UNSAFE, DO NOT USE!` vendor header, not only
+for feuristic. Such firmware can read your feuristic keys once you enter your
+PIN. Wipe the device (**Settings → Wipe device**, or the bootloader **Factory
+Reset**) before installing firmware you do not trust. Official Trezor firmware
+has a different vendor header, so installing it erases feuristic's storage.
+
+**Forgotten PIN.** After 16 wrong PINs, the device erases its storage. You can
+also erase it at once with the bootloader **Factory Reset**: hold left while
+connecting, open the menu and confirm. Then set feuristic up again and restore
+your backup. Without a backup, passkeys, OTP seeds and card keys are lost;
+register the device again with each service.
+
+**The application does not start.** Use the official bootloader: hold left
+while connecting and upload a known-good image for the exact model. Do not
+replace the boardloader or bootloader and do not use SWD/DFU commands meant
+for blank boards. To return to official firmware, follow the manufacturer's
+current instructions; this erases feuristic's data and does not bring back
+factory attestation.
+
+See [hardware security](../hardware-security.md) for the protections that
+remain after the unlock.

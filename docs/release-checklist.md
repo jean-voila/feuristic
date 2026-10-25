@@ -35,6 +35,7 @@ every applicable item below and the complete two-model acceptance matrix.
 - [ ] [R14](acceptance/R14.md) all categories restore T2B1→T3B1 and T3B1→T2B1, with use verified.
 - [ ] [R15](acceptance/R15.md) consent/PIN/timeout/wipe/cleanup evidence reviewed with runtime limits stated.
 - [ ] [R16](acceptance/R16.md) source, SBOM, licenses and provenance reviewed; acceptance owner signs results.
+- [ ] [Hardware security](hardware-security.md) reviewed: Optiga PIN-object lock state read on each test device with a read-only tool, PIN stretching and the 16-attempt wipe observed on real hardware, `tests/host/test_hardware_invariants.py` passing.
 
 ## Distribution
 

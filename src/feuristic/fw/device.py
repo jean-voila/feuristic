@@ -43,11 +43,33 @@ def is_initialized() -> bool:
     return kv.get(ns.SYS_PUBLIC, ns.SYS_PUB_INITIALIZED, True) == b"\x01"
 
 
+def schema_supported() -> bool:
+    """False if the storage was written by a newer, incompatible schema.
+
+    Every feuristic image carries the same bootloader header version, so the
+    bootloader keeps storage when an older feuristic is installed over a newer
+    one. An older firmware must then refuse the data rather than reinterpret
+    it. The value is public, so it can be checked before the PIN is asked.
+    """
+    raw = kv.get(ns.SYS_PUBLIC, ns.SYS_PUB_SCHEMA, True)
+    return raw is None or len(raw) != 1 or raw[0] <= SCHEMA_VERSION
+
+
 def initialize() -> None:
-    """Create the master secret and mark the device initialised (storage unlocked)."""
+    """Create the master secret and mark the device initialised (storage unlocked).
+
+    A valid master secret that is already stored is kept. It can exist without
+    the public initialised flag only after an interrupted onboarding or a lost
+    flag; replacing it would silently invalidate every U2F key handle and
+    non-discoverable credential derived from it. A device wipe (menu, too
+    many PIN attempts, bootloader) erases it, so a wiped device still gets a
+    fresh secret.
+    """
     global _ms_cache
-    ms = crypto.random_bytes(32, True)
-    kv.set(ns.SYS, ns.SYS_MASTER_SECRET, ms)
+    ms = kv.get(ns.SYS, ns.SYS_MASTER_SECRET)
+    if ms is None or len(ms) != 32:
+        ms = crypto.random_bytes(32, True)
+        kv.set(ns.SYS, ns.SYS_MASTER_SECRET, ms)
     kv.set(ns.SYS_PUBLIC, ns.SYS_PUB_SCHEMA, bytes((SCHEMA_VERSION,)), True)
     kv.set(ns.SYS_PUBLIC, ns.SYS_PUB_INITIALIZED, b"\x01", True)
     _ms_cache = ms

@@ -55,6 +55,14 @@ Preuves dans la base épinglée :
 Cet avertissement revient au démarrage. Le remplacer par un message de
 confiance constructeur n'est pas une étape d'installation.
 
+**Recommandé : démarrer une fois le firmware officiel avant de déverrouiller.**
+La première fois que le firmware officiel Trezor démarre sur un stockage vide,
+il verrouille définitivement les objets de l’élément sécurisé qui limitent les
+essais de PIN. feuristic continue d’utiliser ces objets mais ne réalise jamais
+lui-même ce verrouillage irréversible. La plupart des appareils ont déjà
+exécuté le firmware officiel ; un appareil neuf déverrouillé immédiatement les
+laisse déverrouillés. Voir [sécurité matérielle](../hardware-security.md).
+
 ## Préparer le binaire et les outils
 
 Depuis la racine du dépôt déjà préparé :
@@ -144,15 +152,46 @@ utilise les commandes standard disponibles dans le code amont épinglé.
 
 ## Mise à jour et récupération
 
-Avant une mise à jour feuristic, exporter les identités et effectuer un essai
-réel de restauration sur un autre appareil de test. La conservation du stockage
-entre versions non qualifiées n'est pas une garantie. Vérifier à nouveau
-modèle et empreinte, démarrer en bootloader et réutiliser `firmware update
---filename` ; ne pas déverrouiller à nouveau un appareil déjà déverrouillé.
+**Mettre à jour feuristic conserve vos données.** Toutes les images feuristic
+portent le même en-tête fournisseur et la même version d’en-tête : le
+bootloader conserve donc le stockage quand vous installez une autre image
+feuristic par-dessus. Comme la version d’en-tête n’augmente pas, le
+bootloader demande une confirmation sur l’appareil. Avant de mettre à jour :
 
-Si l'application ne démarre plus, le bootloader officiel constitue le chemin de
-récupération : maintenir gauche à la connexion et flasher un binaire connu du
-bon modèle. Ne pas remplacer boardloader/bootloader et ne pas employer les
-commandes SWD/DFU prévues pour cartes vierges. Un retour au firmware officiel
-doit suivre les instructions actuelles du constructeur ; il ne récupère ni
-les identités effacées ni l'attestation d'usine.
+1. Exportez vos identités dans une sauvegarde QR chiffrée et gardez la phrase
+   de passe à part.
+2. Vérifiez à nouveau le modèle et l’empreinte de la nouvelle image.
+3. Démarrez en bootloader et relancez `firmware update --filename`. Ne
+   déverrouillez pas à nouveau un appareil déjà déverrouillé.
+
+Les versions postérieures à la 0.1.0 refusent au démarrage, avant le PIN, un
+stockage écrit par un format plus récent. Si vous revenez à une version
+antérieure après un tel changement, l’appareil affiche **Données d’un
+feuristic plus récent** : réinstallez l’image plus récente, ou effacez
+l’appareil et restaurez votre sauvegarde.
+
+**Un autre firmware peut aussi conserver vos données.** Le bootloader conserve
+le stockage pour toute image portant le même en-tête fournisseur
+`UNSAFE, DO NOT USE!`, pas seulement feuristic. Un tel firmware peut lire vos
+clés feuristic dès que vous saisissez votre PIN. Effacez l’appareil
+(**Réglages → Effacement intégral**, ou **Factory Reset** dans le bootloader)
+avant d’installer un firmware auquel vous ne faites pas confiance. Le firmware
+officiel Trezor a un autre en-tête fournisseur : l’installer efface le
+stockage de feuristic.
+
+**PIN oublié.** Après 16 PIN faux, l’appareil efface son stockage. Vous pouvez
+aussi l’effacer immédiatement avec **Factory Reset** dans le bootloader :
+maintenez gauche à la connexion, ouvrez le menu et confirmez. Configurez
+ensuite feuristic à nouveau et restaurez votre sauvegarde. Sans sauvegarde,
+les passkeys, secrets OTP et clés de carte sont perdus : enregistrez de
+nouveau l’appareil auprès de chaque service.
+
+**L’application ne démarre plus.** Utilisez le bootloader officiel :
+maintenez gauche à la connexion et envoyez une image connue du bon modèle. Ne
+remplacez ni le boardloader ni le bootloader et n’utilisez pas les commandes
+SWD/DFU prévues pour les cartes vierges. Pour revenir au firmware officiel,
+suivez les instructions actuelles du constructeur ; cela efface les données
+de feuristic et ne restaure pas l’attestation d’usine.
+
+Voir [sécurité matérielle](../hardware-security.md) pour les protections qui
+subsistent après le déverrouillage.

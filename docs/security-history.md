@@ -13,6 +13,22 @@ Security-relevant fixes, by release. Report vulnerabilities as described in
 |---|---|---|---|---|
 | — | — | No security advisories yet (pre-release). | — | — |
 
+## Hardware boundary review — 25 October 2026
+
+Unreleased; not a published advisory or evidence of physical acceptance.
+
+- The threat model stated that installing other firmware wipes storage. The
+  bootloader source shows it keeps storage for any image under the same
+  vendor header (`detect_installation`); every image under the public unsafe
+  header qualifies. Documentation now states this; users should wipe a device
+  that left their control.
+- Storage written by a newer schema is refused before the PIN, so an
+  older image installed over a newer one cannot reinterpret it.
+- Onboarding keeps an existing master secret instead of replacing it.
+- Guard tests keep feuristic away from direct Optiga calls, production-mode
+  builds (irreversible metadata lock) and upstream security code.
+- See [hardware security](hardware-security.md).
+
 ## Host tooling dependency — 22 October 2026
 
 The root and patched upstream host lockfiles now pin certifi 2026.10.19, addressing

@@ -124,6 +124,9 @@ Consequences that shape the design:
   pairing secret: the shielded channel and access to the original attestation keys are lost, but
   the PIN-stretching objects remain usable (upstream continues without the
   shielded channel). FIDO attestation is therefore *self attestation*.
+  feuristic never drives the Optiga directly and never builds in production
+  mode; the object map, the lock state and the reasons for keeping identity
+  keys out of the chip are in [hardware security](hardware-security.md).
 * **Boot screen.** A firmware not signed by SatoshiLabs runs under the
   "UNSAFE, DO NOT USE!" vendor header: a warning and a click are required
   at every boot. This is enforced by the official bootloader and cannot be

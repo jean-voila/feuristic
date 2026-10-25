@@ -17,6 +17,10 @@ TESTS = sorted(p for p in UPY.glob("test_*.py"))
 def test_upy(path):
     with tempfile.TemporaryDirectory() as prof:
         env = dict(os.environ, TREZOR_PROFILE_DIR=prof, SDL_VIDEODRIVER="dummy", MICROPYPATH=f":{UPY}:.")
+        if "FEURISTIC_EMU_BASE_PORT" in os.environ:
+            # Stay below the functional harness range so concurrent
+            # invocations with distinct base ports never share a socket.
+            env["TREZOR_UDP_PORT"] = str(int(os.environ["FEURISTIC_EMU_BASE_PORT"]) - 16)
         arguments = [str(path)]
         if env.get("FEURISTIC_EMU_FROZEN") == "1":
             # Frozen builds have no filesystem mounted. Inject only test code;

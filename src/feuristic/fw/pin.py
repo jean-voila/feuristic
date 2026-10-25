@@ -54,14 +54,24 @@ async def onboarding() -> None:
     device.initialize()
 
 
+def _attempts_hint():
+    """Remaining device PIN attempts, shown once one has been used."""
+    rem = config.get_pin_rem()
+    return (t("pin.attempts", rem) if rem < _STORAGE_MAX_TRIES else ""), rem == 1
+
+
+async def _request_current_pin(wrong: bool = False):
+    # Re-entry and unlock share upstream's 16-attempt budget before the wipe.
+    attempts, last = _attempts_hint()
+    return await screens.request_pin(t("pin.enter"), attempts, wrong=wrong, last=last)
+
+
 async def unlock() -> None:
     """Lockscreen + PIN entry until the storage is unlocked."""
     wrong = False
     while not config.is_unlocked():
         await screens.show_lockscreen()
-        rem = config.get_pin_rem()
-        attempts = t("pin.attempts", rem) if rem < _STORAGE_MAX_TRIES else ""
-        pin = await screens.request_pin(t("pin.enter"), attempts, wrong=wrong, last=rem == 1)
+        pin = await _request_current_pin(wrong)
         if pin is None:
             continue
         if config.unlock(pin, None):
@@ -74,7 +84,7 @@ async def unlock() -> None:
 
 
 async def change_pin() -> bool:
-    old = await screens.request_pin(t("pin.enter"))
+    old = await _request_current_pin()
     if old is None:
         return False
     if not config.check_pin(old, None):
@@ -97,7 +107,7 @@ async def reauthenticate(distinct_from=None) -> bool:
     the user actually entered, after verifying that PIN. Never submit a
     passphrase to the PIN checker: a different phrase must not consume a try.
     """
-    pin = await screens.request_pin(t("pin.enter"))
+    pin = await _request_current_pin()
     if pin is None:
         return False
     raw = None

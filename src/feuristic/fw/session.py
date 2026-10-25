@@ -224,8 +224,19 @@ def _after_unlock() -> None:
     workflow.start_default()
 
 
+async def _refuse_newer_storage() -> None:
+    """Block before the PIN: only reinstalling a newer firmware or wiping helps."""
+    from ..core.i18n import t
+    from ..ui import screens
+
+    while True:
+        await screens.show_info(t("ui.warning"), t("boot.newer_data"))
+
+
 async def _boot() -> None:
     try:
+        if not device.schema_supported():
+            await _refuse_newer_storage()
         if not device.is_initialized() or not config.has_pin():
             if config.has_pin() and not config.is_unlocked():
                 await pin.unlock()

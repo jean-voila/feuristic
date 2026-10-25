@@ -112,6 +112,7 @@ TABLE = (
     ('backup.wrong_passphrase', ('Wrong passphrase or damaged backup. Nothing was changed.', "Phrase incorrecte ou sauvegarde endommagée. Rien n'a été modifié.")),
     ('backup.wrong_passphrase.title', ('Wrong passphrase', 'Phrase incorrecte')),
     ('boot.choose_language', ('Language', 'Langue')),
+    ('boot.newer_data', ('Data from a newer feuristic. Reinstall it, or wipe the device from the bootloader.', "Données d'un feuristic plus récent. Réinstallez-le ou effacez l'appareil depuis le bootloader.")),
     ('boot.set_pin_intro', ('Choose a PIN to protect your keys.', 'Choisissez un PIN pour protéger vos clés.')),
     ('boot.third_party', ('Third-party firmware, not made by Trezor.', 'Firmware tiers, non produit par Trezor.')),
     ('boot.welcome', ('Welcome to feuristic', 'Bienvenue dans feuristic')),

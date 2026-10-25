@@ -34,6 +34,10 @@ STRINGS = {
         "Choose a PIN to protect your keys.",
         "Choisissez un PIN pour protéger vos clés.",
     ),
+    "boot.newer_data": (
+        "Data from a newer feuristic. Reinstall it, or wipe the device from the bootloader.",
+        "Données d'un feuristic plus récent. Réinstallez-le ou effacez l'appareil depuis le bootloader.",
+    ),
     "pin.enter": ("Enter PIN", "Saisir le PIN"),
     "pin.new": ("New PIN", "Nouveau PIN"),
     "pin.repeat": ("Repeat PIN", "Répéter le PIN"),

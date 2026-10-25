@@ -6,6 +6,33 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Fixed
+- Onboarding no longer replaces a master secret that is already stored. After
+  an interrupted setup or a lost initialisation flag, U2F key handles and
+  non-discoverable passkeys stay valid.
+- PIN re-entry before exports, deletions and PIN changes now shows the
+  remaining device PIN attempts, which it shares with unlocking.
+
+### Security
+- The device refuses, before the PIN, storage written by a newer storage
+  schema. The bootloader keeps storage when an older feuristic is installed
+  over a newer one, so an older firmware must not reinterpret that data.
+- Guard tests (`tests/host/test_hardware_invariants.py`) fail if feuristic
+  calls the Optiga directly, patches upstream secure-element, storage, boot or
+  version code, builds in production mode (irreversible Optiga lock) or
+  enables debuglink in release builds.
+- Threat model corrected: installing any firmware under the shared unsafe
+  vendor header keeps the storage; only a different vendor header wipes it.
+
+### Documentation
+- New [hardware security](docs/hardware-security.md) page (EN/FR): Optiga
+  object map, protections kept after the unlock, why identity keys stay out
+  of the secure element, PIN-verification lifetime budget, residual risks and
+  what still needs physical verification.
+- Install guide: update, downgrade, forgotten-PIN and third-party-firmware
+  behaviour stated from the bootloader source; recommendation to start
+  official firmware once before unlocking.
+
 ## [0.1.0] - 2026-10-23
 
 First public release. Optimized firmware builds without debuglink for both
